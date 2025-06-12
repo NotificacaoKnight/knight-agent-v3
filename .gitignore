@@ -1,0 +1,145 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+.coverage
+.coverage.*
+*.cover
+*.log
+.git
+.mypy_cache/
+.pytest_cache/
+.hypothesis/
+
+# Virtual environments
+backend/venv/
+backend/env/
+
+# Django
+*.sqlite3
+*.sqlite3-journal
+backend/media/
+backend/staticfiles/
+backend/static/
+backend/logs/
+
+# Environment variables
+.env
+.env.*
+backend/.env
+frontend/.env
+frontend/.env.local
+frontend/.env.production
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+frontend/node_modules/
+frontend/build/
+frontend/dist/
+frontend/.next/
+frontend/out/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*.swn
+*.bak
+.DS_Store
+
+# Compiled files
+*.com
+*.class
+*.dll
+*.exe
+*.o
+*.so
+
+# Archives
+*.7z
+*.dmg
+*.gz
+*.iso
+*.jar
+*.rar
+*.tar
+*.zip
+
+# OS files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Vector stores and ML models
+backend/vector_store/
+backend/processed_documents/
+*.bin
+*.pkl
+*.h5
+*.onnx
+
+# Temporary files
+*.tmp
+*.temp
+*.cache
+tmp/
+temp/
+
+# Docker volumes (local development)
+postgres_data/
+redis_data/
+media_files/
+static_files/
+ollama_data/
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# Tests
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Sphinx documentation
+docs/_build/
+
+# PyBuilder
+target/
+
+# IPython
+profile_default/
+ipython_config.py

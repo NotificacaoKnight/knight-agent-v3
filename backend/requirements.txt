@@ -1,0 +1,50 @@
+# Django e REST Framework
+Django
+djangorestframework
+django-cors-headers
+python-decouple
+psycopg2-binary
+
+# Autenticação Microsoft
+msal
+cryptography
+PyJWT
+
+# Sistema RAG e LLM
+langchain
+langchain-community
+langchain-openai
+langchain-cohere
+sentence-transformers
+faiss-cpu
+tiktoken
+
+# Processamento de documentos
+docling
+pymupdf
+pypdf
+python-docx
+openpyxl
+python-pptx
+
+# Busca híbrida
+rank-bm25
+
+# Provedores LLM
+cohere
+together
+groq
+openai
+
+# Utilidades
+celery
+redis
+requests
+python-multipart
+Pillow
+
+# Desenvolvimento
+pytest
+pytest-django
+black
+flake8
