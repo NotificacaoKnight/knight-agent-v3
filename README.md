@@ -441,4 +441,4 @@ Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para ma
 
 **Desenvolvido com ❤️ para transformar o atendimento interno das empresas brasileiras**
 
-🏰 **Knight Agent** - *Seu assistente IA corporativo inteligente*
+🏰 **Knight Agent** - *Seu assistente IA corporativo inteligente*# feedforward-vwco
