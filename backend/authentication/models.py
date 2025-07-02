@@ -1,5 +1,6 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
+from django.utils import timezone
 
 class User(AbstractUser):
     microsoft_id = models.CharField(max_length=255, unique=True, null=True, blank=True)
@@ -29,3 +30,7 @@ class UserSession(models.Model):
     
     def __str__(self):
         return f"{self.user.username} - {self.session_token[:10]}..."
+    
+    def is_expired(self):
+        """Check if the session has expired"""
+        return timezone.now() > self.expires_at

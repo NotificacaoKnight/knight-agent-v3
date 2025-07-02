@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Login</title>
+</head>
+<body>
+    <h1>Test Dev Login</h1>
+    <button onclick="testDevLogin()">Test Dev Login</button>
+    <pre id="result"></pre>
+    
+    <script>
+        async function testDevLogin() {
+            const resultEl = document.getElementById('result');
+            
+            try {
+                // First check if dev mode is enabled
+                const checkRes = await fetch('/api/auth/dev/check/');
+                const checkData = await checkRes.json();
+                resultEl.textContent += `Dev mode check: ${JSON.stringify(checkData, null, 2)}\n\n`;
+                
+                // Try login
+                const loginRes = await fetch('/api/auth/dev/login/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({})
+                });
+                
+                const loginData = await loginRes.json();
+                resultEl.textContent += `Login response (${loginRes.status}): ${JSON.stringify(loginData, null, 2)}\n`;
+                
+                if (loginRes.ok && loginData.session_token) {
+                    localStorage.setItem('sessionToken', loginData.session_token);
+                    resultEl.textContent += '\n✅ Token saved to localStorage!';
+                }
+                
+            } catch (error) {
+                resultEl.textContent += `\nError: ${error.message}`;
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { PublicClientApplication } from '@azure/msal-browser';
+import api from '../services/api';
 
 // MSAL configuration
 const msalConfig = {
@@ -31,8 +32,10 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: () => Promise<void>;
+  loginDev: () => Promise<void>;
   logout: () => void;
   error: string | null;
+  isDevMode: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -53,32 +56,62 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isDevMode, setIsDevMode] = useState(false);
 
   useEffect(() => {
-    const initializeMsal = async () => {
+    const initializeAuth = async () => {
       try {
-        await msalInstance.initialize();
+        // Check if user just logged out
+        const justLoggedOut = localStorage.getItem('justLoggedOut');
+        if (justLoggedOut) {
+          localStorage.removeItem('justLoggedOut');
+          setIsLoading(false);
+          return;
+        }
         
-        // Check if user is already logged in
-        const accounts = msalInstance.getAllAccounts();
-        if (accounts.length > 0) {
-          // User is already logged in
-          const account = accounts[0];
-          setUser({
-            id: account.localAccountId,
-            email: account.username,
-            name: account.name || account.username,
-          });
+        // Check if dev mode is enabled first
+        const response = await api.get('/auth/dev/check/');
+        setIsDevMode(response.data.dev_mode);
+        
+        // Check for existing session
+        const sessionToken = localStorage.getItem('sessionToken');
+        if (sessionToken) {
+          try {
+            const profileResponse = await api.get('/auth/profile/');
+            setUser({
+              id: profileResponse.data.id,
+              email: profileResponse.data.email,
+              name: profileResponse.data.preferred_name || profileResponse.data.first_name,
+              preferred_name: profileResponse.data.preferred_name,
+              department: profileResponse.data.department,
+              job_title: profileResponse.data.job_title,
+            });
+          } catch (err) {
+            // Token inválido, remover
+            localStorage.removeItem('sessionToken');
+          }
+        }
+        
+        // Try to initialize MSAL, but don't fail if it doesn't work
+        try {
+          await msalInstance.initialize();
+          
+          // NÃO verificar automaticamente se há contas MSAL
+          // Isso evita login automático após logout
+          // O usuário deve clicar no botão de login
+        } catch (msalError) {
+          console.warn('MSAL initialization failed, but dev mode is still available:', msalError);
+          // Don't set error here, let dev mode work
         }
       } catch (err) {
-        console.error('MSAL initialization failed:', err);
+        console.error('Auth initialization failed:', err);
         setError('Falha na inicialização da autenticação');
       } finally {
         setIsLoading(false);
       }
     };
 
-    initializeMsal();
+    initializeAuth();
   }, []);
 
   const login = async () => {
@@ -94,10 +127,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const response = await msalInstance.loginPopup(loginRequest);
       
       if (response.account) {
+        // Enviar token ao backend para criar sessão
+        const backendResponse = await api.post('/auth/microsoft/token/', {
+          access_token: response.accessToken
+        });
+        
+        // Salvar token da sessão
+        localStorage.setItem('sessionToken', backendResponse.data.session_token);
+        
         setUser({
-          id: response.account.localAccountId,
-          email: response.account.username,
-          name: response.account.name || response.account.username,
+          id: backendResponse.data.user.id,
+          email: backendResponse.data.user.email,
+          name: backendResponse.data.user.preferred_name || backendResponse.data.user.first_name,
+          preferred_name: backendResponse.data.user.preferred_name,
+          department: backendResponse.data.user.department,
+          job_title: backendResponse.data.user.job_title,
         });
       }
     } catch (err: any) {
@@ -108,11 +152,79 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const logout = () => {
-    msalInstance.logoutPopup({
-      postLogoutRedirectUri: window.location.origin,
-    });
-    setUser(null);
+  const loginDev = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      const response = await api.post('/auth/dev/login/', {});
+      
+      // Save session token
+      localStorage.setItem('sessionToken', response.data.session_token);
+      
+      setUser({
+        id: response.data.user.id,
+        email: response.data.user.email,
+        name: response.data.user.preferred_name || response.data.user.first_name,
+        preferred_name: response.data.user.preferred_name,
+        department: response.data.user.department,
+        job_title: response.data.user.job_title,
+      });
+    } catch (err: any) {
+      console.error('Dev login failed:', err);
+      setError(err.response?.data?.error || 'Falha no login de desenvolvedor');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const logout = async () => {
+    try {
+      // Marcar que o usuário fez logout e está em processo de logout
+      localStorage.setItem('justLoggedOut', 'true');
+      setIsLoading(true); // Mostrar loading durante logout
+      
+      // Limpar dados locais imediatamente
+      localStorage.removeItem('sessionToken');
+      setUser(null);
+      
+      // Logout do backend em background (não esperar)
+      const sessionToken = localStorage.getItem('sessionToken');
+      if (sessionToken) {
+        api.post('/auth/logout/', {}).catch(err => 
+          console.error('Backend logout error:', err)
+        );
+      }
+      
+      // Se não for dev mode, fazer logout do MSAL
+      if (!isDevMode) {
+        const accounts = msalInstance.getAllAccounts();
+        if (accounts.length > 0) {
+          try {
+            // Limpar cache localmente
+            await msalInstance.clearCache();
+            
+            // Remover todas as contas localmente
+            for (const account of accounts) {
+              msalInstance.setActiveAccount(null);
+            }
+          } catch (error) {
+            console.error('Error clearing MSAL cache:', error);
+          }
+        }
+      }
+      
+      // Sempre redirecionar para login após limpar tudo
+      setTimeout(() => {
+        window.location.replace('/login');
+      }, 100); // Pequeno delay para garantir que tudo foi limpo
+    } catch (err) {
+      console.error('Logout error:', err);
+      // Em caso de erro, limpar tudo e redirecionar
+      localStorage.removeItem('sessionToken');
+      setUser(null);
+      window.location.href = '/login';
+    }
   };
 
   const value: AuthContextType = {
@@ -120,8 +232,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isAuthenticated: !!user,
     isLoading,
     login,
+    loginDev,
     logout,
     error,
+    isDevMode,
   };
 
   return (
