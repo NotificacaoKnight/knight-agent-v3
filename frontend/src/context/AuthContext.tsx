@@ -32,10 +32,8 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: () => Promise<void>;
-  loginDev: () => Promise<void>;
   logout: () => void;
   error: string | null;
-  isDevMode: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -56,7 +54,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isDevMode, setIsDevMode] = useState(false);
 
   useEffect(() => {
     const initializeAuth = async () => {
@@ -69,9 +66,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           return;
         }
         
-        // Check if dev mode is enabled first
-        const response = await api.get('/auth/dev/check/');
-        setIsDevMode(response.data.dev_mode);
         
         // Check for existing session
         const sessionToken = localStorage.getItem('sessionToken');
@@ -93,16 +87,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
         
         // Try to initialize MSAL, but don't fail if it doesn't work
-        try {
-          await msalInstance.initialize();
-          
-          // NÃO verificar automaticamente se há contas MSAL
-          // Isso evita login automático após logout
-          // O usuário deve clicar no botão de login
-        } catch (msalError) {
-          console.warn('MSAL initialization failed, but dev mode is still available:', msalError);
-          // Don't set error here, let dev mode work
-        }
+        await msalInstance.initialize();
+        
+        // NÃO verificar automaticamente se há contas MSAL
+        // Isso evita login automático após logout
+        // O usuário deve clicar no botão de login
       } catch (err) {
         console.error('Auth initialization failed:', err);
         setError('Falha na inicialização da autenticação');
@@ -152,31 +141,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const loginDev = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-
-      const response = await api.post('/auth/dev/login/', {});
-      
-      // Save session token
-      localStorage.setItem('sessionToken', response.data.session_token);
-      
-      setUser({
-        id: response.data.user.id,
-        email: response.data.user.email,
-        name: response.data.user.preferred_name || response.data.user.first_name,
-        preferred_name: response.data.user.preferred_name,
-        department: response.data.user.department,
-        job_title: response.data.user.job_title,
-      });
-    } catch (err: any) {
-      console.error('Dev login failed:', err);
-      setError(err.response?.data?.error || 'Falha no login de desenvolvedor');
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const logout = async () => {
     try {
@@ -196,21 +160,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         );
       }
       
-      // Se não for dev mode, fazer logout do MSAL
-      if (!isDevMode) {
-        const accounts = msalInstance.getAllAccounts();
-        if (accounts.length > 0) {
-          try {
-            // Limpar cache localmente
-            await msalInstance.clearCache();
-            
-            // Remover todas as contas localmente
-            for (const account of accounts) {
-              msalInstance.setActiveAccount(null);
-            }
-          } catch (error) {
-            console.error('Error clearing MSAL cache:', error);
+      // Fazer logout do MSAL
+      const accounts = msalInstance.getAllAccounts();
+      if (accounts.length > 0) {
+        try {
+          // Limpar cache localmente
+          await msalInstance.clearCache();
+          
+          // Remover todas as contas localmente
+          for (const account of accounts) {
+            msalInstance.setActiveAccount(null);
           }
+        } catch (error) {
+          console.error('Error clearing MSAL cache:', error);
         }
       }
       
@@ -232,10 +194,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isAuthenticated: !!user,
     isLoading,
     login,
-    loginDev,
     logout,
     error,
-    isDevMode,
   };
 
   return (
