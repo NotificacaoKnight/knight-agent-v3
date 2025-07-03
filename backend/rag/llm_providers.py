@@ -328,7 +328,8 @@ class LLMManager:
             'cohere': CohereProvider(),
             'together': TogetherProvider(),
             'groq': GroqProvider(),
-            'ollama': OllamaProvider()
+            'ollama': OllamaProvider(),
+            'mock': MockProvider()
         }
         self.primary_provider = settings.LLM_PROVIDER
         self.fallback_order = ['cohere', 'groq', 'together', 'ollama']
@@ -380,3 +381,63 @@ class LLMManager:
             'error': 'Nenhum provedor LLM disponível',
             'provider': 'none'
         }
+
+
+class MockProvider(LLMProvider):
+    """Provider mock para testes - não precisa de configuração externa"""
+    
+    def generate_response(
+        self, 
+        prompt: str, 
+        context: List[str] = None,
+        max_tokens: int = 1000,
+        temperature: float = 0.7,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """Gera resposta mock para desenvolvimento"""
+        
+        # Resposta baseada no contexto se disponível
+        if context and len(context) > 0:
+            response = f"""Olá! Sou o Knight Agent, seu assistente IA corporativo.
+
+Com base nos documentos disponíveis, posso ajudá-lo com informações sobre:
+• Políticas e procedimentos da empresa
+• Documentos corporativos
+• Manuais e diretrizes
+
+Sua pergunta: "{prompt[:100]}..."
+
+*Esta é uma resposta de teste. Configure um provedor LLM real (Cohere, Groq, etc.) para respostas completas.*
+
+**Documentos consultados:** {len(context)} documentos encontrados."""
+        else:
+            response = f"""Olá! Sou o Knight Agent, seu assistente IA corporativo.
+
+Você perguntou: "{prompt[:100]}..."
+
+Estou aqui para ajudar com:
+• Consultas sobre documentos corporativos
+• Políticas e procedimentos da empresa
+• Informações gerais sobre a organização
+
+*Esta é uma resposta de teste do sistema. Para respostas completas, configure um provedor LLM (Ollama, Cohere, Groq, etc.).*
+
+Para configurar um provedor real, consulte o arquivo .env do projeto."""
+        
+        return {
+            'success': True,
+            'response': response,
+            'provider': 'mock',
+            'model': 'mock-model',
+            'usage': {
+                'input_tokens': len(prompt.split()),
+                'output_tokens': len(response.split()),
+                'total_tokens': len(prompt.split()) + len(response.split())
+            },
+            'response_time': 0.5,
+            'context_used': len(context) > 0 if context else False
+        }
+    
+    def is_available(self) -> bool:
+        """Mock provider está sempre disponível"""
+        return True
