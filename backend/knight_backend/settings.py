@@ -10,13 +10,9 @@ DEBUG = config('DEBUG', default=True, cast=bool)
 
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=lambda v: [s.strip() for s in v.split(',')])
 
-# Developer Mode
-DEV_MODE = config('DEV_MODE', default=False, cast=bool)
-
-# Security settings for development
-if DEV_MODE:
-    CORS_ALLOW_ALL_ORIGINS = True
-    CSRF_TRUSTED_ORIGINS = ['http://localhost:3000', 'http://127.0.0.1:3000']
+# Security settings
+CORS_ALLOW_ALL_ORIGINS = True  # Configure properly for production
+CSRF_TRUSTED_ORIGINS = ['http://localhost:3000', 'http://127.0.0.1:3000']
 
 INSTALLED_APPS = [
     'django.contrib.admin',

@@ -13,15 +13,6 @@ from .models import User, UserSession
 from .services import MicrosoftAuthService
 from .serializers import UserSerializer
 
-@api_view(['POST'])
-@permission_classes([AllowAny])
-def test_post(request):
-    """Endpoint de teste para POST"""
-    return Response({
-        'message': 'POST funcionando',
-        'data': request.data,
-        'headers': dict(request.headers)
-    })
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
@@ -147,71 +138,8 @@ def microsoft_token_login(request):
         return Response({'error': str(e)}, 
                        status=status.HTTP_400_BAD_REQUEST)
 
-@api_view(['POST'])
-@permission_classes([AllowAny])
-@authentication_classes([])  # Desabilita autenticação incluindo CSRF
-def dev_login(request):
-    """Login de desenvolvedor (apenas em DEV_MODE)"""
-    if not settings.DEV_MODE:
-        return Response({'error': 'Modo desenvolvedor não habilitado'}, 
-                       status=status.HTTP_403_FORBIDDEN)
-    
-    # Criar usuário desenvolvedor
-    user, created = User.objects.get_or_create(
-        username='developer',
-        defaults={
-            'email': 'dev@knight-agent.local',
-            'first_name': 'Developer',
-            'last_name': 'Mode',
-            'preferred_name': 'Dev User',
-            'department': 'Development',
-            'job_title': 'Developer',
-            'microsoft_id': 'dev-mode-user',
-            'is_staff': True,
-            'is_superuser': True
-        }
-    )
-    
-    # Criar sessão
-    session_token = str(uuid.uuid4())
-    user_session = UserSession.objects.create(
-        user=user,
-        session_token=session_token,
-        expires_at=timezone.now() + timedelta(hours=8)  # Sessão mais longa para dev
-    )
-    
-    # Login do usuário no Django
-    login(request, user)
-    
-    return Response({
-        'user': UserSerializer(user).data,
-        'session_token': session_token,
-        'expires_at': user_session.expires_at,
-        'dev_mode': True
-    })
 
-@api_view(['GET'])
-@permission_classes([AllowAny])
-@authentication_classes([])  # Desabilita autenticação para este endpoint
-def check_dev_mode(request):
-    """Verifica se o modo desenvolvedor está habilitado"""
-    return Response({
-        'dev_mode': settings.DEV_MODE,
-        'message': 'Modo desenvolvedor ativo' if settings.DEV_MODE else 'Modo produção'
-    })
 
-@api_view(['POST'])
-@permission_classes([AllowAny])
-def test_dev_login(request):
-    """Test endpoint sem verificações complexas"""
-    return Response({
-        'message': 'Test endpoint working',
-        'dev_mode': settings.DEV_MODE,
-        'method': request.method,
-        'headers': dict(request.headers),
-        'user': str(request.user),
-        'auth': str(request.auth),
-    })
 
 @api_view(['POST'])
 @permission_classes([AllowAny])  # Permitir logout mesmo sem autenticação

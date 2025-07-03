@@ -67,8 +67,7 @@ O frontend estará rodando em: http://localhost:3000
 
 1. Abra o navegador em http://localhost:3000
 2. Você verá a tela de login
-3. Como o modo desenvolvedor está ativo, clique em **"Modo Desenvolvedor"** 👨‍💻
-4. Você será autenticado automaticamente como desenvolvedor
+3. Faça login usando suas credenciais do Microsoft Azure AD
 
 ## 4. Serviços Opcionais
 
@@ -102,7 +101,7 @@ celery -A knight_backend worker -l info
 
 ## Troubleshooting
 
-### "Falha no login de desenvolvedor"
+### Problemas de Login
 
 1. **Verificar se o backend está rodando**:
    ```bash
@@ -110,26 +109,17 @@ celery -A knight_backend worker -l info
    # Starting development server at http://127.0.0.1:8000/
    ```
 
-2. **Testar o endpoint diretamente**:
-   ```bash
-   # No diretório raiz do projeto
-   python test_dev_login.py
-   ```
+2. **Verificar configurações do Azure AD**:
+   - Certifique-se de que as credenciais do Azure AD estão configuradas no arquivo .env
+   - Verifique se o redirect URI está configurado corretamente no Azure AD
 
-3. **Verificar o arquivo .env**:
-   ```bash
-   # No diretório backend, verificar se existe:
-   cat backend/.env | grep DEV_MODE
-   # Deve mostrar: DEV_MODE=True
-   ```
-
-4. **Verificar migrações**:
+3. **Verificar migrações**:
    ```bash
    cd backend
    python manage.py migrate
    ```
 
-5. **Verificar logs do console**:
+4. **Verificar logs do console**:
    - Abra o console do navegador (F12)
    - Veja se há erros de rede na aba Network
    - Procure por erros 404, 500 ou CORS
@@ -140,50 +130,21 @@ Se houver problemas de CORS, verifique se o backend está rodando na porta 8000.
 ### Erro de conexão com API
 Certifique-se de que o proxy no package.json está apontando para http://localhost:8000
 
-### Modo desenvolvedor não aparece
-Verifique se `DEV_MODE=True` está definido no arquivo `backend/.env`
+### Erro 403 Forbidden
 
-### Erro 403 Forbidden no Login de Desenvolvedor
+Se você receber erro 403:
 
-Se você receber erro 403 ao clicar no botão "Modo Desenvolvedor":
-
-1. **Teste o backend diretamente**:
-   ```bash
-   # Execute no terminal:
-   curl -X POST http://localhost:8000/api/auth/dev/login/ \
-     -H "Content-Type: application/json" \
-     -d '{}'
-   ```
-   
-   Se funcionar, o problema está no frontend.
-
-2. **Debug no navegador**:
-   - Abra http://localhost:3000
-   - Pressione F12 para abrir o console
-   - Cole e execute:
-   ```javascript
-   fetch('/api/auth/dev/login/', {
-     method: 'POST',
-     headers: {'Content-Type': 'application/json'},
-     body: JSON.stringify({})
-   }).then(r => r.json()).then(console.log)
-   ```
-
-3. **Verificar proxy do React**:
+1. **Verificar proxy do React**:
    - O arquivo `frontend/package.json` deve conter:
    ```json
    "proxy": "http://localhost:8000"
    ```
    
-4. **Reiniciar ambos os servidores**:
+2. **Reiniciar ambos os servidores**:
    - Pare o frontend (Ctrl+C)
    - Pare o backend (Ctrl+C)
    - Inicie o backend primeiro
    - Depois inicie o frontend
-
-5. **Teste alternativo**:
-   - Abra http://localhost:3000/test-login.html
-   - Use os botões de teste nessa página
 
 ## Estrutura dos Serviços
 

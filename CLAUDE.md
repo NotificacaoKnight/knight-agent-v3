@@ -10,7 +10,7 @@ Knight Agent is a corporate AI assistant system built for internal company suppo
 
 The project uses a **microservices-style Django architecture** with separate apps for distinct functionalities:
 
-- **authentication/**: Microsoft Azure AD integration with MSAL + Developer mode for local development
+- **authentication/**: Microsoft Azure AD integration with MSAL
 - **documents/**: Document processing pipeline using Docling + async Celery tasks
 - **rag/**: Hybrid search engine (FAISS vector store + BM25) with multiple LLM provider abstraction
 - **chat/**: Conversational interface with session management
@@ -28,7 +28,7 @@ The project uses a **microservices-style Django architecture** with separate app
 knight-agent/
 ├── backend/                    # Django REST API
 │   ├── knight_backend/         # Main Django settings
-│   ├── authentication/         # Microsoft Azure AD + dev mode
+│   ├── authentication/         # Microsoft Azure AD
 │   ├── documents/              # Document processing pipeline
 │   ├── rag/                    # Hybrid search engine
 │   ├── chat/                   # Chat interface
@@ -77,8 +77,6 @@ python manage.py createsuperuser
 # Create all app migrations at once
 python create_migrations.py
 
-# Reset database (development only)
-python reset_database.py
 
 # Fix migration issues
 ./fix_migrations.sh  # Linux/Mac
@@ -136,12 +134,6 @@ npm run lint:fix  # Auto-fix linting issues
 ### Testing Authentication
 
 ```bash
-# Test developer mode login (from root directory)
-python test_dev_login.py
-
-# Test API endpoints (requires Bearer token)
-curl -X POST http://localhost:8000/api/auth/dev-login/ -H "Content-Type: application/json" -d '{"username": "dev_user"}'
-
 # Test authenticated endpoints
 curl -X GET http://localhost:8000/api/auth/me/ -H "Authorization: Bearer YOUR_TOKEN"
 ```
@@ -170,12 +162,7 @@ docker-compose -f docker-compose.prod.yml up -d
 
 ### Essential Environment Variables (.env)
 
-**Developer Mode (for local development without Azure AD):**
-```env
-DEV_MODE=True  # Enables developer login button
-```
-
-**Microsoft Azure AD (Required for production):**
+**Microsoft Azure AD (Required):**
 ```env
 AZURE_AD_CLIENT_ID=your-client-id
 AZURE_AD_CLIENT_SECRET=your-client-secret
@@ -211,18 +198,17 @@ SEMANTIC_WEIGHT=0.7
 
 ### Authentication System
 
-1. **Dual Authentication Mode**:
-   - Production: Microsoft Azure AD via MSAL
-   - Development: Developer mode button (when `DEV_MODE=True`)
+1. **Authentication**:
+   - Microsoft Azure AD via MSAL
 
 2. **Token Management**:
    - Frontend stores session token in localStorage
    - `api.ts` service automatically includes Bearer token in requests
    - `TokenAuthenticationMiddleware` validates tokens on each request
-   - Sessions expire after 1 hour (8 hours for dev mode)
+   - Sessions expire after 1 hour
 
 3. **Key Files**:
-   - `backend/authentication/views.py`: Login endpoints including `dev_login`
+   - `backend/authentication/views.py`: Login endpoints
    - `backend/authentication/middleware.py`: Token validation middleware
    - `frontend/src/context/AuthContext.tsx`: React authentication state management
    - `frontend/src/services/api.ts`: Axios instance with auth interceptors
@@ -256,16 +242,8 @@ SEMANTIC_WEIGHT=0.7
 - CSRF temporarily disabled for API development (re-enable for production)
 - CORS configured for localhost:3000 with credentials support
 - Custom authentication backend bypasses some Django defaults
-- Developer mode should NEVER be enabled in production
 
 ## Common Issues and Solutions
-
-### "Falha no login de desenvolvedor" (Developer login failure)
-
-1. Check if migrations are applied: `python manage.py migrate`
-2. Verify DEV_MODE=True in backend/.env
-3. Restart Django server after configuration changes
-4. Check browser console for specific errors
 
 ### 403 Forbidden on API calls
 
@@ -276,9 +254,8 @@ SEMANTIC_WEIGHT=0.7
 ### Database errors (no such table)
 
 1. Run `python create_migrations.py` to create all migrations
-2. Or reset database with `python reset_database.py` (development only)
-3. Then apply migrations: `python manage.py migrate`
-4. For migration conflicts, use fix scripts: `./fix_migrations.sh` (Linux/Mac) or `fix_migrations.bat` (Windows)
+2. Then apply migrations: `python manage.py migrate`
+3. For migration conflicts, use fix scripts: `./fix_migrations.sh` (Linux/Mac) or `fix_migrations.bat` (Windows)
 
 ## LLM Provider Switching
 

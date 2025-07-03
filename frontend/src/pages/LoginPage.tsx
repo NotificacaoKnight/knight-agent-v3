@@ -5,7 +5,7 @@ import { Navigate } from 'react-router-dom';
 import { Shield, Moon, Sun } from 'lucide-react';
 
 export const LoginPage: React.FC = () => {
-  const { login, loginDev, isAuthenticated, isLoading, error, isDevMode } = useAuth();
+  const { login, isAuthenticated, isLoading, error } = useAuth();
   const { theme, toggleTheme } = useTheme();
 
   // Redirect if already authenticated
@@ -21,13 +21,6 @@ export const LoginPage: React.FC = () => {
     }
   };
 
-  const handleDevLogin = async () => {
-    try {
-      await loginDev();
-    } catch (err) {
-      console.error('Dev login error:', err);
-    }
-  };
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900 flex items-center justify-center px-4 sm:px:6 lg:px-8">
@@ -96,41 +89,6 @@ export const LoginPage: React.FC = () => {
             )}
           </button>
 
-          {/* Developer Mode Button */}
-          {isDevMode && (
-            <div className="mt-4">
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-gray-300 dark:border-gray-600"></div>
-                </div>
-                <div className="relative flex justify-center text-sm">
-                  <span className="px-2 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400">ou</span>
-                </div>
-              </div>
-              
-              <button
-                onClick={handleDevLogin}
-                disabled={isLoading}
-                className="mt-4 w-full flex items-center justify-center px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm text-base font-medium text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {isLoading ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-700 dark:border-gray-300 mr-2"></div>
-                    Conectando...
-                  </>
-                ) : (
-                  <>
-                    <span className="mr-2">👨‍💻</span>
-                    Modo Desenvolvedor
-                  </>
-                )}
-              </button>
-              
-              <p className="mt-2 text-xs text-center text-gray-500 dark:text-gray-400">
-                Apenas para desenvolvimento e testes
-              </p>
-            </div>
-          )}
 
           {/* Info */}
           <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
