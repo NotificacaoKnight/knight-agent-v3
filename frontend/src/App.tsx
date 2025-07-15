@@ -27,6 +27,7 @@ function App() {
             <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
               <Routes>
                 <Route path="/login" element={<LoginPage />} />
+                <Route path="/logout" element={<Navigate to="/login" replace />} />
                 <Route
                   path="/dashboard"
                   element={

@@ -1,11 +1,23 @@
 import axios from 'axios';
 
+// Função para determinar a base URL da API
+const getApiBaseUrl = () => {
+  // Se REACT_APP_API_URL estiver definida, use-a (para tunnel/produção)
+  if (process.env.REACT_APP_API_URL) {
+    return process.env.REACT_APP_API_URL + '/api';
+  }
+  
+  // Para desenvolvimento local, use proxy relativo
+  return '/api';
+};
+
 // Criar instância do axios com configurações base
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: getApiBaseUrl(),
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true, // Importante para CORS com tunnels
 });
 
 // Interceptor para adicionar token em todas as requisições
