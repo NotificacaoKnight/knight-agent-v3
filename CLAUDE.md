@@ -421,3 +421,67 @@ curl -X POST http://localhost:8000/api/rag/search/ \
 - **API Design**: All endpoints use `/api/` prefix, consistent naming with Django REST Framework
 - **Error Handling**: Always include proper error responses and logging
 - **Authentication**: Use custom middleware for token validation, not Django's default auth
+
+## LocalTunnel for Testing and External Access
+
+### Tunnel Scripts
+
+The project includes scripts for exposing the application via localtunnel for external testing:
+
+```bash
+# Quick tunnel setup (if services are already running)
+./setup-tunnel.sh
+
+# Complete development environment with tunnel
+./start-dev-tunnel.sh
+
+# Restart frontend with tunnel-specific configurations
+./restart-frontend.sh
+```
+
+### Fixed URLs for Consistent Testing
+
+The tunnel system uses **fixed subdomains** to avoid constant Azure AD configuration changes:
+
+- **Frontend**: `https://knight-frontend-dev.loca.lt`
+- **Backend**: `https://knight-backend-dev.loca.lt`
+
+### Azure AD Configuration for Tunnel
+
+**Required Azure AD settings** (see `AZURE_AD_SETUP.md` for details):
+
+```
+Redirect URIs:
+- https://knight-frontend-dev.loca.lt
+- http://localhost:3000
+
+Front-channel logout URLs:
+- Leave empty (prevents white screen after logout)
+```
+
+### Frontend Configuration for Tunnel
+
+The frontend automatically detects tunnel usage via environment variables:
+
+```env
+# frontend/.env
+REACT_APP_API_URL=https://knight-backend-dev.loca.lt  # For tunnel
+DANGEROUSLY_DISABLE_HOST_CHECK=true  # Required for tunnel access
+```
+
+### Tunnel-Specific Commands
+
+```bash
+# Start frontend for tunnel (with host check disabled)
+cd frontend && npm run start:tunnel
+
+# Update CORS settings for tunnel (run once)
+cd backend && python update_tunnel_cors.py
+```
+
+### Testing Documentation
+
+External testers should receive:
+- `TESTING_GUIDE.md`: Complete testing instructions
+- `AZURE_AD_SETUP.md`: Azure AD configuration guide
+- Fixed tunnel URLs for consistent access

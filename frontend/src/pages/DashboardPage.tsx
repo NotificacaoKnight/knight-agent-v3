@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { LogOut, Moon, Sun, MessageSquare, FileText, Download } from 'lucide-react';
@@ -6,6 +7,21 @@ import { LogOut, Moon, Sun, MessageSquare, FileText, Download } from 'lucide-rea
 export const DashboardPage: React.FC = () => {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const navigate = useNavigate();
+
+  const handleNewChat = () => {
+    navigate('/chat');
+  };
+
+  const handleDocuments = () => {
+    // TODO: Implementar página de documentos
+    console.log('Navegando para documentos...');
+  };
+
+  const handleDownloads = () => {
+    // TODO: Implementar página de downloads
+    console.log('Navegando para downloads...');
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -53,7 +69,10 @@ export const DashboardPage: React.FC = () => {
 
         {/* Quick Actions */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 hover:shadow-md transition-shadow cursor-pointer">
+          <div 
+            onClick={handleNewChat}
+            className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 hover:shadow-md transition-shadow cursor-pointer"
+          >
             <div className="flex items-center">
               <div className="p-2 bg-blue-100 dark:bg-blue-900/20 rounded-lg">
                 <MessageSquare className="h-6 w-6 text-blue-600 dark:text-blue-400" />
@@ -69,7 +88,10 @@ export const DashboardPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 hover:shadow-md transition-shadow cursor-pointer">
+          <div 
+            onClick={handleDocuments}
+            className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 hover:shadow-md transition-shadow cursor-pointer"
+          >
             <div className="flex items-center">
               <div className="p-2 bg-green-100 dark:bg-green-900/20 rounded-lg">
                 <FileText className="h-6 w-6 text-green-600 dark:text-green-400" />
@@ -85,7 +107,10 @@ export const DashboardPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 hover:shadow-md transition-shadow cursor-pointer">
+          <div 
+            onClick={handleDownloads}
+            className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 hover:shadow-md transition-shadow cursor-pointer"
+          >
             <div className="flex items-center">
               <div className="p-2 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
                 <Download className="h-6 w-6 text-purple-600 dark:text-purple-400" />

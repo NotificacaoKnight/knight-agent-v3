@@ -7,6 +7,7 @@ import { ThemeProvider } from './context/ThemeContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
+import { ChatPage } from './pages/ChatPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -26,11 +27,20 @@ function App() {
             <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
               <Routes>
                 <Route path="/login" element={<LoginPage />} />
+                <Route path="/logout" element={<Navigate to="/login" replace />} />
                 <Route
                   path="/dashboard"
                   element={
                     <ProtectedRoute>
                       <DashboardPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/chat"
+                  element={
+                    <ProtectedRoute>
+                      <ChatPage />
                     </ProtectedRoute>
                   }
                 />
