@@ -2,6 +2,8 @@ from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from datetime import datetime
+from django.db import models
 from .models import ChatSession, ChatMessage, ChatFeedback
 from .serializers import ChatSessionSerializer, ChatMessageSerializer, ChatFeedbackSerializer
 from .services import KnightChatService
@@ -37,11 +39,37 @@ def send_message(request):
             search_params=request.data.get('search_params', {})
         )
         
-        return Response({
-            'session_id': session.id,
-            'session_title': session.title,
-            **result
-        })
+        # Estruturar resposta no formato esperado pelo frontend
+        if result.get('success'):
+            response_data = {
+                'session_id': session.id,
+                'session_title': session.title,
+                'message': {
+                    'id': str(result.get('message_id', '')),
+                    'type': 'assistant',
+                    'content': result.get('response', ''),
+                    'timestamp': datetime.now().isoformat()
+                },
+                'context_used': result.get('context_used', 0) > 0,
+                'response_time': result.get('response_time_ms', 0)
+            }
+        else:
+            # Em caso de erro, ainda fornecer estrutura básica
+            response_data = {
+                'session_id': session.id,
+                'session_title': session.title,
+                'message': {
+                    'id': str(datetime.now().timestamp()),
+                    'type': 'assistant',
+                    'content': result.get('response', 'Desculpe, ocorreu um erro.'),
+                    'timestamp': datetime.now().isoformat()
+                },
+                'context_used': False,
+                'response_time': result.get('response_time_ms', 0),
+                'error': result.get('error')
+            }
+        
+        return Response(response_data)
         
     except Exception as e:
         return Response({'error': str(e)}, 

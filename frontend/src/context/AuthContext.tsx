@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { PublicClientApplication } from '@azure/msal-browser';
 import api from '../services/api';
 
@@ -16,6 +16,22 @@ const msalConfig = {
 };
 
 const msalInstance = new PublicClientApplication(msalConfig);
+
+// Inicializar MSAL uma única vez no módulo
+let msalInitialized = false;
+const initializeMsal = async () => {
+  if (!msalInitialized) {
+    console.log('🔧 Inicializando MSAL...', {
+      clientId: msalConfig.auth.clientId,
+      authority: msalConfig.auth.authority
+    });
+    await msalInstance.initialize();
+    msalInitialized = true;
+    console.log('🚀 MSAL inicializado globalmente');
+  } else {
+    console.log('✅ MSAL já está inicializado');
+  }
+};
 
 interface User {
   id: string;
@@ -54,44 +70,61 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const isInitialized = useRef(false);
+
+  const fetchUserProfile = useCallback(async () => {
+    console.log('🔍 Buscando perfil do usuário...');
+    try {
+      const profileResponse = await api.get('/auth/profile/');
+      setUser({
+        id: profileResponse.data.id,
+        email: profileResponse.data.email,
+        name: profileResponse.data.preferred_name || profileResponse.data.first_name,
+        preferred_name: profileResponse.data.preferred_name,
+        department: profileResponse.data.department,
+        job_title: profileResponse.data.job_title,
+      });
+      console.log('✅ Perfil carregado com sucesso');
+    } catch (err) {
+      console.log('❌ Token inválido, removendo...');
+      localStorage.removeItem('sessionToken');
+      throw err;
+    }
+  }, []);
 
   useEffect(() => {
+    // Prevenir execução múltipla (StrictMode protection)
+    if (isInitialized.current) {
+      console.log('⚠️ AuthContext já foi inicializado, ignorando...');
+      return;
+    }
+    
     const initializeAuth = async () => {
+      console.log('🚀 Inicializando AuthContext...');
+      isInitialized.current = true;
+      
       try {
         // Check if user just logged out
         const justLoggedOut = localStorage.getItem('justLoggedOut');
         if (justLoggedOut) {
+          console.log('👋 Usuário acabou de fazer logout');
           localStorage.removeItem('justLoggedOut');
           setIsLoading(false);
           return;
         }
         
-        
         // Check for existing session
         const sessionToken = localStorage.getItem('sessionToken');
         if (sessionToken) {
-          try {
-            const profileResponse = await api.get('/auth/profile/');
-            setUser({
-              id: profileResponse.data.id,
-              email: profileResponse.data.email,
-              name: profileResponse.data.preferred_name || profileResponse.data.first_name,
-              preferred_name: profileResponse.data.preferred_name,
-              department: profileResponse.data.department,
-              job_title: profileResponse.data.job_title,
-            });
-          } catch (err) {
-            // Token inválido, remover
-            localStorage.removeItem('sessionToken');
-          }
+          console.log('🔑 Token encontrado, carregando perfil...');
+          await fetchUserProfile();
+        } else {
+          console.log('🔒 Nenhum token encontrado');
         }
         
-        // Try to initialize MSAL, but don't fail if it doesn't work
-        await msalInstance.initialize();
+        // Initialize MSAL
+        await initializeMsal();
         
-        // NÃO verificar automaticamente se há contas MSAL
-        // Isso evita login automático após logout
-        // O usuário deve clicar no botão de login
       } catch (err) {
         console.error('Auth initialization failed:', err);
         setError('Falha na inicialização da autenticação');
@@ -101,12 +134,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
 
     initializeAuth();
-  }, []);
+  }, []); // Array vazio - executa apenas uma vez
 
-  const login = async () => {
+  const login = useCallback(async () => {
+    console.log('🔐 Iniciando login...');
     try {
       setIsLoading(true);
       setError(null);
+
+      // Garantir que MSAL está inicializado
+      if (!msalInstance.getConfiguration().auth.clientId || msalInstance.getConfiguration().auth.clientId === 'your-client-id') {
+        throw new Error('MSAL não está configurado corretamente');
+      }
+
+      // Garantir que está inicializado
+      await initializeMsal();
 
       const loginRequest = {
         scopes: ['User.Read'],
@@ -116,6 +158,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const response = await msalInstance.loginPopup(loginRequest);
       
       if (response.account) {
+        console.log('✅ Login MSAL bem-sucedido, enviando para backend...');
+        
         // Enviar token ao backend para criar sessão
         const backendResponse = await api.post('/auth/microsoft/token/', {
           access_token: response.accessToken
@@ -132,6 +176,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           department: backendResponse.data.user.department,
           job_title: backendResponse.data.user.job_title,
         });
+        
+        console.log('✅ Login completo!');
       }
     } catch (err: any) {
       console.error('Login failed:', err);
@@ -139,21 +185,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
+    console.log('👋 Iniciando logout...');
     try {
-      // Marcar que o usuário fez logout e está em processo de logout
+      // Obter token antes de remover
+      const sessionToken = localStorage.getItem('sessionToken');
+      
+      // Marcar que o usuário fez logout
       localStorage.setItem('justLoggedOut', 'true');
-      setIsLoading(true); // Mostrar loading durante logout
+      setIsLoading(true);
       
       // Limpar dados locais imediatamente
       localStorage.removeItem('sessionToken');
       setUser(null);
       
       // Logout do backend em background (não esperar)
-      const sessionToken = localStorage.getItem('sessionToken');
       if (sessionToken) {
         api.post('/auth/logout/', {}).catch(err => 
           console.error('Backend logout error:', err)
@@ -164,39 +213,37 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const accounts = msalInstance.getAllAccounts();
       if (accounts.length > 0) {
         try {
-          // Limpar cache localmente
           await msalInstance.clearCache();
-          
-          // Remover todas as contas localmente
-          for (const account of accounts) {
-            msalInstance.setActiveAccount(null);
-          }
+          msalInstance.setActiveAccount(null);
         } catch (error) {
           console.error('Error clearing MSAL cache:', error);
         }
       }
       
-      // Sempre redirecionar para login após limpar tudo
+      // Reset do flag de inicialização para permitir novo login
+      isInitialized.current = false;
+      
+      // Redirecionar para login
       setTimeout(() => {
         window.location.replace('/login');
-      }, 100); // Pequeno delay para garantir que tudo foi limpo
+      }, 100);
     } catch (err) {
       console.error('Logout error:', err);
-      // Em caso de erro, limpar tudo e redirecionar
       localStorage.removeItem('sessionToken');
       setUser(null);
+      isInitialized.current = false;
       window.location.href = '/login';
     }
-  };
+  }, []);
 
-  const value: AuthContextType = {
+  const value: AuthContextType = useMemo(() => ({
     user,
     isAuthenticated: !!user,
     isLoading,
     login,
     logout,
     error,
-  };
+  }), [user, isLoading, login, logout, error]);
 
   return (
     <AuthContext.Provider value={value}>

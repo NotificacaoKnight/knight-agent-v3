@@ -2,6 +2,21 @@ import axios from 'axios';
 
 // Função para determinar a base URL da API
 const getApiBaseUrl = () => {
+  console.log('🌐 Detectando API URL...', {
+    hostname: window.location.hostname,
+    env: process.env.REACT_APP_API_URL
+  });
+  
+  // FORÇAR localhost temporariamente para debug
+  const apiUrl = 'http://localhost:8000/api';
+  console.log('🔧 Usando API URL:', apiUrl);
+  return apiUrl;
+  
+  // Se estamos no localhost, usar sempre localhost backend
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    return 'http://localhost:8000/api';
+  }
+  
   // Se REACT_APP_API_URL estiver definida, use-a (para tunnel/produção)
   if (process.env.REACT_APP_API_URL) {
     return process.env.REACT_APP_API_URL + '/api';
@@ -17,7 +32,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  withCredentials: true, // Importante para CORS com tunnels
+  // withCredentials removido para evitar problemas com CORS
 });
 
 // Interceptor para adicionar token em todas as requisições

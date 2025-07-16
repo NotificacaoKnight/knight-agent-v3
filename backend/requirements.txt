@@ -35,6 +35,7 @@ cohere
 together
 groq
 openai
+google-generativeai
 
 # Utilidades
 celery

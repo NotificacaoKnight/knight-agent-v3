@@ -10,9 +10,20 @@ DEBUG = config('DEBUG', default=True, cast=bool)
 
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=lambda v: [s.strip() for s in v.split(',')]) + ['*.loca.lt']
 
-# Security settings - CORS disabled for development
-CORS_ALLOW_ALL_ORIGINS = True  # Configure properly for production
+# Security settings - CORS configuration for development and tunnel
+CORS_ALLOW_ALL_ORIGINS = True  # Temporariamente true para debug
 CSRF_TRUSTED_ORIGINS = ['http://localhost:3000', 'http://127.0.0.1:3000', 'https://*.loca.lt']
+
+# Allowed origins for CORS
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "https://knight-frontend-dev.loca.lt",
+    "https://knight-frontend-dev.loca.lt:3000",  # Para tunnel accessing localhost backend
+]
+
+# Permitir all origins temporariamente para debug
+CORS_ALLOW_ALL_ORIGINS = True
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -121,13 +132,9 @@ REST_FRAMEWORK = {
     'PAGE_SIZE': 20,
 }
 
-# CORS Configuration (commented out because CORS_ALLOW_ALL_ORIGINS=True above)
-# CORS_ALLOWED_ORIGINS = [
-#     "http://localhost:3000",
-#     "http://127.0.0.1:3000",
-# ]
+# CORS configuration is above in the Security settings section
 
-CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_CREDENTIALS = False  # Removido pois usamos token auth, não cookies
 
 CORS_ALLOW_HEADERS = [
     'accept',
@@ -157,13 +164,16 @@ AZURE_AD_TENANT_ID = config('AZURE_AD_TENANT_ID', default='')
 AZURE_AD_REDIRECT_URI = config('AZURE_AD_REDIRECT_URI', default='http://localhost:8000/auth/microsoft/callback/')
 
 # LLM Configuration
-LLM_PROVIDER = config('LLM_PROVIDER', default='cohere')  # cohere, together, groq, ollama
+LLM_PROVIDER = config('LLM_PROVIDER', default='cohere')  # cohere, together, groq, ollama, gemini
 
 # Provider API Keys
 COHERE_API_KEY = config('COHERE_API_KEY', default='')
 TOGETHER_API_KEY = config('TOGETHER_API_KEY', default='')
 GROQ_API_KEY = config('GROQ_API_KEY', default='')
 OPENAI_API_KEY = config('OPENAI_API_KEY', default='')
+GOOGLE_API_KEY = config('GOOGLE_API_KEY', default='')
+GEMINI_API_KEY = config('GEMINI_API_KEY', default='')
+GEMINI_MODEL = config('GEMINI_MODEL', default='gemini-1.5-flash')
 
 # Ollama Configuration (para self-hosted)
 OLLAMA_BASE_URL = config('OLLAMA_BASE_URL', default='http://localhost:11434')
@@ -217,6 +227,6 @@ LOGGING = {
     },
 }
 # LocalTunnel Configuration (integrated above)
-# Note: CORS_ALLOW_ALL_ORIGINS=True handles localtunnel domains
+# Note: CORS configured with specific origins to support credentials
 # ALLOWED_HOSTS includes *.loca.lt
 # CSRF_TRUSTED_ORIGINS includes https://*.loca.lt
