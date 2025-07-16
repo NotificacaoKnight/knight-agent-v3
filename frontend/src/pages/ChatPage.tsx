@@ -81,7 +81,7 @@ export const ChatPage: React.FC = () => {
         toast.success('Resposta baseada em documentos corporativos');
       }
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao enviar mensagem:', error);
       toast.error('Erro ao enviar mensagem. Tente novamente.');
       

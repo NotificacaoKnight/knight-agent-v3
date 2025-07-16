@@ -12,6 +12,7 @@ class TokenAuthenticationMiddleware(MiddlewareMixin):
         
         # Buscar token no header Authorization
         auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+        
         if auth_header.startswith('Bearer '):
             token = auth_header.split(' ')[1]
             

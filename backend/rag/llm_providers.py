@@ -9,6 +9,7 @@ import cohere
 import together
 from groq import Groq
 import openai
+import google.generativeai as genai
 
 class LLMProvider(ABC):
     """Interface abstrata para provedores de LLM"""
@@ -320,6 +321,118 @@ class OllamaProvider(LLMProvider):
         except:
             return False
 
+class GeminiProvider(LLMProvider):
+    """Provedor Google Gemini"""
+    
+    def __init__(self):
+        self.api_key = getattr(settings, 'GOOGLE_API_KEY', None) or getattr(settings, 'GEMINI_API_KEY', None)
+        if self.api_key:
+            genai.configure(api_key=self.api_key)
+            self.model_name = getattr(settings, 'GEMINI_MODEL', 'gemini-1.5-flash')
+            try:
+                self.model = genai.GenerativeModel(self.model_name)
+            except Exception as e:
+                print(f"Erro ao inicializar Gemini: {e}")
+                self.model = None
+        else:
+            self.model = None
+    
+    def generate_response(
+        self, 
+        prompt: str, 
+        context: List[str] = None,
+        max_tokens: int = 1000,
+        temperature: float = 0.7,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """Gera resposta usando Google Gemini"""
+        try:
+            if not self.model:
+                return {
+                    'success': False,
+                    'error': 'Gemini não está configurado ou API key inválida',
+                    'provider': 'gemini'
+                }
+            
+            system_prompt = (
+                "Você é o Knight, um assistente IA interno da empresa. "
+                "Responda sempre em português brasileiro de forma clara e útil. "
+                "Use apenas as informações fornecidas no contexto para responder. "
+                "Se não souber a resposta baseada no contexto fornecido, diga que não tem informações suficientes "
+                "e sugira entrar em contato com o RH ou a pessoa responsável."
+            )
+            
+            if context:
+                context_text = "\n\n".join([f"Documento {i+1}:\n{doc}" for i, doc in enumerate(context)])
+                full_prompt = f"{system_prompt}\n\nContexto:\n{context_text}\n\nPergunta do usuário: {prompt}\n\nResposta:"
+            else:
+                full_prompt = f"{system_prompt}\n\nPergunta do usuário: {prompt}\n\nResposta:"
+            
+            # Configurar parâmetros de geração
+            generation_config = genai.types.GenerationConfig(
+                max_output_tokens=max_tokens,
+                temperature=temperature,
+                top_p=0.9,
+                top_k=40
+            )
+            
+            # Gerar resposta
+            response = self.model.generate_content(
+                full_prompt,
+                generation_config=generation_config,
+                safety_settings=[
+                    {
+                        "category": "HARM_CATEGORY_HARASSMENT",
+                        "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+                    },
+                    {
+                        "category": "HARM_CATEGORY_HATE_SPEECH",
+                        "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+                    },
+                    {
+                        "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                        "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+                    },
+                    {
+                        "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+                        "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+                    }
+                ]
+            )
+            
+            if response.text:
+                return {
+                    'success': True,
+                    'response': response.text,
+                    'model': self.model_name,
+                    'provider': 'gemini',
+                    'documents_used': len(context) if context else 0,
+                    'usage': {
+                        'input_tokens': getattr(response.usage_metadata, 'prompt_token_count', 0),
+                        'output_tokens': getattr(response.usage_metadata, 'candidates_token_count', 0),
+                        'total_tokens': getattr(response.usage_metadata, 'total_token_count', 0)
+                    } if hasattr(response, 'usage_metadata') else {}
+                }
+            else:
+                # Resposta foi bloqueada por filtros de segurança
+                return {
+                    'success': False,
+                    'error': 'Resposta bloqueada pelos filtros de segurança do Gemini',
+                    'provider': 'gemini',
+                    'safety_ratings': getattr(response, 'candidates', [{}])[0].get('safety_ratings', []) if hasattr(response, 'candidates') else []
+                }
+                
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e),
+                'provider': 'gemini'
+            }
+    
+    def is_available(self) -> bool:
+        """Verifica se o Gemini está disponível"""
+        return bool(self.api_key and self.model)
+
 class LLMManager:
     """Gerenciador de provedores LLM com fallback automático"""
     
@@ -329,10 +442,11 @@ class LLMManager:
             'together': TogetherProvider(),
             'groq': GroqProvider(),
             'ollama': OllamaProvider(),
+            'gemini': GeminiProvider(),
             'mock': MockProvider()
         }
         self.primary_provider = settings.LLM_PROVIDER
-        self.fallback_order = ['cohere', 'groq', 'together', 'ollama']
+        self.fallback_order = ['gemini', 'cohere', 'groq', 'together', 'ollama']
     
     def get_available_providers(self) -> List[str]:
         """Lista provedores disponíveis"""

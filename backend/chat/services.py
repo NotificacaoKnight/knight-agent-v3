@@ -47,12 +47,17 @@ class KnightChatService:
                 )
             
             # Buscar contexto relevante
-            search_results, search_query = self.search_service.search(
-                user_message,
-                k=self.max_context_chunks,
-                user=session.user,
-                **(search_params or {})
-            )
+            try:
+                search_results, search_query = self.search_service.search(
+                    user_message,
+                    k=self.max_context_chunks,
+                    user=session.user,
+                    **(search_params or {})
+                )
+            except Exception as search_error:
+                # Se a busca falhar, continuar sem contexto
+                search_results = []
+                search_query = None
             
             # Preparar contexto para o LLM
             context_chunks = []
@@ -86,7 +91,7 @@ class KnightChatService:
                 message_type='assistant',
                 content=llm_response['response'],
                 context_used=context_metadata,
-                search_query_id=search_query.id,
+                search_query_id=search_query.id if search_query else None,
                 llm_provider=llm_response['provider'],
                 llm_model=llm_response.get('model', ''),
                 response_time_ms=response_time
