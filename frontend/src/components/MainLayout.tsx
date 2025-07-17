@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ThemeToggle } from './ThemeToggle';
+import { UserAvatar } from './UserAvatar';
 import {
   Bot,
   BarChart3,
@@ -86,7 +87,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex">
+    <div className="h-screen bg-gray-50 dark:bg-gray-900 flex overflow-hidden">
       {/* Left Sidebar - Menu */}
       <div
         className={`${
@@ -217,9 +218,12 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           </div>
 
           <div className="flex items-center space-x-4">
-            <span className="text-sm text-gray-600 dark:text-gray-400">
-              {user?.name || user?.email}
-            </span>
+            <div className="flex items-center space-x-3">
+              <UserAvatar user={user || {}} size="md" />
+              <span className="text-sm text-gray-600 dark:text-gray-400 hidden sm:block">
+                {user?.name || user?.email}
+              </span>
+            </div>
             
             {/* Right sidebar toggle */}
             <button
@@ -327,6 +331,19 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               </nav>
 
               <div className="border-t border-gray-200 dark:border-gray-700 p-4">
+                <div className="flex items-center space-x-3 mb-4 p-2">
+                  <UserAvatar user={user || {}} size="md" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                      {user?.name || user?.email}
+                    </p>
+                    {user?.department && (
+                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                        {user.department}
+                      </p>
+                    )}
+                  </div>
+                </div>
                 <button
                   onClick={logout}
                   className="w-full p-3 flex items-center hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-red-600 dark:text-red-400"

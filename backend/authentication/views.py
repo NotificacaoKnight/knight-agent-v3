@@ -65,6 +65,14 @@ def microsoft_callback(request):
             }
         )
         
+        # Buscar e salvar foto do perfil (tanto para novos usuários quanto existentes)
+        try:
+            photo_content = MicrosoftAuthService.get_user_photo(token_result['access_token'])
+            if photo_content:
+                MicrosoftAuthService.save_user_photo(user, photo_content)
+        except Exception as e:
+            print(f"Erro ao processar foto do perfil: {str(e)}")
+        
         # Criar sessão
         session_token = str(uuid.uuid4())
         user_session = UserSession.objects.create(
@@ -115,6 +123,14 @@ def microsoft_token_login(request):
                 'job_title': user_info.get('jobTitle', ''),
             }
         )
+        
+        # Buscar e salvar foto do perfil (tanto para novos usuários quanto existentes)
+        try:
+            photo_content = MicrosoftAuthService.get_user_photo(access_token)
+            if photo_content:
+                MicrosoftAuthService.save_user_photo(user, photo_content)
+        except Exception as e:
+            print(f"Erro ao processar foto do perfil: {str(e)}")
         
         # Criar sessão
         session_token = str(uuid.uuid4())

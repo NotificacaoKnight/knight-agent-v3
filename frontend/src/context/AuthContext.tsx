@@ -81,6 +81,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         email: profileResponse.data.email,
         name: profileResponse.data.preferred_name || profileResponse.data.first_name,
         preferred_name: profileResponse.data.preferred_name,
+        profile_picture: profileResponse.data.profile_picture,
         department: profileResponse.data.department,
         job_title: profileResponse.data.job_title,
       });
