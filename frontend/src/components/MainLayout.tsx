@@ -1,22 +1,17 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { useTheme } from '../context/ThemeContext';
 import { ThemeToggle } from './ThemeToggle';
 import {
   Bot,
-  Home,
   BarChart3,
   Settings,
   LogOut,
-  Moon,
-  Sun,
   Menu,
   X,
   MessageSquare,
   ChevronRight,
   ChevronLeft,
-  Clock,
   Plus
 } from 'lucide-react';
 
@@ -40,7 +35,6 @@ interface MainLayoutProps {
 
 export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const { user, logout } = useAuth();
-  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
   const [leftSidebarOpen, setLeftSidebarOpen] = useState(true);

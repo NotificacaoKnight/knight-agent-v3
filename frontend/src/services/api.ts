@@ -7,11 +7,6 @@ const getApiBaseUrl = () => {
     env: process.env.REACT_APP_API_URL
   });
   
-  // FORÇAR localhost temporariamente para debug
-  const apiUrl = 'http://localhost:8000/api';
-  console.log('🔧 Usando API URL:', apiUrl);
-  return apiUrl;
-  
   // Se estamos no localhost, usar sempre localhost backend
   if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
     return 'http://localhost:8000/api';
