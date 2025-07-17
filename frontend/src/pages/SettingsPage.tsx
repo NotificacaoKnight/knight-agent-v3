@@ -1,5 +1,6 @@
 import React from 'react';
 import { MainLayout } from '../components/MainLayout';
+import { UserAvatar } from '../components/UserAvatar';
 import { useAuth } from '../context/AuthContext';
 import { User, Bell, Shield, Palette } from 'lucide-react';
 
@@ -9,7 +10,7 @@ export const SettingsPage: React.FC = () => {
   return (
     <MainLayout>
       <div className="h-full overflow-y-auto">
-        <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="mb-8">
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
               Configurações
@@ -28,6 +29,17 @@ export const SettingsPage: React.FC = () => {
               </h3>
             </div>
             <div className="space-y-3">
+              <div className="flex items-center space-x-3">
+                <UserAvatar user={user || {}} size="lg" />
+                <div>
+                  <h4 className="text-lg font-medium text-gray-900 dark:text-white">
+                    {user?.name || 'Usuário'}
+                  </h4>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Foto sincronizada do Microsoft 365
+                  </p>
+                </div>
+              </div>
               <div>
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Nome</label>
                 <p className="text-gray-900 dark:text-white">{user?.name || 'Não informado'}</p>
@@ -107,7 +119,7 @@ export const SettingsPage: React.FC = () => {
               </div>
             </div>
           </div>
-        </main>
+        </div>
       </div>
     </MainLayout>
   );

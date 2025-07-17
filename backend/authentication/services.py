@@ -3,7 +3,9 @@ import requests
 from datetime import datetime, timedelta
 from django.conf import settings
 from django.core.exceptions import ValidationError
+from django.core.files.base import ContentFile
 import msal
+import base64
 
 class MicrosoftAuthService:
     """Serviço para integração com Microsoft Azure AD"""
@@ -120,3 +122,66 @@ class MicrosoftAuthService:
             raise ValidationError(f"Erro ao renovar token: {result.get('error_description')}")
         
         return result
+    
+    @staticmethod
+    def get_user_photo(access_token):
+        """Busca foto do perfil do usuário no Microsoft Graph"""
+        headers = {
+            'Authorization': f'Bearer {access_token}',
+            'Content-Type': 'application/json'
+        }
+        
+        try:
+            # Primeiro, verificar se o usuário tem uma foto
+            response = requests.get(
+                'https://graph.microsoft.com/v1.0/me/photo',
+                headers=headers
+            )
+            
+            if response.status_code == 404:
+                # Usuário não tem foto de perfil
+                return None
+            
+            if response.status_code != 200:
+                # Outro erro, mas não deve quebrar o login
+                print(f"Erro ao verificar foto do perfil: {response.status_code} - {response.text}")
+                return None
+            
+            # Buscar o conteúdo da foto
+            photo_response = requests.get(
+                'https://graph.microsoft.com/v1.0/me/photo/$value',
+                headers=headers
+            )
+            
+            if photo_response.status_code == 200:
+                return photo_response.content
+            else:
+                print(f"Erro ao baixar foto do perfil: {photo_response.status_code}")
+                return None
+                
+        except Exception as e:
+            # Não deve quebrar o login se a foto falhar
+            print(f"Erro ao buscar foto do usuário: {str(e)}")
+            return None
+    
+    @staticmethod
+    def save_user_photo(user, photo_content):
+        """Salva a foto do perfil do usuário"""
+        if not photo_content:
+            return
+        
+        try:
+            # Criar nome único para o arquivo
+            filename = f"profile_{user.microsoft_id}.jpg"
+            
+            # Salvar a foto no campo ImageField
+            user.profile_picture.save(
+                filename,
+                ContentFile(photo_content),
+                save=True
+            )
+            
+            print(f"Foto do perfil salva para o usuário {user.email}")
+            
+        except Exception as e:
+            print(f"Erro ao salvar foto do perfil: {str(e)}")
