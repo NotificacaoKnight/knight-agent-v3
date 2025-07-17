@@ -10,7 +10,7 @@ export const LoginPage: React.FC = () => {
 
   // Redirect if already authenticated
   if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/chat" replace />;
   }
 
   const handleLogin = async () => {
