@@ -134,7 +134,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
 
     initializeAuth();
-  }, []); // Array vazio - executa apenas uma vez
+  }, [fetchUserProfile]); // Incluir fetchUserProfile na dependência
 
   const login = useCallback(async () => {
     console.log('🔐 Iniciando login...');
