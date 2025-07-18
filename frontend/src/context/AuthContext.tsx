@@ -152,7 +152,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       await initializeMsal();
 
       const loginRequest = {
-        scopes: ['User.Read'],
+        scopes: ['User.Read', 'User.ReadBasic.All'],
         prompt: 'select_account',
       };
 
@@ -174,6 +174,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           email: backendResponse.data.user.email,
           name: backendResponse.data.user.preferred_name || backendResponse.data.user.first_name,
           preferred_name: backendResponse.data.user.preferred_name,
+          profile_picture: backendResponse.data.user.profile_picture,
           department: backendResponse.data.user.department,
           job_title: backendResponse.data.user.job_title,
         });
