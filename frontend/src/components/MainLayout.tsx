@@ -4,15 +4,12 @@ import { useAuth } from '../context/AuthContext';
 import { ThemeToggle } from './ThemeToggle';
 import { UserAvatar } from './UserAvatar';
 import {
-  Bot,
   BarChart3,
   Settings,
   LogOut,
   Menu,
   X,
   MessageSquare,
-  ChevronRight,
-  ChevronLeft,
   Plus
 } from 'lucide-react';
 
@@ -38,7 +35,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [leftSidebarOpen, setLeftSidebarOpen] = useState(true);
+  const [leftSidebarOpen] = useState(true);
   const [rightSidebarOpen, setRightSidebarOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -92,63 +89,121 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       <div
         className={`${
           leftSidebarOpen ? 'w-16' : 'w-0'
-        } bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transition-all duration-300 overflow-hidden flex-shrink-0`}
+        } bg-gray-200 dark:bg-gray-900 transition-all duration-300 overflow-hidden flex-shrink-0`}
       >
         <div className="h-full flex flex-col">
-          {/* Logo */}
-          <div className="h-16 flex items-center justify-center border-b border-gray-200 dark:border-gray-700">
-            <Bot className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-          </div>
-
           {/* Menu Items */}
-          <nav className="flex-1 py-4">
+          <nav className="pt-8 px-2">
             {menuItems.map((item) => {
               const isActive = location.pathname === item.path;
               return (
-                <button
-                  key={item.id}
-                  onClick={() => handleMenuClick(item.path)}
-                  className={`w-full p-3 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors relative group ${
-                    isActive ? 'bg-gray-100 dark:bg-gray-700' : ''
-                  }`}
-                  title={item.label}
-                >
-                  <item.icon
-                    className={`h-5 w-5 ${
-                      isActive
-                        ? 'text-blue-600 dark:text-blue-400'
-                        : 'text-gray-600 dark:text-gray-400'
-                    }`}
-                  />
+                <div key={item.id} className="mb-8 relative">
+                  {/* Indicador curvo na extremidade esquerda */}
                   {isActive && (
-                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-600 dark:bg-blue-400" />
+                    <div 
+                      className="absolute -left-2 top-1/2 transform -translate-y-1/2"
+                      style={{
+                        animation: 'slideInFromLeft 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards'
+                      }}
+                    >
+                      <svg width="7" height="47" viewBox="0 0 7 47" fill="none">
+                        <path 
+                          d="M6.4 23.8983C6.4 17.5 0 18.322 0 0V47C0 31.4661 6.4 30.2966 6.4 23.8983Z" 
+                          fill="#D09320"
+                        />
+                      </svg>
+                    </div>
                   )}
-                  <span className="absolute left-16 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-                    {item.label}
-                  </span>
-                </button>
+                  <button
+                    onClick={() => handleMenuClick(item.path)}
+                    className={`w-8 h-8 flex items-center justify-center rounded-lg relative group mx-auto transition-all duration-300 ${
+                      isActive 
+                        ? 'shadow-lg' 
+                        : 'bg-gray-700 hover:bg-gray-600'
+                    }`}
+                    style={{
+                      backgroundColor: isActive ? '#E09D1E' : undefined,
+                      animation: isActive ? 'fadeToActive 0.4s ease-out' : undefined
+                    }}
+                    title={item.label}
+                  >
+                    <item.icon
+                      className={`h-4 w-4 ${
+                        isActive
+                          ? 'text-white'
+                          : 'group-hover:text-white'
+                      }`}
+                      style={{
+                        color: isActive ? 'white' : '#E09D1E'
+                      }}
+                    />
+                    <span className="absolute left-16 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
+                      {item.label}
+                    </span>
+                  </button>
+                </div>
               );
             })}
           </nav>
 
+          {/* Spacer para empurrar botões para baixo */}
+          <div className="flex-1" />
+
           {/* Bottom Actions */}
-          <div className="border-t border-gray-200 dark:border-gray-700 p-2">
-            <div className="w-full p-3 flex items-center justify-center">
-              <ThemeToggle />
+          <div className="pb-8">
+            {/* User Profile - foto quadrada com cantos arredondados */}
+            <div className="px-2 mb-8">
+              <button
+                onClick={() => navigate('/settings')}
+                className="mx-auto block focus:outline-none"
+                title={user?.name || user?.email || 'Perfil'}
+              >
+                <div className="w-8 h-8 rounded-lg overflow-hidden">
+                  <UserAvatar user={user || {}} size="sm" className="!rounded-lg w-full h-full" />
+                </div>
+              </button>
             </div>
-            <button
-              onClick={logout}
-              className="w-full p-3 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-              title="Sair"
-            >
-              <LogOut className="h-5 w-5 text-red-600 dark:text-red-400" />
-            </button>
+            
+            {/* Logout */}
+            <div className="px-2 mb-8">
+              <button
+                onClick={logout}
+                className="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-700 hover:bg-red-600 transition-all group mx-auto"
+                title="Sair"
+                onMouseEnter={(e) => {
+                  const icon = e.currentTarget.querySelector('svg');
+                  if (icon) icon.style.color = 'white';
+                }}
+                onMouseLeave={(e) => {
+                  const icon = e.currentTarget.querySelector('svg');
+                  if (icon) icon.style.color = '#E09D1E';
+                }}
+              >
+                <LogOut 
+                  className="h-4 w-4 transition-colors" 
+                  style={{ 
+                    color: '#E09D1E',
+                    transition: 'color 0.3s ease'
+                  }}
+                />
+              </button>
+            </div>
+            
+            {/* Divisória */}
+            <div className="mx-3 border-t border-gray-400 dark:border-gray-700 mb-8"></div>
+            
+            {/* Theme Toggle - sem fundo quadrado */}
+            <div className="px-2">
+              <div className="w-8 h-8 flex items-center justify-center mx-auto">
+                <ThemeToggle />
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Chat History Sidebar */}
-      <div className="w-64 bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 flex-shrink-0 hidden md:block">
+      <div className="w-64 bg-gray-100 dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex-shrink-0 hidden md:block">
         <div className="h-full flex flex-col">
           {/* Header */}
           <div className="h-16 px-4 flex items-center justify-between border-b border-gray-200 dark:border-gray-700">
@@ -199,32 +254,13 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             >
               <Menu className="h-5 w-5 text-gray-600 dark:text-gray-400" />
             </button>
-            
-            {/* Left sidebar toggle */}
-            <button
-              onClick={() => setLeftSidebarOpen(!leftSidebarOpen)}
-              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors hidden md:flex"
-            >
-              {leftSidebarOpen ? (
-                <ChevronLeft className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-              ) : (
-                <ChevronRight className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-              )}
-            </button>
 
             <h1 className="ml-4 text-xl font-semibold text-gray-900 dark:text-white">
-              Knight Agent
+              Knight
             </h1>
           </div>
 
           <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-3">
-              <UserAvatar user={user || {}} size="md" />
-              <span className="text-sm text-gray-600 dark:text-gray-400 hidden sm:block">
-                {user?.name || user?.email}
-              </span>
-            </div>
-            
             {/* Right sidebar toggle */}
             <button
               onClick={() => setRightSidebarOpen(!rightSidebarOpen)}
@@ -286,71 +322,126 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         <div className="fixed inset-0 z-50 md:hidden">
           <div className="fixed inset-0 bg-black bg-opacity-50" onClick={() => setMobileMenuOpen(false)} />
           <div className="fixed left-0 top-0 bottom-0 w-64 bg-white dark:bg-gray-800 shadow-lg">
-            <div className="h-full flex flex-col">
-              <div className="h-16 px-4 flex items-center justify-between border-b border-gray-200 dark:border-gray-700">
-                <div className="flex items-center">
-                  <Bot className="h-6 w-6 text-blue-600 dark:text-blue-400 mr-2" />
-                  <span className="font-semibold text-gray-900 dark:text-white">Knight Agent</span>
-                </div>
+            <div className="h-full flex flex-col bg-gray-200 dark:bg-gray-900">
+              <div className="h-16 px-4 flex items-center justify-between border-b border-gray-800">
+                <span className="font-semibold text-white">Knight</span>
                 <button
                   onClick={() => setMobileMenuOpen(false)}
-                  className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                  className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
                 >
-                  <X className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                  <X className="h-5 w-5 text-gray-400" />
                 </button>
               </div>
 
-              <nav className="flex-1 p-4">
+              <nav className="pt-8 px-4">
                 {menuItems.map((item) => {
                   const isActive = location.pathname === item.path;
                   return (
-                    <button
-                      key={item.id}
-                      onClick={() => handleMenuClick(item.path)}
-                      className={`w-full p-3 flex items-center hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors mb-2 ${
-                        isActive ? 'bg-gray-100 dark:bg-gray-700' : ''
-                      }`}
-                    >
-                      <item.icon
-                        className={`h-5 w-5 mr-3 ${
-                          isActive
-                            ? 'text-blue-600 dark:text-blue-400'
-                            : 'text-gray-600 dark:text-gray-400'
+                    <div key={item.id} className="mb-8 relative">
+                      {/* Indicador curvo na extremidade esquerda */}
+                      {isActive && (
+                        <div 
+                          className="absolute -left-4 top-1/2 transform -translate-y-1/2"
+                          style={{
+                            animation: 'slideInFromLeft 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards'
+                          }}
+                        >
+                          <svg width="7" height="47" viewBox="0 0 7 47" fill="none">
+                            <path 
+                              d="M6.4 23.8983C6.4 17.5 0 18.322 0 0V47C0 31.4661 6.4 30.2966 6.4 23.8983Z" 
+                              fill="#D09320"
+                            />
+                          </svg>
+                        </div>
+                      )}
+                      <button
+                        onClick={() => handleMenuClick(item.path)}
+                        className={`w-full h-10 flex items-center px-3 rounded-lg transition-all duration-300 ${
+                          isActive 
+                            ? 'shadow-lg' 
+                            : 'bg-gray-700 hover:bg-gray-600'
                         }`}
-                      />
-                      <span className={`${
-                        isActive
-                          ? 'text-blue-600 dark:text-blue-400'
-                          : 'text-gray-900 dark:text-white'
-                      }`}>
-                        {item.label}
-                      </span>
-                    </button>
+                        style={{
+                          backgroundColor: isActive ? '#E09D1E' : undefined,
+                          animation: isActive ? 'fadeToActive 0.4s ease-out' : undefined
+                        }}
+                      >
+                        <item.icon
+                          className={`h-5 w-5 mr-3 ${
+                            isActive
+                              ? 'text-white'
+                              : ''
+                          }`}
+                          style={{
+                            color: isActive ? 'white' : '#E09D1E'
+                          }}
+                        />
+                        <span className={`font-medium text-sm ${
+                          isActive
+                            ? 'text-white'
+                            : 'text-gray-300'
+                        }`}>
+                          {item.label}
+                        </span>
+                      </button>
+                    </div>
                   );
                 })}
               </nav>
 
-              <div className="border-t border-gray-200 dark:border-gray-700 p-4">
-                <div className="flex items-center space-x-3 mb-4 p-2">
-                  <UserAvatar user={user || {}} size="md" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                      {user?.name || user?.email}
-                    </p>
-                    {user?.department && (
-                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                        {user.department}
-                      </p>
-                    )}
-                  </div>
+              {/* Spacer para empurrar botões para baixo */}
+              <div className="flex-1" />
+
+              <div className="border-t border-gray-800 p-4">
+                {/* User Profile - foto quadrada com cantos arredondados */}
+                <div className="w-full h-10 flex items-center px-3 mb-8">
+                  <button
+                    onClick={() => {
+                      navigate('/settings');
+                      setMobileMenuOpen(false);
+                    }}
+                    className="mr-3 focus:outline-none"
+                  >
+                    <div className="w-10 h-10 rounded-lg overflow-hidden">
+                      <UserAvatar user={user || {}} size="sm" className="!rounded-lg w-full h-full" />
+                    </div>
+                  </button>
+                  <span className="font-medium text-white dark:text-white text-sm">Perfil</span>
                 </div>
+                
+                {/* Logout */}
                 <button
                   onClick={logout}
-                  className="w-full p-3 flex items-center hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-red-600 dark:text-red-400"
+                  className="w-full h-10 flex items-center px-3 rounded-lg bg-gray-700 hover:bg-red-600 transition-all mb-8 group"
+                  onMouseEnter={(e) => {
+                    const icon = e.currentTarget.querySelector('svg');
+                    if (icon) icon.style.color = 'white';
+                  }}
+                  onMouseLeave={(e) => {
+                    const icon = e.currentTarget.querySelector('svg');
+                    if (icon) icon.style.color = '#E09D1E';
+                  }}
                 >
-                  <LogOut className="h-5 w-5 mr-3" />
-                  <span>Sair</span>
+                  <LogOut 
+                    className="h-5 w-5 mr-3 transition-colors" 
+                    style={{ 
+                      color: '#E09D1E',
+                      transition: 'color 0.3s ease'
+                    }}
+                  />
+                  <span className="font-medium text-gray-300 text-sm group-hover:text-white transition-colors">Sair</span>
                 </button>
+                
+                {/* Divisória */}
+                <div className="border-t border-gray-400 dark:border-gray-700 mb-8"></div>
+                
+                {/* Theme Toggle - sem fundo quadrado */}
+                <div className="w-full h-10 flex items-center px-3">
+                  <div className="mr-3">
+                    <ThemeToggle />
+                  </div>
+                  <span className="font-medium text-gray-300 text-sm">Tema</span>
+                </div>
               </div>
             </div>
           </div>

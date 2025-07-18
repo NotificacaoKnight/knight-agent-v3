@@ -4,6 +4,44 @@
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
+/* Custom animations */
+@keyframes slideInFromLeft {
+  0% {
+    transform: translateY(-50%) translateX(-100%) scaleX(0);
+    opacity: 0;
+  }
+  50% {
+    opacity: 0.7;
+  }
+  100% {
+    transform: translateY(-50%) translateX(0) scaleX(1);
+    opacity: 1;
+  }
+}
+
+@keyframes fadeToActive {
+  0% {
+    background-color: rgb(55 65 81); /* gray-700 */
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.02);
+  }
+  100% {
+    background-color: #E09D1E; /* custom amber */
+    transform: scale(1);
+  }
+}
+
+@keyframes fadeToInactive {
+  0% {
+    background-color: #E09D1E; /* custom amber */
+  }
+  100% {
+    background-color: rgb(55 65 81); /* gray-700 */
+  }
+}
+
 @layer base {
   * {
     @apply border-gray-200;
@@ -41,5 +79,15 @@
   
   .chat-message-assistant {
     @apply bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg px-4 py-2 mr-auto max-w-xs lg:max-w-md;
+  }
+  
+  .scrollbar-hide {
+    /* Hide scrollbar for Chrome, Safari and Opera */
+    &::-webkit-scrollbar {
+      display: none;
+    }
+    /* Hide scrollbar for IE, Edge and Firefox */
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
   }
 }

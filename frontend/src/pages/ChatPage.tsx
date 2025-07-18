@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { MainLayout } from '../components/MainLayout';
 import { 
-  Send, 
+  ArrowUp, 
   Bot, 
   User, 
   Loader2 
@@ -24,6 +24,7 @@ export const ChatPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -32,6 +33,18 @@ export const ChatPage: React.FC = () => {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  const adjustTextareaHeight = () => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height = `${Math.max(40, Math.min(textarea.scrollHeight, 150))}px`;
+    }
+  };
+
+  useEffect(() => {
+    adjustTextareaHeight();
+  }, [inputMessage]);
 
   const handleSendMessage = async () => {
     if (!inputMessage.trim() || isLoading) return;
@@ -177,31 +190,44 @@ export const ChatPage: React.FC = () => {
         </div>
 
         {/* Input */}
-        <div className="flex-shrink-0 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
+        <div className="flex-shrink-0 p-4">
           <div className="max-w-4xl mx-auto">
-            <div className="flex items-end space-x-2">
-              <div className="flex-1">
+            <div className="relative border border-gray-300 dark:border-gray-600 rounded-lg bg-transparent focus-within:border-blue-500 dark:focus-within:border-blue-400 transition-colors">
+              {/* Upper section - Text input */}
+              <div className="relative">
                 <textarea
+                  ref={textareaRef}
                   value={inputMessage}
                   onChange={(e) => setInputMessage(e.target.value)}
                   onKeyPress={handleKeyPress}
                   placeholder="Digite sua mensagem..."
-                  className="w-full resize-none bg-transparent text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 focus:border-blue-500 dark:focus:border-blue-400"
+                  className="w-full resize-none bg-transparent text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none px-4 pt-3 pb-2 scrollbar-hide"
                   rows={1}
-                  style={{ minHeight: '40px', maxHeight: '120px' }}
+                  style={{ minHeight: '40px', overflowY: 'auto' }}
                 />
               </div>
-              <button
-                onClick={handleSendMessage}
-                disabled={!inputMessage.trim() || isLoading}
-                className={`p-2.5 rounded-lg transition-colors ${
-                  !inputMessage.trim() || isLoading
-                    ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 cursor-not-allowed'
-                    : 'bg-blue-600 hover:bg-blue-700 text-white'
-                }`}
-              >
-                <Send className="h-5 w-5" />
-              </button>
+              
+              {/* Invisible divider */}
+              <div></div>
+              
+              {/* Bottom section - Features and send button */}
+              <div className="flex items-center justify-between px-4 py-3">
+                <div className="flex items-center space-x-2">
+                  {/* Space for future features */}
+                </div>
+                
+                <button
+                  onClick={handleSendMessage}
+                  disabled={!inputMessage.trim() || isLoading}
+                  className={`w-8 h-8 rounded-lg transition-all duration-200 flex items-center justify-center shadow-sm ${
+                    !inputMessage.trim() || isLoading
+                      ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 cursor-not-allowed opacity-50'
+                      : 'bg-blue-600 hover:bg-blue-700 text-white hover:shadow-[0_0_20px_rgba(59,130,246,0.5)] hover:scale-105 active:scale-95 dark:hover:shadow-[0_0_20px_rgba(59,130,246,0.3)]'
+                  }`}
+                >
+                  <ArrowUp className="h-4 w-4" />
+                </button>
+              </div>
             </div>
           </div>
         </div>

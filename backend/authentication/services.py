@@ -20,7 +20,7 @@ class MicrosoftAuthService:
         )
         
         auth_url = app.get_authorization_request_url(
-            scopes=["User.Read", "offline_access"],
+            scopes=["User.Read", "User.ReadBasic.All", "offline_access"],
             redirect_uri=settings.AZURE_AD_REDIRECT_URI,
             state=state
         )
@@ -38,7 +38,7 @@ class MicrosoftAuthService:
         
         result = app.acquire_token_by_authorization_code(
             code,
-            scopes=["User.Read", "offline_access"],
+            scopes=["User.Read", "User.ReadBasic.All", "offline_access"],
             redirect_uri=settings.AZURE_AD_REDIRECT_URI
         )
         
@@ -115,7 +115,7 @@ class MicrosoftAuthService:
         
         result = app.acquire_token_by_refresh_token(
             refresh_token,
-            scopes=["User.Read", "offline_access"]
+            scopes=["User.Read", "User.ReadBasic.All", "offline_access"]
         )
         
         if "error" in result:

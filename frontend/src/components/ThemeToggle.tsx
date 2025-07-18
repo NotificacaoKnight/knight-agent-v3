@@ -14,7 +14,7 @@ export const ThemeToggle: React.FC = () => {
       <span className="sr-only">Toggle theme</span>
       
       {/* Sun icon - positioned at top */}
-      <span className="z-10 flex h-5 w-5 items-center justify-center">
+      <span className="relative z-0 flex h-5 w-5 items-center justify-center">
         <Sun className={`h-4 w-4 transition-all duration-500 ease-in-out ${
           theme === 'light' 
             ? 'text-yellow-400 opacity-100 scale-100 rotate-0' 
@@ -23,7 +23,7 @@ export const ThemeToggle: React.FC = () => {
       </span>
       
       {/* Moon icon - positioned at bottom */}
-      <span className="z-10 flex h-5 w-5 items-center justify-center">
+      <span className="relative z-0 flex h-5 w-5 items-center justify-center">
         <Moon className={`h-4 w-4 transition-all duration-500 ease-in-out ${
           theme === 'dark' 
             ? 'text-white opacity-100 scale-100 rotate-0' 
@@ -33,7 +33,7 @@ export const ThemeToggle: React.FC = () => {
       
       {/* Toggle ball that covers the opposite icon */}
       <span
-        className={`absolute left-1 h-5 w-5 transform rounded-full shadow-md transition-all duration-500 ease-in-out ${
+        className={`absolute left-1 h-5 w-5 transform rounded-full shadow-md transition-all duration-500 ease-in-out z-50 ${
           theme === 'light' 
             ? 'top-[1.75rem] bg-white' 
             : 'top-1 bg-gray-800'
