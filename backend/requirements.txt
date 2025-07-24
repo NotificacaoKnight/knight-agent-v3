@@ -36,6 +36,7 @@ together
 groq
 openai
 google-generativeai
+agno>=0.1.0
 
 # Utilidades
 celery

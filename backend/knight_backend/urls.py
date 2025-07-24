@@ -2,6 +2,7 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
+from django.views.generic import RedirectView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -10,6 +11,7 @@ urlpatterns = [
     path('api/rag/', include('rag.urls')),
     path('api/chat/', include('chat.urls')),
     path('api/downloads/', include('downloads.urls')),
+    path('favicon.ico', RedirectView.as_view(url='/static/favicon.ico')),
 ]
 
 if settings.DEBUG:

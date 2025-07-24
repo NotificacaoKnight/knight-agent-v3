@@ -321,6 +321,129 @@ class OllamaProvider(LLMProvider):
         except:
             return False
 
+class AgnoProvider(LLMProvider):
+    """Provedor Agno - Framework multi-agente avançado"""
+    
+    def __init__(self):
+        self.model_provider = getattr(settings, 'AGNO_MODEL_PROVIDER', 'openai')
+        self.model_name = getattr(settings, 'AGNO_MODEL_NAME', 'gpt-4o-mini')
+        self.api_key = None
+        self.agent = None
+        
+        # Configurar API key baseado no provider
+        if self.model_provider == 'openai':
+            self.api_key = getattr(settings, 'OPENAI_API_KEY', None)
+        elif self.model_provider == 'cohere':
+            self.api_key = getattr(settings, 'COHERE_API_KEY', None)
+        elif self.model_provider == 'groq':
+            self.api_key = getattr(settings, 'GROQ_API_KEY', None)
+        elif self.model_provider == 'gemini':
+            self.api_key = getattr(settings, 'GOOGLE_API_KEY', None) or getattr(settings, 'GEMINI_API_KEY', None)
+        
+        # Criar agente Agno
+        try:
+            if self.api_key:
+                # Import dinâmico baseado no provider
+                if self.model_provider == 'openai':
+                    from agno.models.openai import OpenAI
+                    model = OpenAI(id=self.model_name, api_key=self.api_key)
+                elif self.model_provider == 'cohere':
+                    from agno.models.cohere import Cohere
+                    model = Cohere(id=self.model_name, api_key=self.api_key)
+                elif self.model_provider == 'groq':
+                    from agno.models.groq import Groq as AgnoGroq
+                    model = AgnoGroq(id=self.model_name, api_key=self.api_key)
+                elif self.model_provider == 'gemini':
+                    from agno.models.google import Gemini
+                    model = Gemini(id=self.model_name, api_key=self.api_key)
+                else:
+                    raise ValueError(f"Provider {self.model_provider} não suportado pelo Agno")
+                
+                from agno.agent import Agent
+                
+                self.agent = Agent(
+                    name="Knight Agent",
+                    role="Assistente IA corporativo",
+                    description="Assistente interno da empresa para responder perguntas baseadas em documentos corporativos",
+                    instructions=[
+                        "Você é o Knight, um assistente IA interno da empresa",
+                        "Responda sempre em português brasileiro de forma clara e útil",
+                        "Use apenas as informações fornecidas no contexto para responder",
+                        "Se não souber a resposta, diga que não tem informações suficientes e sugira entrar em contato com o RH"
+                    ],
+                    model=model,
+                    markdown=True
+                )
+            else:
+                self.agent = None
+        except Exception as e:
+            print(f"Erro ao inicializar Agno: {e}")
+            self.agent = None
+    
+    def generate_response(
+        self, 
+        prompt: str, 
+        context: List[str] = None,
+        max_tokens: int = 1000,
+        temperature: float = 0.7,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """Gera resposta usando Agno"""
+        try:
+            if not self.agent:
+                return {
+                    'success': False,
+                    'error': 'Agente Agno não configurado',
+                    'provider': 'agno'
+                }
+            
+            # Preparar mensagem com contexto
+            if context:
+                context_text = "\n\n".join([f"Documento {i+1}:\n{doc}" for i, doc in enumerate(context)])
+                full_message = f"Contexto:\n{context_text}\n\nPergunta: {prompt}"
+            else:
+                full_message = prompt
+            
+            # Executar agente
+            response = self.agent.run(
+                message=full_message,
+                stream=False
+            )
+            
+            # Extrair resposta baseado no tipo
+            if hasattr(response, 'content'):
+                # Para respostas estruturadas
+                if isinstance(response.content, list) and len(response.content) > 0:
+                    response_text = response.content[0].text if hasattr(response.content[0], 'text') else str(response.content[0])
+                else:
+                    response_text = str(response.content)
+            elif isinstance(response, str):
+                # Para respostas simples em string
+                response_text = response
+            else:
+                # Fallback para outros tipos
+                response_text = str(response)
+            
+            return {
+                'success': True,
+                'response': response_text,
+                'model': f"{self.model_provider}/{self.model_name}",
+                'provider': 'agno',
+                'documents_used': len(context) if context else 0,
+                'agent_name': self.agent.name
+            }
+            
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e),
+                'provider': 'agno'
+            }
+    
+    def is_available(self) -> bool:
+        """Verifica se o Agno está disponível"""
+        return bool(self.agent and self.api_key)
+
 class GeminiProvider(LLMProvider):
     """Provedor Google Gemini"""
     
@@ -443,10 +566,11 @@ class LLMManager:
             'groq': GroqProvider(),
             'ollama': OllamaProvider(),
             'gemini': GeminiProvider(),
+            'agno': AgnoProvider(),
             'mock': MockProvider()
         }
         self.primary_provider = settings.LLM_PROVIDER
-        self.fallback_order = ['gemini', 'cohere', 'groq', 'together', 'ollama']
+        self.fallback_order = ['agno', 'gemini', 'cohere', 'groq', 'together', 'ollama']
     
     def get_available_providers(self) -> List[str]:
         """Lista provedores disponíveis"""

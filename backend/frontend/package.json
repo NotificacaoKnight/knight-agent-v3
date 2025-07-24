@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "react-scripts": "^5.0.1"
+  },
+  "devDependencies": {
+    "patch-package": "^8.0.0"
+  }
+}

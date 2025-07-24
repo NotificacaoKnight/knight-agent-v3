@@ -260,12 +260,31 @@ SEMANTIC_WEIGHT=0.7
 ## LLM Provider Switching
 
 The system uses a provider abstraction that allows runtime switching between:
+- **Agno**: Advanced multi-agent framework with high performance (agents initialize in ~3μs)
 - **Cohere**: Best for RAG with native document support
 - **Groq**: Fastest inference (<500ms)
 - **Together AI**: Open-source model variety
 - **Ollama**: Self-hosted for data privacy
+- **Gemini**: Google's powerful multimodal model
 
 Change providers by updating `LLM_PROVIDER` environment variable. Fallback order is configurable in `rag/llm_providers.py`.
+
+### Agno Provider Configuration
+
+Agno is a powerful multi-agent framework that supports 23+ model providers. To use Agno:
+
+```env
+LLM_PROVIDER=agno
+AGNO_MODEL_PROVIDER=openai  # or cohere, groq, etc
+AGNO_MODEL_NAME=gpt-4o-mini
+```
+
+Agno provides:
+- Native multi-modal support (text, image, audio, video)
+- Built-in memory and session storage
+- Advanced reasoning capabilities
+- Agentic RAG with async performance
+- Support for multiple vector databases
 
 ## Portuguese Optimization
 

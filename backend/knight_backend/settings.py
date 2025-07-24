@@ -175,6 +175,10 @@ GOOGLE_API_KEY = config('GOOGLE_API_KEY', default='')
 GEMINI_API_KEY = config('GEMINI_API_KEY', default='')
 GEMINI_MODEL = config('GEMINI_MODEL', default='gemini-1.5-flash')
 
+# Agno Configuration
+AGNO_MODEL_PROVIDER = config('AGNO_MODEL_PROVIDER', default='openai')
+AGNO_MODEL_NAME = config('AGNO_MODEL_NAME', default='gpt-4o-mini')
+
 # Ollama Configuration (para self-hosted)
 OLLAMA_BASE_URL = config('OLLAMA_BASE_URL', default='http://localhost:11434')
 OLLAMA_MODEL = config('OLLAMA_MODEL', default='llama3.2')
