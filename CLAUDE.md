@@ -185,6 +185,11 @@ OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_MODEL=llama3.2
 ```
 
+**MongoDB Atlas Vector Database:**
+```env
+MONGODB_URL=mongodb+srv://username:password@cluster.mongodb.net/knight_agno
+```
+
 **RAG Configuration (Pre-optimized for Portuguese):**
 ```env
 EMBEDDING_MODEL=BAAI/bge-m3
@@ -233,9 +238,23 @@ SEMANTIC_WEIGHT=0.7
 
 ### Document Processing Pipeline
 
+The system supports two processing approaches:
+
+**1. Async Processing (Production)**:
 - Upload → Celery task → Docling conversion → Chunking → Embedding → Indexing
 - Status tracking through `ProcessingJob` model
 - Error handling with retry logic
+
+**2. Sync Processing (Development)**:
+- Upload → `simple_processor.py` → Agno framework → MongoDB Atlas + FAISS
+- Direct processing without Celery dependency
+- Guaranteed MongoDB indexing with fallback system
+
+**Key Components**:
+- `documents/simple_processor.py`: Synchronous document processing using Agno
+- `documents/agno_document_service.py`: Agno framework integration with hybrid storage
+- `documents/mongodb_direct_indexer.py`: Guaranteed MongoDB indexing with synthetic embeddings
+- `documents/async_service_wrapper.py`: Multi-user async document processing
 
 ## Security Considerations
 
@@ -299,9 +318,14 @@ Agno provides:
 ### Backend Key Files
 - `backend/knight_backend/settings.py`: Main Django configuration
 - `backend/authentication/middleware.py`: Custom token authentication
-- `backend/rag/llm_providers.py`: LLM provider abstraction layer
-- `backend/rag/services.py`: Hybrid search implementation
-- `backend/documents/tasks.py`: Celery async document processing
+- `backend/rag/llm_providers.py`: LLM provider abstraction layer with multiple providers
+- `backend/rag/services.py`: Hybrid search implementation (FAISS + BM25)
+- `backend/documents/simple_processor.py`: Synchronous document processing
+- `backend/documents/agno_document_service.py`: Agno framework integration
+- `backend/documents/mongodb_direct_indexer.py`: MongoDB Atlas vector database integration
+- `backend/documents/views.py`: Document management with complete deletion support
+- `backend/chat/services.py`: Chat system with RAG integration
+- `backend/chat/transcription_service.py`: Audio transcription capabilities
 - `backend/create_migrations.py`: Utility to create migrations for all apps
 - `backend/reset_database.py`: Development database reset utility
 
@@ -310,6 +334,9 @@ Agno provides:
 - `frontend/src/context/AuthContext.tsx`: Global authentication state
 - `frontend/src/services/api.ts`: Centralized API client with auth interceptors
 - `frontend/src/pages/LoginPage.tsx`: Microsoft Azure AD login interface
+- `frontend/src/pages/ChatPage.tsx`: Enhanced chat interface with audio recording
+- `frontend/src/pages/DocumentsPage.tsx`: Complete document management interface
+- `frontend/src/hooks/useAudioRecording.ts`: Audio recording functionality
 - `frontend/tailwind.config.js`: Custom knight-* color scheme configuration
 
 ### Configuration Files
@@ -441,6 +468,20 @@ curl -X POST http://localhost:8000/api/rag/search/ \
 - **API Design**: All endpoints use `/api/` prefix, consistent naming with Django REST Framework
 - **Error Handling**: Always include proper error responses and logging
 - **Authentication**: Use custom middleware for token validation, not Django's default auth
+
+### Document Management Best Practices
+
+**Complete Document Deletion**: When deleting documents via the interface, the system automatically removes from:
+- Django database (Document, DocumentChunk, ProcessingJob models)
+- MongoDB Atlas vector database
+- FAISS local index
+- Physical files (original + processed markdown)
+
+**Document Processing Flow**:
+1. Upload via DocumentsPage → Django model created
+2. `simple_processor.py` → Agno framework processing
+3. Parallel indexing → MongoDB Atlas + FAISS fallback
+4. MongoDB backup → `mongodb_direct_indexer.py` ensures indexing
 
 ## LocalTunnel for Testing and External Access
 
