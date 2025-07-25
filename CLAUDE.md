@@ -285,6 +285,7 @@ Agno provides:
 - Advanced reasoning capabilities
 - Agentic RAG with async performance
 - Support for multiple vector databases
+- Audio transcription via Gemini (no OpenAI Whisper needed)
 
 ## Portuguese Optimization
 
