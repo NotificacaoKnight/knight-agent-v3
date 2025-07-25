@@ -11,8 +11,7 @@ export const DashboardPage: React.FC = () => {
   };
 
   const handleDocuments = () => {
-    // TODO: Implementar página de documentos
-    console.log('Navegando para documentos...');
+    navigate('/documents');
   };
 
   const handleDownloads = () => {

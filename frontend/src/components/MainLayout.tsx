@@ -10,7 +10,8 @@ import {
   Menu,
   X,
   MessageSquare,
-  Plus
+  Plus,
+  FileText
 } from 'lucide-react';
 
 interface SidebarItem {
@@ -43,6 +44,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const menuItems: SidebarItem[] = [
     { id: 'chat', label: 'Chat', icon: MessageSquare, path: '/chat' },
     { id: 'dashboard', label: 'Dashboard', icon: BarChart3, path: '/dashboard' },
+    { id: 'documents', label: 'Documentos', icon: FileText, path: '/documents' },
     { id: 'settings', label: 'Configurações', icon: Settings, path: '/settings' },
   ];
 

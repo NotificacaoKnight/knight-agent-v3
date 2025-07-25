@@ -89,6 +89,17 @@ export interface SendMessageResponse {
   response_time: number;
 }
 
+export interface TranscribeAudioResponse {
+  transcription: string;
+  language: string;
+  model: string;
+}
+
+export interface SendAudioMessageResponse extends SendMessageResponse {
+  transcription: string;
+  audio_processed: boolean;
+}
+
 // Funções da API de chat
 export const chatApi = {
   // Enviar mensagem
@@ -134,6 +145,36 @@ export const chatApi = {
   // Obter estatísticas do chat
   getChatStats: async (): Promise<any> => {
     const response = await api.get('/chat/stats/');
+    return response.data;
+  },
+
+  // Transcrever áudio
+  transcribeAudio: async (audioBlob: Blob): Promise<TranscribeAudioResponse> => {
+    const formData = new FormData();
+    formData.append('audio', audioBlob, 'audio.webm');
+
+    const response = await api.post('/chat/transcribe/', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
+
+  // Enviar mensagem de áudio (transcreve e processa)
+  sendAudioMessage: async (audioBlob: Blob, sessionId?: string): Promise<SendAudioMessageResponse> => {
+    const formData = new FormData();
+    formData.append('audio', audioBlob, 'audio.webm');
+    
+    if (sessionId) {
+      formData.append('session_id', sessionId);
+    }
+
+    const response = await api.post('/chat/send-audio/', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
     return response.data;
   },
 };
