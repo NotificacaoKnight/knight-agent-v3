@@ -6,6 +6,7 @@ from django.conf import settings
 from documents.models import Document
 from rag.services import HybridSearchService
 from rag.llm_providers import LLMManager
+from documents.agno_document_service import AgnoDocumentService
 from .models import ChatSession, ChatMessage, DocumentRequest
 
 class KnightChatService:
@@ -13,9 +14,11 @@ class KnightChatService:
     
     def __init__(self):
         self.search_service = HybridSearchService()
+        self.agno_service = AgnoDocumentService()
         self.llm_manager = LLMManager()
         self.max_context_chunks = 5
         self.max_context_length = 4000
+        self.use_agno_search = getattr(settings, 'USE_AGNO_SEARCH', True)
     
     def process_message(
         self, 
@@ -48,12 +51,35 @@ class KnightChatService:
             
             # Buscar contexto relevante
             try:
-                search_results, search_query = self.search_service.search(
-                    user_message,
-                    k=self.max_context_chunks,
-                    user=session.user,
-                    **(search_params or {})
-                )
+                if self.use_agno_search:
+                    # Usar Agno para busca de contexto
+                    search_results = self.agno_service.search_documents(
+                        query=user_message,
+                        limit=self.max_context_chunks
+                    )
+                    search_query = None  # Agno gerencia queries internamente
+                    
+                    # Converter resultados do Agno para formato compatível
+                    formatted_results = []
+                    for result in search_results:
+                        # Garantir que temos um document_id válido
+                        doc_id = result.get('document_id') or result.get('metadata', {}).get('document_id') or result.get('id', 'unknown')
+                        
+                        formatted_results.append({
+                            'content': result.get('content', ''),
+                            'document_id': doc_id,
+                            'chunk_id': result.get('id', ''),
+                            'combined_score': result.get('score', 0.0)
+                        })
+                    search_results = formatted_results
+                else:
+                    # Usar sistema híbrido tradicional
+                    search_results, search_query = self.search_service.search(
+                        user_message,
+                        k=self.max_context_chunks,
+                        user=session.user,
+                        **(search_params or {})
+                    )
             except Exception as search_error:
                 # Se a busca falhar, continuar sem contexto
                 search_results = []
@@ -72,11 +98,53 @@ class KnightChatService:
                         'score': result['combined_score']
                     })
             
-            # Gerar resposta
+            # Gerar resposta com contexto de fontes
+            source_info = []
+            for i, result in enumerate(search_results[:len(context_chunks)]):
+                # Buscar informações do documento original
+                try:
+                    from documents.models import Document
+                    doc_id = result['document_id']
+                    
+                    # Se for um ID numérico, buscar no banco
+                    if doc_id.isdigit():
+                        doc = Document.objects.get(id=int(doc_id))
+                        source_info.append({
+                            'index': i + 1,
+                            'title': doc.title,
+                            'filename': doc.original_filename,
+                            'score': result['combined_score']
+                        })
+                    else:
+                        # Para IDs de teste ou metadados, usar informações do resultado
+                        title = result.get('metadata', {}).get('title', f'Documento {doc_id}')
+                        source_info.append({
+                            'index': i + 1,
+                            'title': title,
+                            'filename': 'Documento de teste',
+                            'score': result['combined_score']
+                        })
+                except (Document.DoesNotExist, ValueError):
+                    # Usar informações dos metadados se disponíveis
+                    title = result.get('metadata', {}).get('title', f'Documento {result["document_id"]}')
+                    source_info.append({
+                        'index': i + 1,
+                        'title': title,
+                        'filename': 'N/A',
+                        'score': result['combined_score']
+                    })
+            
+            # Preparar prompt com instruções para citar fontes
+            enhanced_prompt = self._prepare_prompt_with_citations(
+                user_message, 
+                context_chunks, 
+                source_info
+            )
+            
             llm_response = self.llm_manager.generate_response(
-                prompt=user_message,
+                prompt=enhanced_prompt,
                 context=context_chunks,
-                max_tokens=1000,
+                max_tokens=1200,  # Aumentar para acomodar citações
                 temperature=0.7
             )
             
@@ -110,6 +178,7 @@ class KnightChatService:
                 'message_id': assistant_msg.id,
                 'context_used': len(context_chunks),
                 'search_results': len(search_results),
+                'sources': source_info,
                 'response_time_ms': response_time,
                 'provider_used': llm_response['provider'],
                 'fallback_used': llm_response.get('fallback_used', False)
@@ -313,3 +382,44 @@ class KnightChatService:
             })
         
         return session_list
+    
+    def _prepare_prompt_with_citations(
+        self, 
+        user_message: str, 
+        context_chunks: List[str], 
+        source_info: List[Dict[str, Any]]
+    ) -> str:
+        """Prepara prompt com instruções para incluir citações"""
+        
+        if not context_chunks:
+            return user_message
+        
+        # Preparar lista de fontes
+        sources_list = []
+        for source in source_info:
+            sources_list.append(f"[{source['index']}] {source['title']}")
+        
+        # Montar contexto numerado
+        numbered_context = []
+        for i, chunk in enumerate(context_chunks):
+            numbered_context.append(f"[Fonte {i+1}]\n{chunk}")
+        
+        enhanced_prompt = f"""Baseando-se nas informações fornecidas abaixo, responda à pergunta do usuário de forma clara e precisa em português brasileiro.
+
+IMPORTANTE: 
+- Sempre que usar informações do contexto, cite a fonte usando o formato [1], [2], etc.
+- Se não tiver informações suficientes no contexto, diga isso claramente
+- Seja específico e objetivo nas respostas
+- Use um tom profissional e prestativo
+
+CONTEXTO DISPONÍVEL:
+{chr(10).join(numbered_context)}
+
+FONTES:
+{chr(10).join(sources_list)}
+
+PERGUNTA DO USUÁRIO: {user_message}
+
+RESPOSTA:"""
+        
+        return enhanced_prompt

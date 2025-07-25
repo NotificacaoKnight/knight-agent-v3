@@ -3,10 +3,15 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from django.http import JsonResponse
+from django.views.decorators.http import require_http_methods
+from django.contrib.auth.decorators import login_required
 import logging
+import json
 
 from .services import HybridSearchService
 from .llm_providers import LLMManager
+from .embedding_cache import embedding_cache
+from .http_pool import http_pool
 
 logger = logging.getLogger(__name__)
 
@@ -160,3 +165,69 @@ class LLMTestView(APIView):
                 {'error': f'Internal server error: {str(e)}'}, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+class EmbeddingCacheStatsView(APIView):
+    """View para estatísticas do cache de embeddings"""
+    permission_classes = [AllowAny]
+    
+    def get(self, request):
+        """Retorna estatísticas do cache de embeddings"""
+        try:
+            stats = embedding_cache.get_stats()
+            return Response({
+                'success': True,
+                'cache_stats': stats
+            }, status=status.HTTP_200_OK)
+        except Exception as e:
+            logger.error(f"Erro ao obter estatísticas do cache: {e}")
+            return Response({
+                'success': False,
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class EmbeddingCacheClearView(APIView):
+    """View para limpar cache de embeddings"""
+    permission_classes = [AllowAny]
+    
+    def post(self, request):
+        """Limpa cache de embeddings antigo"""
+        try:
+            max_age_days = request.data.get('max_age_days', 30)
+            
+            cleared = embedding_cache.clear_cache(max_age_days)
+            
+            return Response({
+                'success': True,
+                'cleared': cleared,
+                'message': f"Cache limpo: {cleared['memory']} entradas de memória, {cleared['disk']} arquivos de disco"
+            }, status=status.HTTP_200_OK)
+        except Exception as e:
+            logger.error(f"Erro ao limpar cache: {e}")
+            return Response({
+                'success': False,
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class HTTPPoolStatsView(APIView):
+    """View para estatísticas do connection pooling HTTP"""
+    permission_classes = [AllowAny]
+    
+    def get(self, request):
+        """Retorna estatísticas do pool de conexões HTTP"""
+        try:
+            stats = http_pool.get_stats()
+            
+            # Adicionar estatísticas do cache também
+            cache_stats = embedding_cache.get_stats()
+            
+            return Response({
+                'success': True,
+                'http_pool': stats,
+                'embedding_cache': cache_stats
+            }, status=status.HTTP_200_OK)
+        except Exception as e:
+            logger.error(f"Erro ao obter estatísticas do pool HTTP: {e}")
+            return Response({
+                'success': False,
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

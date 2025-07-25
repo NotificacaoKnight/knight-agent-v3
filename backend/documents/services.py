@@ -133,12 +133,20 @@ class DocumentProcessor:
     def _process_word(self, document_path: str, output_dir: str) -> Dict:
         """Processa documentos Word"""
         try:
+            print(f"🔄 Processando arquivo Word: {document_path}")
+            
             # Usar Docling primeiro
-            result: ConversionResult = self.converter.convert(document_path)
-            markdown_content = result.document.export_to_markdown()
+            try:
+                result: ConversionResult = self.converter.convert(document_path)
+                markdown_content = result.document.export_to_markdown()
+                print(f"✅ Docling conversão bem-sucedida: {len(markdown_content)} caracteres")
+            except Exception as docling_error:
+                print(f"❌ Erro no Docling: {docling_error}")
+                markdown_content = ""
             
             if not markdown_content.strip():
                 # Fallback para python-docx
+                print("🔄 Usando fallback python-docx")
                 doc = DocxDocument(document_path)
                 paragraphs = []
                 
@@ -161,7 +169,7 @@ class DocumentProcessor:
             metadata = {
                 'paragraphs': len(doc.paragraphs) if 'doc' in locals() else 0,
                 'text_length': len(markdown_content),
-                'processing_method': 'docling' if result else 'python-docx'
+                'processing_method': 'docling' if 'result' in locals() and result else 'python-docx'
             }
             
             output_path = os.path.join(output_dir, f"{Path(document_path).stem}.md")

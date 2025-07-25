@@ -2,7 +2,7 @@ from rest_framework import serializers
 from .models import Document, DocumentChunk, ProcessingJob
 
 class DocumentSerializer(serializers.ModelSerializer):
-    uploaded_by_name = serializers.CharField(source='uploaded_by.preferred_name', read_only=True)
+    uploaded_by_name = serializers.SerializerMethodField()
     file_size_mb = serializers.SerializerMethodField()
     chunks_count = serializers.SerializerMethodField()
     
@@ -19,11 +19,20 @@ class DocumentSerializer(serializers.ModelSerializer):
             'uploaded_by', 'uploaded_at', 'processed_at', 'updated_at', 'metadata'
         ]
     
+    def get_uploaded_by_name(self, obj):
+        """Método seguro para obter nome do usuário"""
+        if obj.uploaded_by:
+            return obj.uploaded_by.preferred_name or obj.uploaded_by.username or obj.uploaded_by.email
+        return 'Sistema'
+    
     def get_file_size_mb(self, obj):
         return round(obj.file_size / (1024 * 1024), 2) if obj.file_size else 0
     
     def get_chunks_count(self, obj):
-        return obj.chunks.count()
+        try:
+            return obj.chunks.count()
+        except Exception:
+            return 0
 
 class DocumentChunkSerializer(serializers.ModelSerializer):
     document_title = serializers.CharField(source='document.title', read_only=True)

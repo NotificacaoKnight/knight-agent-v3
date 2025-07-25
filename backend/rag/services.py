@@ -15,6 +15,7 @@ from django.core.cache import cache
 
 from documents.models import Document, DocumentChunk
 from .models import VectorStore, SearchQuery, SearchResult
+from .embedding_cache import embedding_cache
 
 class EmbeddingService:
     """Serviço para gerar embeddings otimizado para português"""
@@ -35,27 +36,81 @@ class EmbeddingService:
             cache.set(cache_key, self.model, 3600)
     
     def encode_texts(self, texts: List[str]) -> np.ndarray:
-        """Gera embeddings para lista de textos"""
+        """Gera embeddings para lista de textos com cache"""
         if not texts:
             return np.array([])
         
         # Normalizar textos
         normalized_texts = [self._preprocess_text(text) for text in texts]
         
-        # Gerar embeddings
-        embeddings = self.model.encode(
-            normalized_texts,
-            batch_size=32,
-            show_progress_bar=len(texts) > 100,
-            convert_to_numpy=True,
-            normalize_embeddings=True  # Importante para busca por similaridade
+        # Buscar embeddings no cache
+        cached_embeddings, missing_texts = embedding_cache.get_multiple_embeddings(
+            normalized_texts, 
+            model_name=self.model_name
         )
         
-        return embeddings
+        # Gerar embeddings apenas para textos não encontrados no cache
+        if missing_texts:
+            print(f"🔄 Gerando {len(missing_texts)} novos embeddings (cache miss)")
+            new_embeddings = self.model.encode(
+                missing_texts,
+                batch_size=32,
+                show_progress_bar=len(missing_texts) > 50,
+                convert_to_numpy=True,
+                normalize_embeddings=True
+            )
+            
+            # Salvar novos embeddings no cache
+            text_embedding_pairs = list(zip(missing_texts, new_embeddings))
+            saved_count = embedding_cache.save_multiple_embeddings(
+                text_embedding_pairs, 
+                model_name=self.model_name
+            )
+            print(f"💾 Salvos {saved_count}/{len(missing_texts)} embeddings no cache")
+        else:
+            print(f"🎯 Todos os {len(texts)} embeddings encontrados no cache!")
+            new_embeddings = np.array([])
+        
+        # Combinar embeddings cached e novos
+        result_embeddings = []
+        new_idx = 0
+        
+        for i, cached_emb in enumerate(cached_embeddings):
+            if cached_emb is not None:
+                result_embeddings.append(cached_emb)
+            else:
+                result_embeddings.append(new_embeddings[new_idx])
+                new_idx += 1
+        
+        return np.array(result_embeddings)
     
     def encode_single_text(self, text: str) -> np.ndarray:
-        """Gera embedding para um único texto"""
-        return self.encode_texts([text])[0]
+        """Gera embedding para um único texto com cache"""
+        normalized_text = self._preprocess_text(text)
+        
+        # Tentar buscar no cache primeiro
+        cached_embedding = embedding_cache.get_embedding(
+            normalized_text, 
+            model_name=self.model_name
+        )
+        
+        if cached_embedding is not None:
+            print(f"🎯 Embedding encontrado no cache")
+            return cached_embedding
+        
+        # Cache miss - gerar novo embedding
+        print(f"🔄 Gerando novo embedding (cache miss)")
+        embedding = self.model.encode(
+            [normalized_text],
+            convert_to_numpy=True,
+            normalize_embeddings=True
+        )[0]
+        
+        # Salvar no cache
+        if embedding_cache.save_embedding(normalized_text, embedding, model_name=self.model_name):
+            print(f"💾 Embedding salvo no cache")
+        
+        return embedding
     
     def _preprocess_text(self, text: str) -> str:
         """Pré-processa texto para melhor qualidade dos embeddings"""

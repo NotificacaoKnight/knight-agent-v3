@@ -3,6 +3,8 @@ from . import views
 
 urlpatterns = [
     path('send/', views.send_message, name='send_message'),
+    path('send-audio/', views.send_audio_message, name='send_audio_message'),
+    path('transcribe/', views.transcribe_audio, name='transcribe_audio'),
     path('sessions/', views.get_sessions, name='get_sessions'),
     path('sessions/new/', views.new_session, name='new_session'),
     path('sessions/<int:session_id>/', views.get_session_history, name='get_session_history'),

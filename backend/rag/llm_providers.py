@@ -11,6 +11,8 @@ from groq import Groq
 import openai
 import google.generativeai as genai
 
+from .http_pool import http_pool
+
 class LLMProvider(ABC):
     """Interface abstrata para provedores de LLM"""
     
@@ -152,8 +154,9 @@ class TogetherProvider(LLMProvider):
                 "temperature": temperature
             }
             
-            response = requests.post(
+            response = http_pool.post(
                 f"{self.base_url}/chat/completions",
+                base_url=self.base_url,
                 headers=headers,
                 json=data,
                 timeout=30
@@ -285,8 +288,9 @@ class OllamaProvider(LLMProvider):
                 }
             }
             
-            response = requests.post(
+            response = http_pool.post(
                 f"{self.base_url}/api/generate",
+                base_url=self.base_url,
                 json=data,
                 timeout=60
             )
@@ -316,7 +320,7 @@ class OllamaProvider(LLMProvider):
     
     def is_available(self) -> bool:
         try:
-            response = requests.get(f"{self.base_url}/api/tags", timeout=5)
+            response = http_pool.get(f"{self.base_url}/api/tags", base_url=self.base_url, timeout=5)
             return response.status_code == 200
         except:
             return False
@@ -339,14 +343,16 @@ class AgnoProvider(LLMProvider):
             self.api_key = getattr(settings, 'GROQ_API_KEY', None)
         elif self.model_provider == 'gemini':
             self.api_key = getattr(settings, 'GOOGLE_API_KEY', None) or getattr(settings, 'GEMINI_API_KEY', None)
+        elif self.model_provider == 'deepseek':
+            self.api_key = getattr(settings, 'DEEPSEEK_API_KEY', None)
         
         # Criar agente Agno
         try:
             if self.api_key:
                 # Import dinâmico baseado no provider
                 if self.model_provider == 'openai':
-                    from agno.models.openai import OpenAI
-                    model = OpenAI(id=self.model_name, api_key=self.api_key)
+                    from agno.models.openai import OpenAILike
+                    model = OpenAILike(id=self.model_name, api_key=self.api_key)
                 elif self.model_provider == 'cohere':
                     from agno.models.cohere import Cohere
                     model = Cohere(id=self.model_name, api_key=self.api_key)
@@ -356,6 +362,14 @@ class AgnoProvider(LLMProvider):
                 elif self.model_provider == 'gemini':
                     from agno.models.google import Gemini
                     model = Gemini(id=self.model_name, api_key=self.api_key)
+                elif self.model_provider == 'deepseek':
+                    # DeepSeek usa API compatível com OpenAI
+                    from agno.models.openai import OpenAILike
+                    model = OpenAILike(
+                        id=self.model_name, 
+                        api_key=self.api_key,
+                        base_url="https://api.deepseek.com/v1"
+                    )
                 else:
                     raise ValueError(f"Provider {self.model_provider} não suportado pelo Agno")
                 
@@ -443,6 +457,102 @@ class AgnoProvider(LLMProvider):
     def is_available(self) -> bool:
         """Verifica se o Agno está disponível"""
         return bool(self.agent and self.api_key)
+
+class DeepSeekProvider(LLMProvider):
+    """Provedor DeepSeek - API compatível com OpenAI"""
+    
+    def __init__(self):
+        self.api_key = getattr(settings, 'DEEPSEEK_API_KEY', None)
+        self.base_url = "https://api.deepseek.com/v1"
+        self.model = getattr(settings, 'DEEPSEEK_MODEL', 'deepseek-chat')
+    
+    def generate_response(
+        self, 
+        prompt: str, 
+        context: List[str] = None,
+        max_tokens: int = 1000,
+        temperature: float = 0.7,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """Gera resposta usando DeepSeek"""
+        try:
+            if not self.api_key:
+                return {
+                    'success': False,
+                    'error': 'DeepSeek API key não configurada',
+                    'provider': 'deepseek'
+                }
+            
+            system_prompt = (
+                "Você é o Knight, um assistente IA interno da empresa. "
+                "Responda sempre em português brasileiro de forma clara e útil. "
+                "Use apenas as informações fornecidas no contexto para responder. "
+                "Se não souber a resposta baseada no contexto fornecido, diga que não tem informações suficientes "
+                "e sugira entrar em contato com o RH ou a pessoa responsável."
+            )
+            
+            messages = [{"role": "system", "content": system_prompt}]
+            
+            if context:
+                context_text = "\n\n".join([f"Documento {i+1}:\n{doc}" for i, doc in enumerate(context)])
+                messages.append({"role": "user", "content": f"Contexto:\n{context_text}"})
+            
+            messages.append({"role": "user", "content": prompt})
+            
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json"
+            }
+            
+            data = {
+                "model": self.model,
+                "messages": messages,
+                "max_tokens": max_tokens,
+                "temperature": temperature,
+                "stream": False
+            }
+            
+            response = http_pool.post(
+                f"{self.base_url}/chat/completions",
+                base_url=self.base_url,
+                headers=headers,
+                json=data,
+                timeout=30
+            )
+            
+            if response.status_code == 200:
+                result = response.json()
+                usage = result.get('usage', {})
+                
+                return {
+                    'success': True,
+                    'response': result['choices'][0]['message']['content'],
+                    'model': self.model,
+                    'provider': 'deepseek',
+                    'documents_used': len(context) if context else 0,
+                    'usage': {
+                        'input_tokens': usage.get('prompt_tokens', 0),
+                        'output_tokens': usage.get('completion_tokens', 0),
+                        'total_tokens': usage.get('total_tokens', 0)
+                    }
+                }
+            else:
+                return {
+                    'success': False,
+                    'error': f"DeepSeek API Error: {response.status_code} - {response.text}",
+                    'provider': 'deepseek'
+                }
+                
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e),
+                'provider': 'deepseek'
+            }
+    
+    def is_available(self) -> bool:
+        """Verifica se o DeepSeek está disponível"""
+        return bool(self.api_key)
 
 class GeminiProvider(LLMProvider):
     """Provedor Google Gemini"""
@@ -566,11 +676,12 @@ class LLMManager:
             'groq': GroqProvider(),
             'ollama': OllamaProvider(),
             'gemini': GeminiProvider(),
+            'deepseek': DeepSeekProvider(),
             'agno': AgnoProvider(),
             'mock': MockProvider()
         }
         self.primary_provider = settings.LLM_PROVIDER
-        self.fallback_order = ['agno', 'gemini', 'cohere', 'groq', 'together', 'ollama']
+        self.fallback_order = ['deepseek', 'agno', 'gemini', 'cohere', 'groq', 'together', 'ollama']
     
     def get_available_providers(self) -> List[str]:
         """Lista provedores disponíveis"""

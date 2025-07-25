@@ -175,9 +175,14 @@ GOOGLE_API_KEY = config('GOOGLE_API_KEY', default='')
 GEMINI_API_KEY = config('GEMINI_API_KEY', default='')
 GEMINI_MODEL = config('GEMINI_MODEL', default='gemini-1.5-flash')
 
+# DeepSeek Configuration
+DEEPSEEK_API_KEY = config('DEEPSEEK_API_KEY', default='')
+DEEPSEEK_MODEL = config('DEEPSEEK_MODEL', default='deepseek-chat')
+
 # Agno Configuration
 AGNO_MODEL_PROVIDER = config('AGNO_MODEL_PROVIDER', default='openai')
 AGNO_MODEL_NAME = config('AGNO_MODEL_NAME', default='gpt-4o-mini')
+USE_AGNO_SEARCH = config('USE_AGNO_SEARCH', default=True, cast=bool)
 
 # Ollama Configuration (para self-hosted)
 OLLAMA_BASE_URL = config('OLLAMA_BASE_URL', default='http://localhost:11434')
@@ -198,9 +203,13 @@ PROCESSED_DOCS_PATH = BASE_DIR / 'processed_documents'
 # Downloads Configuration
 DOWNLOADS_RETENTION_DAYS = config('DOWNLOADS_RETENTION_DAYS', default=7, cast=int)
 
+# MongoDB Atlas Configuration (for multiple users)
+MONGODB_URL = config('MONGODB_URL', default='')
+
 # Celery Configuration
 CELERY_BROKER_URL = config('CELERY_BROKER_URL', default='redis://localhost:6379/0')
 CELERY_RESULT_BACKEND = config('CELERY_RESULT_BACKEND', default='redis://localhost:6379/0')
+USE_CELERY = config('USE_CELERY', default=False, cast=bool)  # Desabilitado por padrão
 
 # Logging
 LOGGING = {
