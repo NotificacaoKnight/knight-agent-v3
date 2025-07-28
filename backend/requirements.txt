@@ -10,7 +10,8 @@ msal
 cryptography
 PyJWT
 
-# Sistema RAG e LLM
+# Sistema RAG e LLM - Migração para LangGraph
+langgraph
 langchain
 langchain-community
 langchain-openai

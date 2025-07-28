@@ -321,6 +321,108 @@ class OllamaProvider(LLMProvider):
         except:
             return False
 
+class DeepSeekProvider(LLMProvider):
+    """Provedor DeepSeek - API compatível com OpenAI"""
+    
+    def __init__(self):
+        self.api_key = getattr(settings, 'DEEPSEEK_API_KEY', None)
+        self.base_url = "https://api.deepseek.com"
+        self.model = getattr(settings, 'DEEPSEEK_MODEL', 'deepseek-chat')
+    
+    def generate_response(
+        self, 
+        prompt: str, 
+        context: List[str] = None,
+        max_tokens: int = 1000,
+        temperature: float = 0.7,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """Gera resposta usando DeepSeek"""
+        try:
+            if not self.api_key:
+                return {
+                    'success': False,
+                    'error': 'DeepSeek API key não configurada',
+                    'provider': 'deepseek'
+                }
+            
+            system_prompt = (
+                "Você é o Knight, um assistente IA interno da empresa. "
+                "Responda sempre em português brasileiro de forma clara e útil. "
+                "Use apenas as informações fornecidas no contexto para responder. "
+                "Se não souber a resposta baseada no contexto fornecido, diga que não tem informações suficientes "
+                "e sugira entrar em contato com o RH ou a pessoa responsável."
+            )
+            
+            messages = [{"role": "system", "content": system_prompt}]
+            
+            if context:
+                context_text = "\n\n".join([f"Documento {i+1}:\n{doc}" for i, doc in enumerate(context)])
+                messages.append({"role": "user", "content": f"Contexto:\n{context_text}"})
+            
+            messages.append({"role": "user", "content": prompt})
+            
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json"
+            }
+            
+            data = {
+                "model": self.model,
+                "messages": messages,
+                "max_tokens": max_tokens,
+                "temperature": temperature,
+                "stream": False
+            }
+            
+            response = requests.post(
+                f"{self.base_url}/v1/chat/completions",
+                headers=headers,
+                json=data,
+                timeout=30
+            )
+            
+            if response.status_code == 200:
+                result = response.json()
+                usage = result.get('usage', {})
+                
+                return {
+                    'success': True,
+                    'response': result['choices'][0]['message']['content'],
+                    'model': self.model,
+                    'provider': 'deepseek',
+                    'documents_used': len(context) if context else 0,
+                    'usage': {
+                        'input_tokens': usage.get('prompt_tokens', 0),
+                        'output_tokens': usage.get('completion_tokens', 0),
+                        'total_tokens': usage.get('total_tokens', 0)
+                    }
+                }
+            else:
+                error_detail = response.text
+                try:
+                    error_json = response.json()
+                    error_detail = error_json.get('error', {}).get('message', error_detail)
+                except:
+                    pass
+                
+                return {
+                    'success': False,
+                    'error': f"DeepSeek API Error ({response.status_code}): {error_detail}",
+                    'provider': 'deepseek'
+                }
+                
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e),
+                'provider': 'deepseek'
+            }
+    
+    def is_available(self) -> bool:
+        """Verifica se o DeepSeek está disponível"""
+        return bool(self.api_key)
+
 class GeminiProvider(LLMProvider):
     """Provedor Google Gemini"""
     
@@ -438,6 +540,7 @@ class LLMManager:
     
     def __init__(self):
         self.providers = {
+            'deepseek': DeepSeekProvider(),
             'cohere': CohereProvider(),
             'together': TogetherProvider(),
             'groq': GroqProvider(),
@@ -446,7 +549,7 @@ class LLMManager:
             'mock': MockProvider()
         }
         self.primary_provider = settings.LLM_PROVIDER
-        self.fallback_order = ['gemini', 'cohere', 'groq', 'together', 'ollama']
+        self.fallback_order = ['deepseek', 'gemini', 'cohere', 'groq', 'together', 'ollama']
     
     def get_available_providers(self) -> List[str]:
         """Lista provedores disponíveis"""
