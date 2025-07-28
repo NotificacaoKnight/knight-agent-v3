@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Knight Agent is a corporate AI assistant system built for internal company support, featuring hybrid RAG (Retrieval-Augmented Generation) optimized for Portuguese documents. The system supports multiple LLM providers with automatic fallback and includes Microsoft Azure AD authentication.
+Knight Agent is a corporate AI assistant system built for internal company support, featuring **agentic RAG (Retrieval-Augmented Generation)** with LangGraph for multi-step reasoning, optimized for Portuguese documents. The system includes traditional hybrid search fallback, supports multiple LLM providers with automatic fallback, and includes Microsoft Azure AD authentication.
+
+**Recent Migration**: The system has been migrated from traditional LangChain RAG to LangGraph-based agentic RAG, providing dynamic decision-making, self-reflection, and adaptive workflows while maintaining full backward compatibility.
 
 ## Architecture
 
@@ -12,13 +14,14 @@ The project uses a **microservices-style Django architecture** with separate app
 
 - **authentication/**: Microsoft Azure AD integration with MSAL
 - **documents/**: Document processing pipeline using Docling + async Celery tasks
-- **rag/**: Hybrid search engine (FAISS vector store + BM25) with multiple LLM provider abstraction
+- **rag/**: **Agentic RAG system** using LangGraph with traditional hybrid search fallback
 - **chat/**: Conversational interface with session management
 - **downloads/**: Temporary file distribution system (7-day expiry)
 
 **Key architectural patterns:**
+- **Agentic RAG**: `rag/agentic_rag_service.py` implements LangGraph-based multi-step reasoning with self-reflection, planning, and dynamic decision-making
 - **Provider Pattern**: `rag/llm_providers.py` abstracts multiple LLM APIs (Cohere, Groq, Together AI, Ollama) with automatic fallback
-- **Hybrid Search**: Combines semantic search (BGE-m3 embeddings) with keyword search (BM25) for Portuguese optimization
+- **Hybrid Search Fallback**: Traditional semantic search (BGE-m3 embeddings) + keyword search (BM25) for Portuguese optimization
 - **Async Processing**: Document ingestion uses Celery for background processing (chunking, embedding generation, indexing)
 - **Token Authentication**: Custom middleware (`authentication/middleware.py`) for session token management
 
@@ -192,6 +195,13 @@ CHUNK_SIZE=700
 CHUNK_OVERLAP=100
 BM25_WEIGHT=0.3
 SEMANTIC_WEIGHT=0.7
+
+# Agentic RAG Configuration (optional)
+AGENTIC_RAG_MAX_SEARCH_ATTEMPTS=3
+AGENTIC_RAG_QUALITY_THRESHOLD=0.6
+AGENTIC_RAG_MAX_CONTEXT_LENGTH=8000
+AGENTIC_RAG_MAX_TOKENS=1000
+AGENTIC_RAG_TEMPERATURE=0.7
 ```
 
 ## Core Systems Understanding
@@ -213,23 +223,46 @@ SEMANTIC_WEIGHT=0.7
    - `frontend/src/context/AuthContext.tsx`: React authentication state management
    - `frontend/src/services/api.ts`: Axios instance with auth interceptors
 
-### RAG Hybrid Search Flow
+### Agentic RAG System Flow
 
-1. **Document Ingestion** (`documents/tasks.py`):
-   - Docling converts documents to markdown
-   - Text is chunked preserving structure (headers, paragraphs)
-   - BGE-m3 embeddings generated for each chunk
-   - FAISS index updated, BM25 corpus rebuilt
+**Primary System** (LangGraph-based):
 
-2. **Query Processing** (`rag/services.py`):
-   - Parallel search: FAISS semantic + BM25 keyword
-   - Score normalization and weighted combination
-   - Results passed to LLM provider with context
+1. **Planning Node** (`rag/agentic_rag_service.py`):
+   - Analyzes query complexity and creates research plan
+   - Determines multi-step reasoning strategy
 
-3. **LLM Response** (`rag/llm_providers.py`):
-   - Provider selection with automatic fallback
-   - Context injection with Portuguese-optimized prompts
-   - Structured response with citations (Cohere) or basic text
+2. **Search Node**:
+   - Executes hybrid search (FAISS semantic + BM25 keyword)
+   - Handles search failures with automatic retry
+   - Combines results with configurable weights
+
+3. **Quality Check Node**:
+   - Evaluates search quality using multiple metrics
+   - Routes to query refinement if quality is below threshold
+   - Determines if additional context management is needed
+
+4. **Query Refinement Node** (conditional):
+   - Uses LLM to refine queries based on poor results
+   - Implements iterative improvement with max attempts limit
+
+5. **Context Management Node**:
+   - Selects most relevant documents within token limits
+   - Truncates context intelligently preserving key information
+   - Creates summary for large document sets
+
+6. **Generation Node**:
+   - Generates response using configured LLM provider
+   - Includes context from retrieved documents
+   - Handles generation failures gracefully
+
+7. **Validation Node**:
+   - Assesses response quality against thresholds
+   - Can trigger regeneration or context refinement
+   - Ensures minimum response standards
+
+**Fallback System** (Traditional Hybrid Search):
+- Automatic fallback to `rag/services.py` hybrid search if agentic system fails
+- Maintains backward compatibility with existing API structure
 
 ### Document Processing Pipeline
 
@@ -257,6 +290,49 @@ SEMANTIC_WEIGHT=0.7
 2. Then apply migrations: `python manage.py migrate`
 3. For migration conflicts, use fix scripts: `./fix_migrations.sh` (Linux/Mac) or `fix_migrations.bat` (Windows)
 
+## Agentic RAG System (LangGraph)
+
+### Core Components
+
+**State Graph Architecture**: The agentic system uses LangGraph to model complex, multi-step reasoning as a state machine with conditional routing.
+
+**Key Nodes**:
+1. **Planner** - Analyzes query complexity and creates research plan
+2. **Searcher** - Executes hybrid search with error handling
+3. **Quality Checker** - Evaluates results and determines next action
+4. **Query Refiner** - Refines queries using LLM when quality is low
+5. **Context Manager** - Optimizes document selection within token limits
+6. **Generator** - Creates final response using selected LLM provider
+7. **Validator** - Assesses response quality and triggers refinement if needed
+8. **Finalizer** - Prepares final output with metadata
+
+**Conditional Routing**: Based on quality scores, the system can:
+- Refine queries iteratively (up to max attempts)
+- Adjust context management strategy
+- Trigger regeneration for low-quality responses
+- Fallback to traditional search if agentic system fails
+
+### Configuration Management
+
+**Environment-based Configuration** (`rag/agentic_config.py`):
+- Development vs Production optimizations
+- Configurable thresholds and timeouts
+- Quality evaluation weights
+- Search attempt limits
+
+**Quality Metrics**:
+- Search quality based on result relevance and count
+- Response quality using length, context usage, and relevance
+- Process-level evaluation for continuous improvement
+
+### Migration Strategy
+
+**Backward Compatibility**:
+- Primary endpoint `/api/rag/search/` uses agentic with automatic fallback
+- Flag `use_agentic=false` forces traditional hybrid search
+- Dedicated `/api/rag/agentic/` endpoint for pure agentic mode
+- All existing API response formats maintained
+
 ## LLM Provider Switching
 
 The system uses a provider abstraction that allows runtime switching between:
@@ -279,8 +355,11 @@ Change providers by updating `LLM_PROVIDER` environment variable. Fallback order
 ### Backend Key Files
 - `backend/knight_backend/settings.py`: Main Django configuration
 - `backend/authentication/middleware.py`: Custom token authentication
+- `backend/rag/agentic_rag_service.py`: **LangGraph-based agentic RAG system**
+- `backend/rag/agentic_config.py`: **Centralized configuration for agentic parameters**
 - `backend/rag/llm_providers.py`: LLM provider abstraction layer
-- `backend/rag/services.py`: Hybrid search implementation
+- `backend/rag/services.py`: Traditional hybrid search implementation (fallback)
+- `backend/rag/views.py`: RAG API endpoints with agentic/fallback routing
 - `backend/documents/tasks.py`: Celery async document processing
 - `backend/create_migrations.py`: Utility to create migrations for all apps
 - `backend/reset_database.py`: Development database reset utility
@@ -326,6 +405,20 @@ python manage.py shell
 >>> from authentication.models import User, UserSession
 >>> User.objects.all()
 >>> UserSession.objects.filter(is_active=True)
+
+# Test agentic RAG system
+python manage.py shell
+>>> from rag.agentic_rag_service import AgenticRAGServiceSync
+>>> agentic_service = AgenticRAGServiceSync()
+>>> result = agentic_service.search("test query")
+>>> print(result['quality_metrics'])
+
+# Debug agentic configuration
+python manage.py shell
+>>> from rag.agentic_config import get_config
+>>> config = get_config()
+>>> print(config.get_search_config())
+>>> print(config.get_quality_config())
 ```
 
 ## Frontend Architecture
@@ -346,7 +439,10 @@ python manage.py shell
 All API endpoints are prefixed with `/api/`:
 - `/api/auth/*` - Authentication endpoints
 - `/api/documents/*` - Document upload and management
-- `/api/rag/*` - RAG search functionality
+- `/api/rag/search/` - Primary RAG endpoint (agentic with fallback)
+- `/api/rag/agentic/` - Exclusive agentic RAG endpoint (LangGraph only)
+- `/api/rag/stats/` - RAG system statistics
+- `/api/rag/test-llm/` - LLM provider testing
 - `/api/chat/*` - Chat interface endpoints
 - `/api/downloads/*` - Temporary file downloads
 
@@ -362,10 +458,20 @@ curl -X POST http://localhost:8000/api/documents/upload/ \
 # Check processing status
 curl http://localhost:8000/api/documents/stats/
 
-# Test RAG search
+# Test RAG search (agentic with fallback)
 curl -X POST http://localhost:8000/api/rag/search/ \
   -H "Content-Type: application/json" \
   -d '{"query": "test query", "k": 5}'
+
+# Test exclusive agentic RAG
+curl -X POST http://localhost:8000/api/rag/agentic/ \
+  -H "Content-Type: application/json" \
+  -d '{"query": "test query", "k": 5}'
+
+# Force traditional hybrid search
+curl -X POST http://localhost:8000/api/rag/search/ \
+  -H "Content-Type: application/json" \
+  -d '{"query": "test query", "k": 5, "use_agentic": false}'
 ```
 
 ## Important Development Patterns

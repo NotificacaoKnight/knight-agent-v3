@@ -164,9 +164,11 @@ AZURE_AD_TENANT_ID = config('AZURE_AD_TENANT_ID', default='')
 AZURE_AD_REDIRECT_URI = config('AZURE_AD_REDIRECT_URI', default='http://localhost:8000/auth/microsoft/callback/')
 
 # LLM Configuration
-LLM_PROVIDER = config('LLM_PROVIDER', default='cohere')  # cohere, together, groq, ollama, gemini
+LLM_PROVIDER = config('LLM_PROVIDER', default='deepseek')  # deepseek, cohere, together, groq, ollama, gemini
 
 # Provider API Keys
+DEEPSEEK_API_KEY = config('DEEPSEEK_API_KEY', default='')
+DEEPSEEK_MODEL = config('DEEPSEEK_MODEL', default='deepseek-chat')
 COHERE_API_KEY = config('COHERE_API_KEY', default='')
 TOGETHER_API_KEY = config('TOGETHER_API_KEY', default='')
 GROQ_API_KEY = config('GROQ_API_KEY', default='')
