@@ -156,7 +156,7 @@ class TogetherProvider(LLMProvider):
                 f"{self.base_url}/chat/completions",
                 headers=headers,
                 json=data,
-                timeout=30
+                timeout=15  # Reduzido para velocidade
             )
             
             if response.status_code == 200:
@@ -244,82 +244,6 @@ class GroqProvider(LLMProvider):
     def is_available(self) -> bool:
         return bool(self.api_key and self.client)
 
-class OllamaProvider(LLMProvider):
-    """Provedor Ollama - Self-hosted"""
-    
-    def __init__(self):
-        self.base_url = settings.OLLAMA_BASE_URL
-        self.model = settings.OLLAMA_MODEL
-    
-    def generate_response(
-        self, 
-        prompt: str, 
-        context: List[str] = None,
-        max_tokens: int = 1000,
-        temperature: float = 0.7,
-        **kwargs
-    ) -> Dict[str, Any]:
-        """Gera resposta usando Ollama"""
-        try:
-            system_prompt = (
-                "Você é o Knight, um assistente IA interno da empresa. "
-                "Responda sempre em português brasileiro de forma clara e útil. "
-                "Use apenas as informações fornecidas no contexto para responder. "
-                "Se não souber a resposta, diga que não tem informações suficientes "
-                "e sugira entrar em contato com o RH."
-            )
-            
-            if context:
-                context_text = "\n\n".join([f"Documento {i+1}:\n{doc}" for i, doc in enumerate(context)])
-                full_prompt = f"{system_prompt}\n\nContexto:\n{context_text}\n\nPergunta: {prompt}\n\nResposta:"
-            else:
-                full_prompt = f"{system_prompt}\n\nPergunta: {prompt}\n\nResposta:"
-            
-            data = {
-                "model": self.model,
-                "prompt": full_prompt,
-                "stream": False,
-                "options": {
-                    "num_predict": max_tokens,
-                    "temperature": temperature
-                }
-            }
-            
-            response = requests.post(
-                f"{self.base_url}/api/generate",
-                json=data,
-                timeout=60
-            )
-            
-            if response.status_code == 200:
-                result = response.json()
-                return {
-                    'success': True,
-                    'response': result['response'],
-                    'model': self.model,
-                    'provider': 'ollama',
-                    'documents_used': len(context) if context else 0
-                }
-            else:
-                return {
-                    'success': False,
-                    'error': f"Ollama Error: {response.status_code}",
-                    'provider': 'ollama'
-                }
-                
-        except Exception as e:
-            return {
-                'success': False,
-                'error': str(e),
-                'provider': 'ollama'
-            }
-    
-    def is_available(self) -> bool:
-        try:
-            response = requests.get(f"{self.base_url}/api/tags", timeout=5)
-            return response.status_code == 200
-        except:
-            return False
 
 class DeepSeekProvider(LLMProvider):
     """Provedor DeepSeek - API compatível com OpenAI"""
@@ -379,7 +303,7 @@ class DeepSeekProvider(LLMProvider):
                 f"{self.base_url}/v1/chat/completions",
                 headers=headers,
                 json=data,
-                timeout=30
+                timeout=15  # Reduzido para velocidade
             )
             
             if response.status_code == 200:
@@ -544,12 +468,11 @@ class LLMManager:
             'cohere': CohereProvider(),
             'together': TogetherProvider(),
             'groq': GroqProvider(),
-            'ollama': OllamaProvider(),
             'gemini': GeminiProvider(),
             'mock': MockProvider()
         }
         self.primary_provider = settings.LLM_PROVIDER
-        self.fallback_order = ['deepseek', 'gemini', 'cohere', 'groq', 'together', 'ollama']
+        self.fallback_order = ['deepseek', 'gemini', 'cohere', 'groq', 'together']
     
     def get_available_providers(self) -> List[str]:
         """Lista provedores disponíveis"""

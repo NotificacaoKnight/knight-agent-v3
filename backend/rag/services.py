@@ -16,6 +16,9 @@ from django.core.cache import cache
 from documents.models import Document, DocumentChunk
 from .models import VectorStore, SearchQuery, SearchResult
 
+# Cache global do modelo para evitar recarregamento
+_GLOBAL_MODEL_CACHE = {}
+
 class EmbeddingService:
     """Serviço para gerar embeddings otimizado para português"""
     
@@ -25,31 +28,47 @@ class EmbeddingService:
         self._load_model()
     
     def _load_model(self):
-        """Carrega modelo de embedding com cache"""
-        cache_key = f"embedding_model_{self.model_name}"
-        self.model = cache.get(cache_key)
+        """Carrega modelo de embedding com cache global permanente"""
+        global _GLOBAL_MODEL_CACHE
         
-        if self.model is None:
-            self.model = SentenceTransformer(self.model_name)
-            # Cache por 1 hora
-            cache.set(cache_key, self.model, 3600)
+        if self.model_name in _GLOBAL_MODEL_CACHE:
+            self.model = _GLOBAL_MODEL_CACHE[self.model_name]
+            return
+        
+        # Carregar modelo apenas uma vez por processo
+        print(f"Carregando modelo {self.model_name} (primeira vez)...")
+        self.model = SentenceTransformer(self.model_name, device='cpu')
+        _GLOBAL_MODEL_CACHE[self.model_name] = self.model
+        print(f"Modelo {self.model_name} carregado em cache global")
     
     def encode_texts(self, texts: List[str]) -> np.ndarray:
-        """Gera embeddings para lista de textos"""
+        """Gera embeddings para lista de textos com cache"""
         if not texts:
             return np.array([])
+        
+        # Cache para embeddings de consultas (não documentos)
+        if len(texts) == 1:  # Single query
+            cache_key = f"embedding_query_{hash(texts[0])}"
+            cached_embedding = cache.get(cache_key)
+            if cached_embedding is not None:
+                return np.array([cached_embedding])
         
         # Normalizar textos
         normalized_texts = [self._preprocess_text(text) for text in texts]
         
-        # Gerar embeddings
+        # Gerar embeddings com configurações otimizadas
         embeddings = self.model.encode(
             normalized_texts,
-            batch_size=32,
-            show_progress_bar=len(texts) > 100,
+            batch_size=64,  # Aumentado para melhor performance
+            show_progress_bar=False,  # Desabilitado para velocidade
             convert_to_numpy=True,
             normalize_embeddings=True  # Importante para busca por similaridade
         )
+        
+        # Cache para consultas simples
+        if len(texts) == 1:
+            cache_key = f"embedding_query_{hash(texts[0])}"
+            cache.set(cache_key, embeddings[0], 1800)  # Cache por 30 min
         
         return embeddings
     
@@ -320,10 +339,10 @@ class VectorSearchService:
         """Cria novo índice FAISS"""
         dimension = self.embedding_service.get_dimension()
         
-        # Usar HNSW para melhor performance em buscas
-        self.vector_store = faiss.IndexHNSWFlat(dimension, 32)
-        self.vector_store.hnsw.efConstruction = 200
-        self.vector_store.hnsw.efSearch = 50
+        # Configurações FAISS otimizadas para velocidade
+        self.vector_store = faiss.IndexHNSWFlat(dimension, 16)  # Menos conexões para velocidade
+        self.vector_store.hnsw.efConstruction = 100  # Reduzido para build mais rápido
+        self.vector_store.hnsw.efSearch = 32  # Reduzido para busca mais rápida
         
         self.document_chunks = {}
     
@@ -405,6 +424,49 @@ class VectorSearchService:
                 })
         
         return results
+    
+    def remove_document_embeddings(self, document_id: int):
+        """Remove embeddings de um documento específico do índice"""
+        try:
+            # Encontrar índices que pertencem ao documento
+            indices_to_remove = []
+            for idx, chunk_info in self.document_chunks.items():
+                if chunk_info['document_id'] == document_id:
+                    indices_to_remove.append(idx)
+            
+            if indices_to_remove:
+                # Remover do mapeamento de chunks
+                for idx in indices_to_remove:
+                    del self.document_chunks[idx]
+                
+                # Como FAISS não suporta remoção direta, precisamos recriar o índice
+                self._rebuild_index_without_documents([document_id])
+                
+                print(f"Removidos {len(indices_to_remove)} embeddings do documento {document_id}")
+                
+                # Limpar cache
+                cache_key = "vector_store_chunk_mapping"
+                cache.delete(cache_key)
+                
+        except Exception as e:
+            print(f"Erro ao remover embeddings do documento {document_id}: {e}")
+    
+    def _rebuild_index_without_documents(self, excluded_document_ids: List[int]):
+        """Reconstrói o índice FAISS excluindo documentos específicos"""
+        from documents.models import Document
+        
+        # Criar novo índice vazio
+        self._create_new_index()
+        
+        # Adicionar todos os documentos exceto os excluídos
+        documents = Document.objects.filter(
+            status='processed'
+        ).exclude(
+            id__in=excluded_document_ids
+        )
+        
+        for doc in documents:
+            self.add_document_embeddings(doc)
     
     def _save_vector_store(self):
         """Salva índice FAISS em disco"""
@@ -525,14 +587,16 @@ class BM25SearchService:
         
         results = []
         for idx in top_indices:
-            if idx < len(self.document_chunks) and scores[idx] > 0:
+            if idx < len(self.document_chunks):
                 chunk_info = self.document_chunks[idx]
+                # BM25 pode ter scores negativos, normalizar para positivo
+                normalized_score = max(0.0, float(scores[idx]) + 1.0)  # Adicionar 1 para tornar positivo
                 results.append({
                     'document_id': chunk_info['document_id'],
                     'chunk_id': chunk_info['chunk_id'],
                     'chunk_index': chunk_info['chunk_index'],
                     'content': chunk_info['content'],
-                    'score': float(scores[idx]),
+                    'score': normalized_score,
                     'search_type': 'bm25'
                 })
         
@@ -639,7 +703,12 @@ class HybridSearchService:
             
             for result in semantic_results:
                 chunk_id = result['chunk_id']
-                normalized_score = (result['score'] - min_semantic_score) / score_range if score_range > 0 else 0
+                # Se há apenas um resultado, usar score original normalizado
+                if score_range > 0:
+                    normalized_score = (result['score'] - min_semantic_score) / score_range
+                else:
+                    # Se há apenas um resultado, usar score máximo (1.0)
+                    normalized_score = 1.0
                 
                 combined[chunk_id] = {
                     **result,
@@ -655,7 +724,12 @@ class HybridSearchService:
             
             for result in bm25_results:
                 chunk_id = result['chunk_id']
-                normalized_score = (result['score'] - min_bm25_score) / score_range if score_range > 0 else 0
+                # Se há apenas um resultado, usar score original normalizado
+                if score_range > 0:
+                    normalized_score = (result['score'] - min_bm25_score) / score_range
+                else:
+                    # Se há apenas um resultado, usar score máximo (1.0)
+                    normalized_score = 1.0
                 
                 if chunk_id in combined:
                     combined[chunk_id]['bm25_score'] = normalized_score

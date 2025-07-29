@@ -1,11 +1,15 @@
 import jwt
 import requests
+import logging
 from datetime import datetime, timedelta
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
 import msal
 import base64
+
+# Configure secure logging
+logger = logging.getLogger(__name__)
 
 class MicrosoftAuthService:
     """Serviço para integração com Microsoft Azure AD"""
@@ -87,6 +91,25 @@ class MicrosoftAuthService:
             raise ValidationError(f"Token inválido: {str(e)}")
     
     @staticmethod
+    def validate_tenant(access_token):
+        """Valida se o token pertence ao tenant autorizado"""
+        try:
+            # Decodificar o token sem verificar assinatura para pegar o tenant
+            payload = jwt.decode(access_token, options={"verify_signature": False})
+            
+            # Verificar se o tenant ID no token corresponde ao configurado
+            token_tenant = payload.get('tid')
+            if token_tenant != settings.AZURE_AD_TENANT_ID:
+                logger.warning(f"Token de tenant incorreto: {token_tenant[:8]}... esperado: {settings.AZURE_AD_TENANT_ID[:8]}...")
+                return False
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Erro ao validar tenant: {type(e).__name__}")
+            return False
+    
+    @staticmethod
     def get_user_info(access_token):
         """Busca informações do usuário no Microsoft Graph"""
         headers = {
@@ -94,15 +117,34 @@ class MicrosoftAuthService:
             'Content-Type': 'application/json'
         }
         
-        response = requests.get(
-            'https://graph.microsoft.com/v1.0/me',
-            headers=headers
-        )
-        
-        if response.status_code != 200:
-            raise ValidationError("Erro ao buscar informações do usuário")
-        
-        return response.json()
+        try:
+            response = requests.get(
+                'https://graph.microsoft.com/v1.0/me',
+                headers=headers,
+                timeout=10  # Timeout de segurança
+            )
+            
+            if response.status_code == 401:
+                raise ValidationError("Token de acesso expirado ou inválido")
+            elif response.status_code == 403:
+                raise ValidationError("Token não possui permissões necessárias")
+            elif response.status_code != 200:
+                logger.error(f"Erro Microsoft Graph API: {response.status_code}")
+                raise ValidationError("Erro ao buscar informações do usuário")
+            
+            user_data = response.json()
+            
+            # SEGURANÇA: Validar campos obrigatórios
+            required_fields = ['id', 'userPrincipalName']
+            for field in required_fields:
+                if not user_data.get(field):
+                    raise ValidationError(f"Campo obrigatório ausente: {field}")
+            
+            return user_data
+            
+        except requests.RequestException as e:
+            logger.error(f"Erro de rede ao acessar Microsoft Graph: {type(e).__name__}")
+            raise ValidationError("Erro de comunicação com serviços Microsoft")
     
     @staticmethod
     def refresh_token(refresh_token):
@@ -144,7 +186,7 @@ class MicrosoftAuthService:
             
             if response.status_code != 200:
                 # Outro erro, mas não deve quebrar o login
-                print(f"Erro ao verificar foto do perfil: {response.status_code} - {response.text}")
+                logger.debug(f"Erro ao verificar foto do perfil: {response.status_code} - {response.text}")
                 return None
             
             # Buscar o conteúdo da foto
@@ -156,18 +198,23 @@ class MicrosoftAuthService:
             if photo_response.status_code == 200:
                 return photo_response.content
             else:
-                print(f"Erro ao baixar foto do perfil: {photo_response.status_code}")
+                logger.debug(f"Erro ao baixar foto do perfil: {photo_response.status_code}")
                 return None
                 
         except Exception as e:
             # Não deve quebrar o login se a foto falhar
-            print(f"Erro ao buscar foto do usuário: {str(e)}")
+            logger.debug(f"Erro ao buscar foto do usuário: {str(e)}")
             return None
     
     @staticmethod
     def save_user_photo(user, photo_content):
-        """Salva a foto do perfil do usuário"""
+        """Salva a foto do perfil do usuário apenas se não existir"""
         if not photo_content:
+            return
+        
+        # Verificar se o usuário já tem uma foto de perfil
+        if user.profile_picture and user.profile_picture.name:
+            logger.debug(f"Usuário {user.email} já possui foto de perfil: {user.profile_picture.name}")
             return
         
         try:
@@ -181,7 +228,7 @@ class MicrosoftAuthService:
                 save=True
             )
             
-            print(f"Foto do perfil salva para o usuário {user.email}")
+            logger.info(f"Foto do perfil salva para o usuário {user.email}")
             
         except Exception as e:
-            print(f"Erro ao salvar foto do perfil: {str(e)}")
+            logger.warning(f"Erro ao salvar foto do perfil: {str(e)}")

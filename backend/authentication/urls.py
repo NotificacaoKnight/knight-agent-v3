@@ -9,4 +9,5 @@ urlpatterns = [
     path('profile/', views.profile, name='profile'),
     path('profile/update/', views.update_profile, name='update_profile'),
     path('refresh/', views.refresh_session, name='refresh_session'),
+    path('me/', views.me, name='me'),  # Endpoint para verificar usuário atual
 ]

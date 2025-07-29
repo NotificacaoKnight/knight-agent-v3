@@ -88,32 +88,18 @@ class AgenticRAGService:
         workflow.add_edge("planner", "searcher")
         workflow.add_edge("searcher", "quality_checker")
         
-        # Roteamento condicional após quality check
+        # Roteamento condicional após quality check (simplificado)
         workflow.add_conditional_edges(
             "quality_checker",
             self._quality_routing_logic,
             {
                 "refine": "query_refiner",
-                "search_more": "searcher", 
-                "manage_context": "context_manager",
-                "generate": "generator"
+                "generate": "generator"  # Removido context_manager para velocidade
             }
         )
         
         workflow.add_edge("query_refiner", "searcher")
-        workflow.add_edge("context_manager", "generator")
-        workflow.add_edge("generator", "validator")
-        
-        # Roteamento após validação
-        workflow.add_conditional_edges(
-            "validator",
-            self._validation_routing_logic,
-            {
-                "regenerate": "generator",
-                "refine_context": "context_manager",
-                "finalize": "finalizer"
-            }
-        )
+        workflow.add_edge("generator", "finalizer")  # Direto para finalizer, sem validação
         
         workflow.add_edge("finalizer", END)
         
@@ -192,16 +178,13 @@ class AgenticRAGService:
         # Avaliar qualidade dos resultados
         quality_score = self._evaluate_search_quality(search_results, query)
         
-        # Determinar próxima ação baseada na qualidade
-        if quality_score < self.quality_config['threshold']:
-            if search_attempts < self.search_config['max_attempts']:
-                next_action = "refine"  # Refinar query
-            else:
-                next_action = "generate"  # Continuar com o que temos
-        elif len(search_results) > 5:
-            next_action = "manage_context"  # Gerenciar contexto
+        # Simplificado: sempre gerar resposta se temos resultados
+        if len(search_results) > 0:
+            next_action = "generate"  # Gerar resposta diretamente
+        elif search_attempts < self.search_config['max_attempts']:
+            next_action = "refine"  # Refinar query apenas se não temos resultados
         else:
-            next_action = "generate"  # Gerar resposta
+            next_action = "generate"  # Gerar resposta mesmo sem resultados perfeitos
         
         return {
             "search_quality_score": quality_score,
@@ -270,7 +253,10 @@ class AgenticRAGService:
     def _generation_node(self, state: AgenticRAGState) -> Dict[str, Any]:
         """Nó de geração de resposta"""
         query = state["query"]
-        retrieved_docs = state.get("retrieved_documents", [])
+        search_results = state.get("search_results", [])
+        
+        # Extrair conteúdo dos resultados da busca
+        retrieved_docs = [result.get("content", "") for result in search_results[:5]]
         
         # Gerar resposta usando LLM com contexto
         llm_response = self.llm_manager.generate_response(

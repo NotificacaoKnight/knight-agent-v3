@@ -85,15 +85,21 @@ class AgenticRAGConfig:
 
 # Configurações específicas para diferentes contextos
 class DevelopmentConfig(AgenticRAGConfig):
-    """Configurações otimizadas para desenvolvimento"""
-    MAX_SEARCH_ATTEMPTS = 2  # Menos tentativas para desenvolvimento mais rápido
-    ENABLE_DETAILED_LOGGING = True
-    CACHE_SEARCH_RESULTS = False  # Desabilitar cache em dev
+    """Configurações otimizadas para desenvolvimento e velocidade"""
+    MAX_SEARCH_ATTEMPTS = 1  # Uma tentativa apenas para velocidade
+    QUALITY_THRESHOLD = 0.3  # Threshold menor para aceitar resultados rapidamente
+    DEFAULT_MAX_TOKENS = 500  # Menos tokens para respostas mais rápidas
+    DEFAULT_TEMPERATURE = 0.3  # Menos criatividade para velocidade
+    SEARCH_TIMEOUT_MS = 15000  # 15s timeout
+    GENERATION_TIMEOUT_MS = 30000  # 30s timeout
+    ENABLE_DETAILED_LOGGING = False  # Desabilitar logs detalhados
+    CACHE_SEARCH_RESULTS = True  # Habilitar cache para dev
 
 
 class ProductionConfig(AgenticRAGConfig):
     """Configurações otimizadas para produção"""
-    MAX_SEARCH_ATTEMPTS = 3
+    MAX_SEARCH_ATTEMPTS = 2  # Máximo 2 tentativas
+    QUALITY_THRESHOLD = 0.5  # Threshold moderado
     ENABLE_DETAILED_LOGGING = False  # Menos logs em produção
     CACHE_SEARCH_RESULTS = True
     CACHE_TTL_SECONDS = 600  # Cache mais longo em produção

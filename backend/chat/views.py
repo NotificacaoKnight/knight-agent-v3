@@ -149,13 +149,17 @@ def update_session_title(request, session_id):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def submit_feedback(request):
-    """Enviar feedback sobre uma resposta"""
+    """Enviar feedback sobre uma resposta (thumbs up/down)"""
     message_id = request.data.get('message_id')
-    feedback_type = request.data.get('feedback_type')
+    rating = request.data.get('rating')  # 'positive' ou 'negative'
     comment = request.data.get('comment', '')
     
-    if not message_id or not feedback_type:
-        return Response({'error': 'message_id e feedback_type são obrigatórios'}, 
+    if not message_id or not rating:
+        return Response({'error': 'message_id e rating são obrigatórios'}, 
+                       status=status.HTTP_400_BAD_REQUEST)
+    
+    if rating not in ['positive', 'negative']:
+        return Response({'error': 'rating deve ser "positive" ou "negative"'}, 
                        status=status.HTTP_400_BAD_REQUEST)
     
     try:
@@ -167,25 +171,22 @@ def submit_feedback(request):
         )
         
         # Criar ou atualizar feedback
-        feedback, created = ChatFeedback.objects.get_or_create(
+        feedback, created = ChatFeedback.objects.update_or_create(
             message=message,
+            user=request.user,
             defaults={
-                'user': request.user,
-                'feedback_type': feedback_type,
-                'comment': comment
+                'rating': rating,
+                'comment': comment,
+                'search_query_id': message.search_query_id
             }
         )
         
-        if not created:
-            feedback.feedback_type = feedback_type
-            feedback.comment = comment
-            feedback.save()
-        
         # Atualizar flag na mensagem
-        message.is_helpful = feedback_type == 'helpful'
+        message.is_helpful = rating == 'positive'
         message.save()
         
-        return Response({'message': 'Feedback enviado com sucesso'})
+        action = 'enviado' if created else 'atualizado'
+        return Response({'message': f'Feedback {action} com sucesso'})
         
     except ChatMessage.DoesNotExist:
         return Response({'error': 'Mensagem não encontrada'}, 
