@@ -4,10 +4,11 @@ import { useAuth } from '../context/AuthContext';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
+  requireAdmin?: boolean;
 }
 
-export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
-  const { isAuthenticated, isLoading } = useAuth();
+export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requireAdmin = false }) => {
+  const { isAuthenticated, isLoading, user } = useAuth();
 
   // Se está em processo de logout, não fazer redirect
   const isLoggingOut = localStorage.getItem('justLoggedOut');
@@ -27,6 +28,11 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
+  }
+
+  // Verificar se requer admin e o usuário não é admin
+  if (requireAdmin && user && !user.is_admin) {
+    return <Navigate to="/chat" replace />;
   }
 
   return <>{children}</>;

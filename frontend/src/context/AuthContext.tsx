@@ -41,6 +41,7 @@ interface User {
   profile_picture?: string;
   department?: string;
   job_title?: string;
+  is_admin?: boolean;
 }
 
 interface AuthContextType {
@@ -84,6 +85,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         profile_picture: profileResponse.data.profile_picture,
         department: profileResponse.data.department,
         job_title: profileResponse.data.job_title,
+        is_admin: profileResponse.data.is_admin || false,
       });
       console.log('✅ Perfil carregado com sucesso');
     } catch (err) {
@@ -177,6 +179,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           profile_picture: backendResponse.data.user.profile_picture,
           department: backendResponse.data.user.department,
           job_title: backendResponse.data.user.job_title,
+          is_admin: backendResponse.data.user.is_admin || false,
         });
         
         console.log('✅ Login completo!');

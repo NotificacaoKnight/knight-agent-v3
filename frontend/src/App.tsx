@@ -9,6 +9,7 @@ import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { ChatPage } from './pages/ChatPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { DocumentsPage } from './pages/DocumentsPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -50,6 +51,14 @@ function App() {
                   element={
                     <ProtectedRoute>
                       <SettingsPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/documents"
+                  element={
+                    <ProtectedRoute requireAdmin>
+                      <DocumentsPage />
                     </ProtectedRoute>
                   }
                 />
