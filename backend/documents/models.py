@@ -1,5 +1,9 @@
+import os
+import shutil
 from django.db import models
 from django.contrib.auth import get_user_model
+from django.db.models.signals import post_delete
+from django.dispatch import receiver
 
 User = get_user_model()
 
@@ -33,6 +37,9 @@ class Document(models.Model):
     
     # Metadados extraídos
     metadata = models.JSONField(default=dict, blank=True)
+    
+    # Contador de acessos para ranking
+    access_count = models.IntegerField(default=0, help_text="Número de vezes que o documento foi acessado no RAG")
     
     class Meta:
         ordering = ['-uploaded_at']
@@ -91,3 +98,41 @@ class ProcessingJob(models.Model):
     
     def __str__(self):
         return f"{self.document.title} - {self.job_type} ({self.status})"
+
+
+@receiver(post_delete, sender=Document)
+def cleanup_document_files(sender, instance, **kwargs):
+    """Limpa arquivos físicos após exclusão do documento"""
+    try:
+        # Remover arquivo original
+        if instance.file_path and os.path.exists(instance.file_path.path):
+            os.remove(instance.file_path.path)
+            print(f"Arquivo original removido: {instance.file_path.path}")
+        
+        # Remover pasta processada (se existir)
+        if instance.processed_path and os.path.exists(instance.processed_path):
+            processed_dir = os.path.dirname(instance.processed_path)
+            if os.path.exists(processed_dir):
+                shutil.rmtree(processed_dir)
+                print(f"Pasta processada removida: {processed_dir}")
+        
+        # Se não tem processed_path, tentar pela convenção de nome
+        else:
+            processed_dir = f"processed_documents/{instance.id}"
+            if os.path.exists(processed_dir):
+                shutil.rmtree(processed_dir)
+                print(f"Pasta processada removida (convenção): {processed_dir}")
+        
+        # Limpar embeddings do vector store
+        try:
+            from rag.services import VectorSearchService
+            vector_service = VectorSearchService()
+            # Remover embeddings relacionados ao documento
+            if hasattr(vector_service, 'remove_document_embeddings'):
+                vector_service.remove_document_embeddings(instance.id)
+                print(f"Embeddings removidos do vector store para documento {instance.id}")
+        except Exception as e:
+            print(f"Erro ao remover embeddings: {e}")
+            
+    except Exception as e:
+        print(f"Erro na limpeza de arquivos para documento {instance.id}: {e}")

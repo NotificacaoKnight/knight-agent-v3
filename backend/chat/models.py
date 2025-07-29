@@ -73,21 +73,22 @@ class DocumentRequest(models.Model):
         return f"Solicitação: {self.document_name}"
 
 class ChatFeedback(models.Model):
-    """Feedback sobre respostas do chat"""
-    FEEDBACK_TYPES = [
-        ('helpful', 'Útil'),
-        ('not_helpful', 'Não Útil'),
-        ('incorrect', 'Incorreto'),
-        ('incomplete', 'Incompleto'),
+    """Feedback sobre respostas do chat com sistema de thumbs up/down"""
+    RATING_CHOICES = [
+        ('positive', 'Positivo'),
+        ('negative', 'Negativo'),
     ]
     
     message = models.OneToOneField(ChatMessage, on_delete=models.CASCADE, related_name='feedback')
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     
-    feedback_type = models.CharField(max_length=20, choices=FEEDBACK_TYPES)
-    comment = models.TextField(blank=True)
+    rating = models.CharField(max_length=20, choices=RATING_CHOICES, default='positive')
+    comment = models.TextField(blank=True, help_text="Comentário opcional sobre o feedback")
+    
+    # Referência para a busca RAG se aplicável
+    search_query_id = models.IntegerField(null=True, blank=True)
     
     created_at = models.DateTimeField(auto_now_add=True)
     
     def __str__(self):
-        return f"Feedback: {self.feedback_type} - Mensagem {self.message.id}"
+        return f"Feedback: {self.rating} - Mensagem {self.message.id}"

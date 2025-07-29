@@ -10,20 +10,24 @@ DEBUG = config('DEBUG', default=True, cast=bool)
 
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=lambda v: [s.strip() for s in v.split(',')]) + ['*.loca.lt']
 
-# Security settings - CORS configuration for development and tunnel
-CORS_ALLOW_ALL_ORIGINS = True  # Temporariamente true para debug
+# Security settings - CORS configuration SEGURA
+CORS_ALLOW_ALL_ORIGINS = False  # CORRIGIDO - não permitir todas as origens
 CSRF_TRUSTED_ORIGINS = ['http://localhost:3000', 'http://127.0.0.1:3000', 'https://*.loca.lt']
 
-# Allowed origins for CORS
+# Allowed origins for CORS - apenas origens confiáveis
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
-    "http://127.0.0.1:3000",
+    "http://127.0.0.1:3000", 
     "https://knight-frontend-dev.loca.lt",
-    "https://knight-frontend-dev.loca.lt:3000",  # Para tunnel accessing localhost backend
 ]
 
-# Permitir all origins temporariamente para debug
-CORS_ALLOW_ALL_ORIGINS = True
+# SEGURANÇA: Credentials desabilitados para segurança
+CORS_ALLOW_CREDENTIALS = False
+
+# CSRF exempt for API endpoints (JWT authentication)
+CSRF_EXEMPT_PATHS = [
+    '/api/',  # Todos os endpoints da API são isentos de CSRF
+]
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -44,19 +48,25 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    'authentication.rate_limiting.AuthenticationRateLimitMiddleware',  # Rate limiting para auth
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
-    # 'django.middleware.csrf.CsrfViewMiddleware',  # Temporarily disabled for API
+    # 'django.middleware.csrf.CsrfViewMiddleware',  # Desabilitado para API REST com Bearer tokens
     'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'authentication.middleware.TokenAuthenticationMiddleware',  # Custom token auth
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-# CSRF exempt paths for development
-CSRF_COOKIE_HTTPONLY = False
-CSRF_COOKIE_SECURE = False
-SESSION_COOKIE_SECURE = False
+# SEGURANÇA: Configurações de segurança para cookies
+CSRF_COOKIE_HTTPONLY = True  # Proteger contra XSS
+CSRF_COOKIE_SECURE = config('CSRF_COOKIE_SECURE', default=False, cast=bool)  # True em produção
+CSRF_COOKIE_SAMESITE = 'Strict'  # Proteção adicional CSRF
+SESSION_COOKIE_SECURE = config('SESSION_COOKIE_SECURE', default=False, cast=bool)  # True em produção
+SESSION_COOKIE_HTTPONLY = True  # Proteção contra XSS
+SESSION_COOKIE_SAMESITE = 'Strict'  # Proteção adicional
+SECURE_BROWSER_XSS_FILTER = True  # Filtro XSS do navegador
+SECURE_CONTENT_TYPE_NOSNIFF = True  # Prevenir MIME sniffing
+X_FRAME_OPTIONS = 'DENY'  # Prevenir clickjacking
 
 ROOT_URLCONF = 'knight_backend.urls'
 
@@ -120,6 +130,11 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Custom User Model
 AUTH_USER_MODEL = 'authentication.User'
 
+# Authentication backends - Apenas Azure AD
+AUTHENTICATION_BACKENDS = [
+    'authentication.backends.MicrosoftAuthBackend',
+]
+
 # Django REST Framework
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
@@ -134,7 +149,7 @@ REST_FRAMEWORK = {
 
 # CORS configuration is above in the Security settings section
 
-CORS_ALLOW_CREDENTIALS = False  # Removido pois usamos token auth, não cookies
+# SEGURANÇA: Credentials desabilitados para token auth
 
 CORS_ALLOW_HEADERS = [
     'accept',
@@ -177,9 +192,7 @@ GOOGLE_API_KEY = config('GOOGLE_API_KEY', default='')
 GEMINI_API_KEY = config('GEMINI_API_KEY', default='')
 GEMINI_MODEL = config('GEMINI_MODEL', default='gemini-1.5-flash')
 
-# Ollama Configuration (para self-hosted)
-OLLAMA_BASE_URL = config('OLLAMA_BASE_URL', default='http://localhost:11434')
-OLLAMA_MODEL = config('OLLAMA_MODEL', default='llama3.2')
+# Ollama removido - apenas APIs externas são suportadas
 
 # RAG Configuration
 EMBEDDING_MODEL = config('EMBEDDING_MODEL', default='BAAI/bge-m3')
@@ -200,13 +213,17 @@ DOWNLOADS_RETENTION_DAYS = config('DOWNLOADS_RETENTION_DAYS', default=7, cast=in
 CELERY_BROKER_URL = config('CELERY_BROKER_URL', default='redis://localhost:6379/0')
 CELERY_RESULT_BACKEND = config('CELERY_RESULT_BACKEND', default='redis://localhost:6379/0')
 
-# Logging
+# SEGURANÇA: Logging seguro com separação de auditoria
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
     'formatters': {
         'verbose': {
             'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'style': '{',
+        },
+        'security_audit': {
+            'format': '{asctime} AUDIT {levelname}: {message}',
             'style': '{',
         },
     },
@@ -217,10 +234,28 @@ LOGGING = {
             'filename': BASE_DIR / 'logs' / 'knight.log',
             'formatter': 'verbose',
         },
+        'security_audit_file': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': BASE_DIR / 'logs' / 'security_audit.log',
+            'formatter': 'security_audit',
+        },
         'console': {
             'level': 'DEBUG',
             'class': 'logging.StreamHandler',
             'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        'security_audit': {
+            'handlers': ['security_audit_file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'authentication': {
+            'handlers': ['file', 'console'],
+            'level': 'INFO',
+            'propagate': False,
         },
     },
     'root': {
