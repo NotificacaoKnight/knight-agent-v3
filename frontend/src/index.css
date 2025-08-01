@@ -1,6 +1,4 @@
-@import 'tailwindcss/base';
-@import 'tailwindcss/components';
-@import 'tailwindcss/utilities';
+@import './styles/globals.css';
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
@@ -42,52 +40,4 @@
   }
 }
 
-@layer base {
-  * {
-    @apply border-gray-200;
-  }
-  
-  body {
-    @apply bg-gray-50 text-gray-900 font-sans;
-  }
-}
 
-@layer components {
-  .btn-primary {
-    @apply bg-knight-primary hover:bg-knight-primary/90 text-white font-medium py-2 px-4 rounded-lg transition-colors;
-  }
-  
-  .btn-secondary {
-    @apply bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 font-medium py-2 px-4 rounded-lg transition-colors;
-  }
-  
-  .input-field {
-    @apply w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-knight-secondary focus:border-transparent;
-  }
-  
-  .card {
-    @apply bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm;
-  }
-  
-  .sidebar {
-    @apply bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700;
-  }
-  
-  .chat-message-user {
-    @apply bg-knight-primary text-white rounded-lg px-4 py-2 ml-auto max-w-xs lg:max-w-md;
-  }
-  
-  .chat-message-assistant {
-    @apply bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg px-4 py-2 mr-auto max-w-xs lg:max-w-md;
-  }
-  
-  .scrollbar-hide {
-    /* Hide scrollbar for Chrome, Safari and Opera */
-    &::-webkit-scrollbar {
-      display: none;
-    }
-    /* Hide scrollbar for IE, Edge and Firefox */
-    -ms-overflow-style: none;  /* IE and Edge */
-    scrollbar-width: none;  /* Firefox */
-  }
-}

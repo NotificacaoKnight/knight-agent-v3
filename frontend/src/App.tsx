@@ -26,7 +26,7 @@ function App() {
       <ThemeProvider>
         <AuthProvider>
           <Router>
-            <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+            <div className="min-h-screen bg-background">
               <Routes>
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/logout" element={<Navigate to="/login" replace />} />

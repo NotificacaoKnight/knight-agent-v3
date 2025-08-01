@@ -2,7 +2,12 @@ import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { Navigate } from 'react-router-dom';
-import { Shield, Moon, Sun } from 'lucide-react';
+import { Shield, Moon, Sun, Sparkles, Zap, Lock } from 'lucide-react';
+import { Button } from '../components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '../components/ui/card';
+import { Alert, AlertDescription } from '../components/ui/alert';
+import { Badge } from '../components/ui/badge';
+import { cn } from '../lib/utils';
 
 export const LoginPage: React.FC = () => {
   const { login, isAuthenticated, isLoading, error } = useAuth();
@@ -21,106 +26,165 @@ export const LoginPage: React.FC = () => {
     }
   };
 
+  const features = [
+    {
+      icon: Shield,
+      title: 'Seguro',
+      description: 'Autenticação Microsoft Azure AD',
+      color: 'text-primary'
+    },
+    {
+      icon: Sparkles,
+      title: 'Inteligente',
+      description: 'IA avançada para suas consultas',
+      color: 'text-accent'
+    },
+    {
+      icon: Zap,
+      title: 'Rápido',
+      description: 'Respostas em segundos',
+      color: 'text-accent'
+    }
+  ];
+
 
   return (
-    <div className="min-h-screen bg-gray-100 dark:bg-gray-900 flex items-center justify-center px-4 sm:px:6 lg:px-8">
+    <div className="min-h-screen bg-background flex items-center justify-center px-4 py-8 relative overflow-hidden">
+      {/* Clean background without overlays */}
+      
       {/* Theme toggle */}
-      <button
+      <Button
         onClick={toggleTheme}
-        className="absolute top-4 right-4 p-2 rounded-lg bg-gray-700/10 hover:bg-gray-700/20 dark:bg-gray-300/10 dark:hover:bg-gray-300/20 text-gray-700 dark:text-gray-300 transition-colors"
-        aria-label="Toggle theme"
+        className="absolute top-4 right-4 sm:top-6 sm:right-6 z-10"
+        variant="outline"
+        size="icon"
+        aria-label={theme === 'light' ? 'Ativar modo escuro' : 'Ativar modo claro'}
       >
-        {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
-      </button>
+        {theme === 'light' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+      </Button>
 
-      <div className="max-w-md w-full space-y-8">
-        {/* Logo and Header */}
-        <div className="text-center">
-          <div className="mx-auto h-16 w-16 bg-yellow-600 rounded-full flex items-center justify-center mb-6">
-            <Shield className="h-8 w-8 text-gray-800" />
+      <div className="w-full max-w-lg relative z-10">
+        {/* Brand Header */}
+        <header className="text-center mb-8" role="banner">
+          <div className="mx-auto h-16 w-16 sm:h-20 sm:w-20 bg-accent rounded-2xl flex items-center justify-center mb-4 sm:mb-6 shadow-lg">
+            <Shield className="h-8 w-8 sm:h-10 sm:w-10 text-accent-foreground" strokeWidth={2.5} aria-hidden="true" />
           </div>
-          <h1 className="text-4xl font-bold text-gray-800 dark:text-gray-100 mb-2">
-            Knight
-          </h1>
-          <p className="text-xl text-gray-600 dark:text-gray-400 mb-8">
-            Seu cavaleiro IA
-          </p>
-        </div>
+          <div className="space-y-2">
+            <h1 className="text-3xl sm:text-4xl font-bold text-foreground">
+              Knight Agent
+            </h1>
+            <p className="text-base sm:text-lg text-muted-foreground font-medium">
+              Seu assistente IA corporativo
+            </p>
+            <Badge variant="secondary" className="text-xs inline-flex items-center">
+              <Lock className="h-3 w-3 mr-1" aria-hidden="true" />
+              Ambiente Seguro
+            </Badge>
+          </div>
+        </header>
 
         {/* Login Card */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl p-8">
-          <div className="text-center mb-6">
-            <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">
+        <Card className="border shadow-2xl bg-card" role="main">
+          <CardHeader className="text-center pb-2">
+            <CardTitle className="text-xl sm:text-2xl text-card-foreground">
               Bem-vindo de volta
-            </h2>
-            <p className="text-gray-600 dark:text-gray-300">
-              Faça login com sua conta Microsoft para continuar
-            </p>
-          </div>
+            </CardTitle>
+            <CardDescription className="text-sm sm:text-base text-muted-foreground">
+              Entre com sua conta Microsoft para acessar o sistema
+            </CardDescription>
+          </CardHeader>
 
-          {/* Error message */}
-          {error && (
-            <div className="mb-4 p-3 bg-red-900/20 border border-red-800 rounded-lg">
-              <p className="text-sm text-red-400">{error}</p>
-            </div>
-          )}
-
-          {/* Login Button */}
-          <button
-            onClick={handleLogin}
-            disabled={isLoading}
-            className="w-full flex items-center justify-center px-4 py-3 border border-transparent rounded-lg shadow-sm text-base font-medium text-gray-800 bg-yellow-600 hover:bg-yellow-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {isLoading ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-800 mr-2"></div>
-                Conectando...
-              </>
-            ) : (
-              <>
-                <svg className="w-5 h-5 mr-2" viewBox="0 0 21 21" fill="none">
-                  <rect x="0" y="0" width="10" height="10" fill="#F25022"/>
-                  <rect x="11" y="0" width="10" height="10" fill="#00A4EF"/>
-                  <rect x="0" y="11" width="10" height="10" fill="#7FBA00"/>
-                  <rect x="11" y="11" width="10" height="10" fill="#FFB900"/>
-                </svg>
-                Entrar com Microsoft
-              </>
+          <CardContent className="space-y-6">
+            {/* Error Alert */}
+            {error && (
+              <Alert variant="destructive" className="border-red-200 dark:border-red-800/50" role="alert" aria-live="polite">
+                <AlertDescription className="text-sm">
+                  <strong>Erro de autenticação:</strong> {error}
+                  {error.includes('network') && (
+                    <div className="mt-2 text-xs">
+                      Verifique sua conexão com a internet e tente novamente.
+                    </div>
+                  )}
+                </AlertDescription>
+              </Alert>
             )}
-          </button>
 
+            {/* Login Button */}
+            <Button
+              onClick={handleLogin}
+              disabled={isLoading}
+              size="lg"
+              className={cn(
+                "w-full h-12 text-base font-semibold",
+                "bg-primary hover:bg-primary-hover",
+                "text-primary-foreground",
+                "shadow-lg shadow-primary/25",
+                "transition-all duration-200 ease-in-out",
+                "disabled:opacity-50 disabled:cursor-not-allowed",
+                "focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-none"
+              )}
+              aria-label={isLoading ? 'Conectando à conta Microsoft' : 'Entrar com conta Microsoft'}
+            >
+              {isLoading ? (
+                <>
+                  <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-3" />
+                  Conectando...
+                </>
+              ) : (
+                <div className="flex items-center justify-center">
+                  <svg className="w-5 h-5 mr-3" viewBox="0 0 21 21" fill="none">
+                    <rect x="0" y="0" width="10" height="10" fill="#F25022"/>
+                    <rect x="11" y="0" width="10" height="10" fill="#00A4EF"/>
+                    <rect x="0" y="11" width="10" height="10" fill="#7FBA00"/>
+                    <rect x="11" y="11" width="10" height="10" fill="#FFB900"/>
+                  </svg>
+                  Entrar com Microsoft
+                </div>
+              )}
+            </Button>
 
-          {/* Info */}
-          <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
-            <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
-              Ao fazer login, você concorda com os termos de uso da empresa.
-              <br />
-              Para suporte, entre em contato com o RH.
-            </p>
-          </div>
-        </div>
+            {/* Features Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-3 pt-4" role="region" aria-label="Recursos do sistema">
+              {features.map((feature, index) => (
+                <div key={index} className="text-center group">
+                  <div className={cn(
+                    "w-10 h-10 rounded-xl flex items-center justify-center mx-auto mb-2",
+                    "bg-muted group-hover:bg-muted/80",
+                    "transition-colors duration-200"
+                  )}>
+                    <feature.icon className={cn("h-5 w-5", feature.color)} strokeWidth={2} aria-hidden="true" />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-card-foreground">
+                      {feature.title}
+                    </p>
+                    <p className="text-xs text-muted-foreground leading-tight">
+                      {feature.description}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
 
-        {/* Features */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-8">
-          <div className="text-center text-gray-600 dark:text-gray-400">
-            <div className="w-8 h-8 bg-yellow-600/20 dark:bg-yellow-600/10 rounded-lg flex items-center justify-center mx-auto mb-2">
-              <Shield size={16} className="text-yellow-600 dark:text-yellow-500" />
+          <CardFooter className="pt-0">
+            <div className="w-full text-center space-y-2">
+              <p className="text-xs text-muted-foreground">
+                Ao fazer login, você concorda com os termos de uso da empresa
+              </p>
+              <p className="text-xs text-muted-foreground/80">
+                Para suporte técnico, entre em contato com o RH
+              </p>
             </div>
-            <p className="text-sm">Seguro</p>
-          </div>
-          <div className="text-center text-gray-600 dark:text-gray-400">
-            <div className="w-8 h-8 bg-yellow-600/20 dark:bg-yellow-600/10 rounded-lg flex items-center justify-center mx-auto mb-2">
-              <span className="text-sm font-bold text-yellow-600 dark:text-yellow-500">IA</span>
-            </div>
-            <p className="text-sm">Inteligente</p>
-          </div>
-          <div className="text-center text-gray-600 dark:text-gray-400">
-            <div className="w-8 h-8 bg-yellow-600/20 dark:bg-yellow-600/10 rounded-lg flex items-center justify-center mx-auto mb-2">
-              <span className="text-sm text-yellow-600 dark:text-yellow-500">⚡</span>
-            </div>
-            <p className="text-sm">Rápido</p>
-          </div>
-        </div>
+          </CardFooter>
+        </Card>
+
+        {/* Version Badge */}
+        <footer className="text-center mt-6" role="contentinfo">
+          <Badge variant="outline" className="text-xs">
+            Knight Agent v2.0 - Sistema RAG Agêntico
+          </Badge>
+        </footer>
       </div>
     </div>
   );

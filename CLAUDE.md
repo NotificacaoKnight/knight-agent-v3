@@ -116,7 +116,7 @@ npm run build  # Production build
 npm test  # Run tests
 ```
 
-**Note**: Frontend uses React Scripts (Create React App), not Next.js as mentioned in README.md. Key packages: MSAL React, TanStack Query, Axios, Tailwind CSS.
+**Note**: Frontend uses React Scripts (Create React App), not Next.js as mentioned in README.md. Key packages: MSAL React, TanStack Query, Axios, Tailwind CSS, shadcn/ui components.
 
 ### Linting and Code Quality
 
@@ -369,7 +369,10 @@ Change providers by updating `LLM_PROVIDER` environment variable. Fallback order
 - `frontend/src/context/AuthContext.tsx`: Global authentication state
 - `frontend/src/services/api.ts`: Centralized API client with auth interceptors
 - `frontend/src/pages/LoginPage.tsx`: Microsoft Azure AD login interface
-- `frontend/tailwind.config.js`: Custom knight-* color scheme configuration
+- `frontend/src/components/ui/`: shadcn/ui component library (Button, Card, Alert, Badge)
+- `frontend/src/lib/utils.ts`: Utility functions for className merging (cn)
+- `frontend/tailwind.config.js`: Custom knight-* color scheme with CSS variables and dark mode
+- `frontend/postcss.config.js`: PostCSS configuration for Tailwind CSS
 
 ### Configuration Files
 - `docker-compose.yml`: Development environment with PostgreSQL, Redis, Celery
@@ -426,7 +429,10 @@ python manage.py shell
 - **React 18** with TypeScript (Create React App)
 - **MSAL React** for Microsoft Azure AD authentication
 - **TanStack React Query** for server state management
-- **Tailwind CSS** for styling with custom knight-* color scheme
+- **Tailwind CSS** for styling with custom knight-* color scheme and CSS variables
+- **shadcn/ui** for modern, accessible UI components (Button, Card, Alert, Badge)
+- **Radix UI** for low-level accessible primitives (Slot)
+- **class-variance-authority (cva)** for component variant management
 - **Context API** for global state (Auth, Theme)
 - **React Router** for navigation with protected routes
 - **Axios** for API calls with automatic token injection
@@ -524,6 +530,8 @@ curl -X POST http://localhost:8000/api/rag/search/ \
 
 - **Django**: Follow Django conventions, use class-based views for complex logic
 - **React**: Use functional components with hooks, TypeScript strict mode enabled
+- **UI Components**: Use shadcn/ui components with consistent variant patterns via cva
+- **Styling**: Use Tailwind CSS with custom CSS variables for theming, utilize `cn()` utility for className merging
 - **API Design**: All endpoints use `/api/` prefix, consistent naming with Django REST Framework
 - **Error Handling**: Always include proper error responses and logging
 - **Authentication**: Use custom middleware for token validation, not Django's default auth
