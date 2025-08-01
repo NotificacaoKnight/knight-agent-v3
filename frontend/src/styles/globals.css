@@ -41,7 +41,7 @@
 
   .dark {
     /* Dark Theme - Knight Agent Design System */
-    --background: 42 42 42; /* #2A2A2A */
+    --background: 30 31 34; /* #1E1F22 */
     --background-secondary: 48 48 48; /* #303030 */
     --foreground: 255 255 255; /* #FFFFFF */
     --foreground-secondary: 176 176 176; /* #B0B0B0 */
