@@ -14,9 +14,12 @@ def send_message(request):
     """Enviar mensagem para o Knight"""
     message = request.data.get('message', '').strip()
     session_id = request.data.get('session_id')
+    audio_file = request.FILES.get('audio_file')
+    content_type = request.data.get('content_type', 'text')
     
-    if not message:
-        return Response({'error': 'Mensagem não pode estar vazia'}, 
+    # Validar se há conteúdo (texto ou áudio)
+    if not message and not audio_file:
+        return Response({'error': 'Mensagem de texto ou arquivo de áudio é obrigatório'}, 
                        status=status.HTTP_400_BAD_REQUEST)
     
     try:
@@ -36,7 +39,9 @@ def send_message(request):
         result = chat_service.process_message(
             message, 
             session,
-            search_params=request.data.get('search_params', {})
+            search_params=request.data.get('search_params', {}),
+            audio_file=audio_file,
+            content_type=content_type
         )
         
         # Estruturar resposta no formato esperado pelo frontend
@@ -50,6 +55,7 @@ def send_message(request):
                     'content': result.get('response', ''),
                     'timestamp': datetime.now().isoformat()
                 },
+                'user_message': result.get('user_message_data'),  # Dados da mensagem do usuário
                 'context_used': result.get('context_used', 0) > 0,
                 'response_time': result.get('response_time_ms', 0)
             }

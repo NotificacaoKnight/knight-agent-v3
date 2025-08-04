@@ -127,6 +127,12 @@ class AgenticRAGService:
         start_time = time.time()
         
         try:
+            # Verificar se índices precisam ser reconstruídos
+            if cache.get('indices_need_rebuild'):
+                # Forçar reconstrução dos serviços
+                self.vector_search = VectorSearchService()
+                self.bm25_search = BM25SearchService()
+            
             # Usar HybridSearchService existente para otimização
             from .services import HybridSearchService
             hybrid_service = HybridSearchService()

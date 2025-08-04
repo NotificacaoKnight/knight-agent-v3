@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ThemeToggle } from './ThemeToggle';
@@ -11,7 +11,10 @@ import {
   X,
   MessageSquare,
   Plus,
-  FileText
+  FileText,
+  History,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 
 interface SidebarItem {
@@ -39,6 +42,13 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const [leftSidebarOpen] = useState(true);
   const [rightSidebarOpen, setRightSidebarOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [chatHistorySidebarOpen, setChatHistorySidebarOpen] = useState(false);
+
+  // Auto expand/collapse chat history sidebar based on route
+  useEffect(() => {
+    const isChatRoute = location.pathname.startsWith('/chat');
+    setChatHistorySidebarOpen(isChatRoute);
+  }, [location.pathname]);
 
   // Menu items
   // Menu items dinâmico baseado no status de admin
@@ -87,12 +97,12 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   };
 
   return (
-    <div className="h-screen bg-gray-50 dark:bg-gray-900 flex overflow-hidden">
+    <div className="h-screen bg-background flex overflow-hidden">
       {/* Left Sidebar - Menu */}
       <div
         className={`${
           leftSidebarOpen ? 'w-16' : 'w-0'
-        } bg-gray-200 dark:bg-gray-900 transition-all duration-300 overflow-hidden flex-shrink-0`}
+        } sidebar-left transition-all duration-300 overflow-hidden flex-shrink-0`}
       >
         <div className="h-full flex flex-col">
           {/* Menu Items */}
@@ -206,18 +216,32 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       </div>
 
       {/* Chat History Sidebar */}
-      <div className="w-64 bg-gray-100 dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex-shrink-0 hidden md:block">
+      <div className={`${
+        chatHistorySidebarOpen ? 'w-64' : 'w-0'
+      } sidebar-right border-r border-border flex-shrink-0 hidden md:block transition-all duration-300 overflow-hidden`}>
         <div className="h-full flex flex-col">
           {/* Header */}
-          <div className="h-16 px-4 flex items-center justify-between border-b border-gray-200 dark:border-gray-700">
-            <h2 className="font-semibold text-gray-900 dark:text-white">Conversas</h2>
-            <button
-              onClick={() => navigate('/chat')}
-              className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
-              title="Nova conversa"
-            >
-              <Plus className="h-4 w-4 text-gray-600 dark:text-gray-400" />
-            </button>
+          <div className="h-16 px-4 flex items-center justify-between border-b border-border">
+            <div className="flex items-center">
+              <History className="h-4 w-4 text-muted-foreground mr-2" />
+              <h2 className="font-semibold text-foreground">Conversas</h2>
+            </div>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => navigate('/chat')}
+                className="p-2 hover:bg-muted rounded-lg transition-colors"
+                title="Nova conversa"
+              >
+                <Plus className="h-4 w-4 text-muted-foreground" />
+              </button>
+              <button
+                onClick={() => setChatHistorySidebarOpen(false)}
+                className="p-2 hover:bg-muted rounded-lg transition-colors"
+                title="Ocultar histórico"
+              >
+                <ChevronLeft className="h-4 w-4 text-muted-foreground" />
+              </button>
+            </div>
           </div>
 
           {/* Chat List */}
@@ -226,17 +250,17 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               <button
                 key={chat.id}
                 onClick={() => navigate(`/chat/${chat.id}`)}
-                className="w-full p-4 text-left hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors border-b border-gray-200 dark:border-gray-700"
+                className="w-full p-4 text-left hover:bg-muted transition-colors border-b border-border"
               >
                 <div className="flex items-start justify-between mb-1">
-                  <h3 className="font-medium text-sm text-gray-900 dark:text-white truncate flex-1">
+                  <h3 className="font-medium text-sm text-foreground truncate flex-1">
                     {chat.title}
                   </h3>
-                  <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
+                  <span className="text-xs text-muted-foreground ml-2">
                     {formatTimeAgo(chat.timestamp)}
                   </span>
                 </div>
-                <p className="text-xs text-gray-600 dark:text-gray-400 truncate">
+                <p className="text-xs text-muted-foreground truncate">
                   {chat.preview}
                 </p>
               </button>
@@ -248,28 +272,41 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       {/* Main Content */}
       <div className="flex-1 flex flex-col">
         {/* Top Header */}
-        <header className="h-16 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between px-4">
+        <header className="h-16 bg-card border-b border-border flex items-center justify-between px-4">
           <div className="flex items-center">
+            {/* Chat History Toggle (show when collapsed) */}
+            {!chatHistorySidebarOpen && (
+              <button
+                onClick={() => setChatHistorySidebarOpen(true)}
+                className="hidden md:flex p-2 rounded-lg hover:bg-muted transition-colors items-center mr-2"
+                title="Mostrar histórico"
+              >
+                <History className="h-4 w-4 text-muted-foreground mr-1" />
+                <ChevronRight className="h-3 w-3 text-muted-foreground" />
+              </button>
+            )}
+            
             {/* Mobile menu toggle */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors md:hidden"
+              className="p-2 rounded-lg hover:bg-muted transition-colors md:hidden"
             >
-              <Menu className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+              <Menu className="h-5 w-5 text-muted-foreground" />
             </button>
 
-            <h1 className="ml-4 text-xl font-semibold text-gray-900 dark:text-white">
+            <h1 className="ml-4 text-xl font-semibold text-foreground">
               Knight
             </h1>
           </div>
 
           <div className="flex items-center space-x-4">
+            
             {/* Right sidebar toggle */}
             <button
               onClick={() => setRightSidebarOpen(!rightSidebarOpen)}
-              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              className="p-2 rounded-lg hover:bg-muted transition-colors"
             >
-              <Menu className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+              <Menu className="h-5 w-5 text-muted-foreground" />
             </button>
           </div>
         </header>
@@ -284,35 +321,35 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       <div
         className={`${
           rightSidebarOpen ? 'w-64' : 'w-0'
-        } bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 transition-all duration-300 overflow-hidden flex-shrink-0`}
+        } bg-card border-l border-border transition-all duration-300 overflow-hidden flex-shrink-0`}
       >
         <div className="h-full p-4">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-gray-900 dark:text-white">Informações</h3>
+            <h3 className="font-semibold text-foreground">Informações</h3>
             <button
               onClick={() => setRightSidebarOpen(false)}
-              className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+              className="p-1 hover:bg-muted rounded transition-colors"
             >
-              <X className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+              <X className="h-4 w-4 text-muted-foreground" />
             </button>
           </div>
           
           {/* Placeholder content for right sidebar */}
           <div className="space-y-4">
-            <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-              <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">
+            <div className="p-3 bg-muted rounded-lg">
+              <h4 className="text-sm font-medium text-foreground mb-2">
                 Documentos Recentes
               </h4>
-              <p className="text-xs text-gray-600 dark:text-gray-400">
+              <p className="text-xs text-muted-foreground">
                 Nenhum documento carregado
               </p>
             </div>
             
-            <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-              <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">
+            <div className="p-3 bg-muted rounded-lg">
+              <h4 className="text-sm font-medium text-foreground mb-2">
                 Estatísticas
               </h4>
-              <p className="text-xs text-gray-600 dark:text-gray-400">
+              <p className="text-xs text-muted-foreground">
                 Conversas hoje: 0
               </p>
             </div>
@@ -324,15 +361,15 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       {mobileMenuOpen && (
         <div className="fixed inset-0 z-50 md:hidden">
           <div className="fixed inset-0 bg-black bg-opacity-50" onClick={() => setMobileMenuOpen(false)} />
-          <div className="fixed left-0 top-0 bottom-0 w-64 bg-white dark:bg-gray-800 shadow-lg">
-            <div className="h-full flex flex-col bg-gray-200 dark:bg-gray-900">
-              <div className="h-16 px-4 flex items-center justify-between border-b border-gray-800">
-                <span className="font-semibold text-white">Knight</span>
+          <div className="fixed left-0 top-0 bottom-0 w-64 bg-card shadow-lg">
+            <div className="h-full flex flex-col sidebar-left">
+              <div className="h-16 px-4 flex items-center justify-between border-b border-border">
+                <span className="font-semibold text-foreground">Knight</span>
                 <button
                   onClick={() => setMobileMenuOpen(false)}
-                  className="p-2 hover:bg-gray-800 rounded-lg transition-colors"
+                  className="p-2 hover:bg-muted rounded-lg transition-colors"
                 >
-                  <X className="h-5 w-5 text-gray-400" />
+                  <X className="h-5 w-5 text-muted-foreground" />
                 </button>
               </div>
 
@@ -362,7 +399,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                         className={`w-full h-10 flex items-center px-3 rounded-lg transition-all duration-300 ${
                           isActive 
                             ? 'shadow-lg' 
-                            : 'bg-gray-700 hover:bg-gray-600'
+                            : 'bg-muted hover:bg-muted/80'
                         }`}
                         style={{
                           backgroundColor: isActive ? '#E09D1E' : undefined,
@@ -382,7 +419,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                         <span className={`font-medium text-sm ${
                           isActive
                             ? 'text-white'
-                            : 'text-gray-300'
+                            : 'text-foreground'
                         }`}>
                           {item.label}
                         </span>
@@ -395,7 +432,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               {/* Spacer para empurrar botões para baixo */}
               <div className="flex-1" />
 
-              <div className="border-t border-gray-800 p-4">
+              <div className="border-t border-border p-4">
                 {/* User Profile - foto quadrada com cantos arredondados */}
                 <div className="w-full h-10 flex items-center px-3 mb-8">
                   <button
@@ -409,13 +446,13 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                       <UserAvatar user={user || {}} size="sm" className="!rounded-lg w-full h-full" />
                     </div>
                   </button>
-                  <span className="font-medium text-white dark:text-white text-sm">Perfil</span>
+                  <span className="font-medium text-foreground text-sm">Perfil</span>
                 </div>
                 
                 {/* Logout */}
                 <button
                   onClick={logout}
-                  className="w-full h-10 flex items-center px-3 rounded-lg bg-gray-700 hover:bg-red-600 transition-all mb-8 group"
+                  className="w-full h-10 flex items-center px-3 rounded-lg bg-muted hover:bg-destructive transition-all mb-8 group"
                   onMouseEnter={(e) => {
                     const icon = e.currentTarget.querySelector('svg');
                     if (icon) icon.style.color = 'white';
@@ -432,18 +469,18 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                       transition: 'color 0.3s ease'
                     }}
                   />
-                  <span className="font-medium text-gray-300 text-sm group-hover:text-white transition-colors">Sair</span>
+                  <span className="font-medium text-muted-foreground text-sm group-hover:text-white transition-colors">Sair</span>
                 </button>
                 
                 {/* Divisória */}
-                <div className="border-t border-gray-400 dark:border-gray-700 mb-8"></div>
+                <div className="border-t border-border mb-8"></div>
                 
                 {/* Theme Toggle - sem fundo quadrado */}
                 <div className="w-full h-10 flex items-center px-3">
                   <div className="mr-3">
                     <ThemeToggle />
                   </div>
-                  <span className="font-medium text-gray-300 text-sm">Tema</span>
+                  <span className="font-medium text-muted-foreground text-sm">Tema</span>
                 </div>
               </div>
             </div>

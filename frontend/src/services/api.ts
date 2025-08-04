@@ -66,6 +66,10 @@ export interface ChatMessage {
   context?: any;
   llm_provider?: string;
   response_time?: number;
+  content_type?: 'text' | 'audio';
+  audio_url?: string;
+  audio_duration?: number;
+  transcription?: string;
 }
 
 export interface ChatSession {
@@ -80,10 +84,13 @@ export interface ChatSession {
 export interface SendMessageRequest {
   message: string;
   session_id?: string;
+  audio_file?: Blob;
+  content_type?: 'text' | 'audio';
 }
 
 export interface SendMessageResponse {
   message: ChatMessage;
+  user_message?: ChatMessage;
   session_id: string;
   context_used: boolean;
   response_time: number;
@@ -93,8 +100,27 @@ export interface SendMessageResponse {
 export const chatApi = {
   // Enviar mensagem
   sendMessage: async (data: SendMessageRequest): Promise<SendMessageResponse> => {
-    const response = await api.post('/chat/send/', data);
-    return response.data;
+    if (data.audio_file) {
+      // Para mensagens com áudio, usar FormData
+      const formData = new FormData();
+      formData.append('message', data.message);
+      formData.append('content_type', data.content_type || 'audio');
+      formData.append('audio_file', data.audio_file);
+      if (data.session_id) {
+        formData.append('session_id', data.session_id);
+      }
+      
+      const response = await api.post('/chat/send/', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data;
+    } else {
+      // Para mensagens de texto, usar JSON normal
+      const response = await api.post('/chat/send/', data);
+      return response.data;
+    }
   },
 
   // Criar nova sessão

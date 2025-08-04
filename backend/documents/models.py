@@ -123,16 +123,30 @@ def cleanup_document_files(sender, instance, **kwargs):
                 shutil.rmtree(processed_dir)
                 print(f"Pasta processada removida (convenção): {processed_dir}")
         
-        # Limpar embeddings do vector store
+        # Limpar embeddings do vector store e invalidar caches
         try:
-            from rag.services import VectorSearchService
+            from rag.services import VectorSearchService, BM25SearchService
+            from rag.cache_manager import RAGCacheManager
+            
+            # Remover embeddings do FAISS
             vector_service = VectorSearchService()
-            # Remover embeddings relacionados ao documento
             if hasattr(vector_service, 'remove_document_embeddings'):
                 vector_service.remove_document_embeddings(instance.id)
                 print(f"Embeddings removidos do vector store para documento {instance.id}")
+            
+            # Limpar caches relacionados ao documento
+            RAGCacheManager.clear_document_caches(instance.id)
+            
+            # Invalidar índices de busca para forçar reconstrução
+            RAGCacheManager.invalidate_search_indices()
+            
+            # Notificar que houve mudança nos índices
+            RAGCacheManager.notify_index_update(f'document_deleted_{instance.id}')
+            
+            print(f"Caches e índices invalidados para documento {instance.id}")
+            
         except Exception as e:
-            print(f"Erro ao remover embeddings: {e}")
+            print(f"Erro ao remover embeddings e limpar caches: {e}")
             
     except Exception as e:
         print(f"Erro na limpeza de arquivos para documento {instance.id}: {e}")

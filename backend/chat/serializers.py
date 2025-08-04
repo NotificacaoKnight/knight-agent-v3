@@ -21,18 +21,27 @@ class ChatSessionSerializer(serializers.ModelSerializer):
 
 class ChatMessageSerializer(serializers.ModelSerializer):
     context_count = serializers.SerializerMethodField()
+    audio_url = serializers.SerializerMethodField()
     
     class Meta:
         model = ChatMessage
         fields = [
-            'id', 'message_type', 'content', 'created_at',
+            'id', 'message_type', 'content_type', 'content', 'created_at',
             'context_count', 'llm_provider', 'llm_model',
-            'response_time_ms', 'is_helpful'
+            'response_time_ms', 'is_helpful', 'audio_file', 'audio_url',
+            'audio_duration', 'transcription'
         ]
         read_only_fields = ['id', 'created_at']
     
     def get_context_count(self, obj):
         return len(obj.context_used) if obj.context_used else 0
+    
+    def get_audio_url(self, obj):
+        if obj.audio_file:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.audio_file.url)
+        return None
 
 class DocumentRequestSerializer(serializers.ModelSerializer):
     class Meta:

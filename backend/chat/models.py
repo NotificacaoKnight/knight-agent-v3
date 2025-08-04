@@ -28,9 +28,20 @@ class ChatMessage(models.Model):
         ('system', 'Sistema'),
     ]
     
+    CONTENT_TYPES = [
+        ('text', 'Texto'),
+        ('audio', 'Áudio'),
+    ]
+    
     session = models.ForeignKey(ChatSession, on_delete=models.CASCADE, related_name='messages')
     message_type = models.CharField(max_length=10, choices=MESSAGE_TYPES)
+    content_type = models.CharField(max_length=10, choices=CONTENT_TYPES, default='text')
     content = models.TextField()
+    
+    # Campos para mensagens de áudio
+    audio_file = models.FileField(upload_to='chat_audio/', null=True, blank=True)
+    audio_duration = models.FloatField(null=True, blank=True)  # duração em segundos
+    transcription = models.TextField(blank=True)  # transcrição do áudio
     
     # Metadados para mensagens do assistente
     context_used = models.JSONField(default=list, blank=True)  # Chunks usados como contexto
