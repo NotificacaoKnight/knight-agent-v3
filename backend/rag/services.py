@@ -348,6 +348,11 @@ class VectorSearchService:
     
     def _load_chunk_mapping(self):
         """Carrega mapeamento de chunks"""
+        # Verificar se índices precisam ser reconstruídos
+        if cache.get('indices_need_rebuild'):
+            self._rebuild_full_index()
+            return
+            
         cache_key = "vector_store_chunk_mapping"
         self.document_chunks = cache.get(cache_key, {})
         
@@ -468,6 +473,32 @@ class VectorSearchService:
         for doc in documents:
             self.add_document_embeddings(doc)
     
+    def _rebuild_full_index(self):
+        """Reconstrói completamente o índice FAISS do zero"""
+        from documents.models import Document
+        
+        print("Reconstruindo índice FAISS completo...")
+        
+        # Criar novo índice vazio
+        self._create_new_index()
+        
+        # Limpar mapeamento de chunks
+        self.document_chunks = {}
+        
+        # Adicionar todos os documentos processados
+        documents = Document.objects.filter(status='processed')
+        
+        for doc in documents:
+            self.add_document_embeddings(doc)
+        
+        # Salvar o novo mapeamento em cache
+        cache.set("vector_store_chunk_mapping", self.document_chunks, 3600)
+        
+        # Limpar flag de reconstrução
+        cache.delete('indices_need_rebuild')
+        
+        print(f"Índice FAISS reconstruído com {len(self.document_chunks)} chunks")
+    
     def _save_vector_store(self):
         """Salva índice FAISS em disco"""
         try:
@@ -507,6 +538,12 @@ class BM25SearchService:
     
     def _load_bm25_index(self):
         """Carrega ou cria índice BM25"""
+        # Verificar se índices precisam ser reconstruídos
+        if cache.get('indices_need_rebuild'):
+            self._create_bm25_index()
+            cache.delete('indices_need_rebuild')
+            return
+            
         cache_key = "bm25_index"
         cached_data = cache.get(cache_key)
         

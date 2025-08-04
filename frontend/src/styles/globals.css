@@ -41,24 +41,24 @@
 
   .dark {
     /* Dark Theme - Knight Agent Design System */
-    --background: 30 31 34; /* #1E1F22 */
-    --background-secondary: 48 48 48; /* #303030 */
+    --background: 40 40 40; /* #282828 - Chat area now uses medium gray */
+    --background-secondary: 40 40 40; /* #282828 - Chat history (medium gray) */
     --foreground: 255 255 255; /* #FFFFFF */
     --foreground-secondary: 176 176 176; /* #B0B0B0 */
     --foreground-tertiary: 128 128 128; /* #808080 */
     
-    --card: 48 48 48; /* #303030 */
+    --card: 56 56 56; /* #383838 */
     --card-foreground: 255 255 255; /* #FFFFFF */
     
-    --primary: 255 166 0; /* #FFA600 */
-    --primary-foreground: 42 42 42; /* #2A2A2A */
-    --primary-hover: 255 184 51; /* #FFB833 */
-    --primary-focus: 255 201 102; /* #FFC966 */
+    --primary: 245 245 245; /* #F5F5F5 - Off-white for user messages */
+    --primary-foreground: 42 42 42; /* #2A2A2A - Dark text on off-white */
+    --primary-hover: 235 235 235; /* #EBEBEB - Slightly darker off-white */
+    --primary-focus: 225 225 225; /* #E1E1E1 - Even darker for focus */
     
     --secondary: 48 48 48; /* #303030 */
     --secondary-foreground: 255 255 255; /* #FFFFFF */
     
-    --muted: 48 48 48; /* #303030 */
+    --muted: 64 64 64; /* #404040 */
     --muted-foreground: 176 176 176; /* #B0B0B0 */
     
     --accent: 255 166 0; /* #FFA600 */
@@ -72,6 +72,12 @@
     --border: 64 64 64; /* #404040 */
     --input: 64 64 64; /* #404040 */
     --ring: 255 166 0; /* #FFA600 */
+    
+    /* Custom grays for layout */
+    --sidebar-left: 24 24 24; /* #181818 - Left menu (darkest gray) */
+    --sidebar-right: 32 32 32; /* #202020 - Chat history (slightly lighter than left menu) */
+    --off-white: 245 245 245; /* #F5F5F5 - Off-white for recording interface */
+    --off-white-foreground: 42 42 42; /* #2A2A2A - Dark text on off-white */
   }
 }
 
@@ -143,5 +149,14 @@
     /* Hide scrollbar for IE, Edge and Firefox */
     -ms-overflow-style: none;  /* IE and Edge */
     scrollbar-width: none;  /* Firefox */
+  }
+
+  /* Custom sidebar backgrounds */
+  .sidebar-left {
+    background-color: rgb(var(--sidebar-left));
+  }
+  
+  .sidebar-right {
+    background-color: rgb(var(--sidebar-right));
   }
 }

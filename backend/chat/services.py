@@ -1,12 +1,15 @@
 import time
+import os
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 
 from django.conf import settings
+from django.core.files.storage import default_storage
 from documents.models import Document
 from rag.services import HybridSearchService
 from rag.llm_providers import LLMManager
 from .models import ChatSession, ChatMessage, DocumentRequest
+from .audio_transcription import GeminiAudioTranscriptionService
 
 class KnightChatService:
     """Serviço principal do agente Knight"""
@@ -14,25 +17,105 @@ class KnightChatService:
     def __init__(self):
         self.search_service = HybridSearchService()
         self.llm_manager = LLMManager()
+        self.transcription_service = GeminiAudioTranscriptionService()
         self.max_context_chunks = 5
         self.max_context_length = 4000
+    
+    def transcribe_audio(self, audio_file) -> Dict[str, Any]:
+        """Transcrever áudio para texto usando Google Gemini"""
+        try:
+            # Usar o serviço de transcrição Gemini
+            result = self.transcription_service.transcribe_audio_with_speakers(audio_file)
+            
+            if result['success']:
+                # Estimar duração do áudio
+                duration = self.transcription_service.get_audio_duration_estimate(audio_file)
+                result['duration'] = duration
+                
+                return {
+                    'success': True,
+                    'transcription': result['transcription'],
+                    'duration': duration,
+                    'has_speakers': result.get('has_speakers', False),
+                    'service': 'gemini'
+                }
+            else:
+                return {
+                    'success': False,
+                    'error': result.get('error', 'Erro na transcrição'),
+                    'transcription': '',
+                    'duration': 0.0
+                }
+                
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e),
+                'transcription': '',
+                'duration': 0.0
+            }
     
     def process_message(
         self, 
         user_message: str, 
         session: ChatSession,
-        search_params: Optional[Dict] = None
+        search_params: Optional[Dict] = None,
+        audio_file=None,
+        content_type: str = 'text'
     ) -> Dict[str, Any]:
         """Processa mensagem do usuário e gera resposta"""
         
         start_time = time.time()
         
         try:
+            # Processar áudio se fornecido - SEMPRE transcrever antes do agente principal
+            transcription = ""
+            audio_duration = 0.0
+            original_message = user_message
+            
+            if audio_file and content_type == 'audio':
+                transcription_result = self.transcribe_audio(audio_file)
+                if transcription_result['success']:
+                    transcription = transcription_result['transcription']
+                    audio_duration = transcription_result['duration']
+                    
+                    # IMPORTANTE: O agente principal sempre recebe o texto transcrito
+                    # Isso garante que o RAG funcione corretamente com o conteúdo textual
+                    user_message = transcription
+                    
+                    # Se havia texto original, combinar com a transcrição
+                    if original_message and original_message.strip():
+                        user_message = f"{original_message}\n\n[Transcrição do áudio]: {transcription}"
+                        
+                else:
+                    # Se falhou a transcrição, retornar erro com mais detalhes
+                    error_msg = transcription_result.get("error", "Erro desconhecido")
+                    
+                    # Mensagens de erro mais específicas para o usuário
+                    if "Timeout" in error_msg or "not in an ACTIVE state" in error_msg:
+                        user_message = "O áudio está sendo processado. Tente novamente em alguns segundos."
+                    elif "muito grande" in error_msg.lower() or "20mb" in error_msg.lower():
+                        user_message = "Arquivo de áudio muito grande. Por favor, envie um áudio de até 20MB ou com menos de 10 minutos."
+                    elif "formato" in error_msg.lower() or "mime" in error_msg.lower():
+                        user_message = "Formato de áudio não suportado. Tente gravar novamente."
+                    else:
+                        user_message = "Não foi possível transcrever o áudio enviado. Tente novamente ou envie uma mensagem de texto."
+                    
+                    return {
+                        'success': False,
+                        'error': f'Falha na transcrição do áudio: {error_msg}',
+                        'response': user_message
+                    }
+            
             # Salvar mensagem do usuário
             user_msg = ChatMessage.objects.create(
                 session=session,
                 message_type='user',
-                content=user_message
+                content_type=content_type,
+                content=user_message,
+                audio_file=audio_file if content_type == 'audio' else None,
+                audio_duration=audio_duration if content_type == 'audio' else None,
+                transcription=transcription if content_type == 'audio' else ''
             )
             
             # Verificar se é solicitação de documento
@@ -104,10 +187,22 @@ class KnightChatService:
                 session.title = self._generate_session_title(user_message)
             session.save()
             
+            # Preparar dados da mensagem do usuário para retornar ao frontend
+            user_message_data = {
+                'id': str(user_msg.id),
+                'type': 'user',
+                'content': user_msg.content,
+                'content_type': user_msg.content_type,
+                'timestamp': user_msg.created_at.isoformat(),
+                'audio_duration': user_msg.audio_duration,
+                'transcription': user_msg.transcription
+            }
+            
             return {
                 'success': True,
                 'response': llm_response['response'],
                 'message_id': assistant_msg.id,
+                'user_message_data': user_message_data,
                 'context_used': len(context_chunks),
                 'search_results': len(search_results),
                 'response_time_ms': response_time,
