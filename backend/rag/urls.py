@@ -9,6 +9,6 @@ urlpatterns = [
     path('agentic/', views.AgenticSearchView.as_view(), name='agentic-rag-search'),
     
     # Utilitários
-    path('stats/', views.StatsView.as_view(), name='rag-stats'),
-    path('test-llm/', views.LLMTestView.as_view(), name='llm-test'),
+    path('stats/', views.RAGStatsView.as_view(), name='rag-stats'),
+    path('test-llm/', views.TestLLMView.as_view(), name='llm-test'),
 ]
