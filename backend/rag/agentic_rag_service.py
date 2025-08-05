@@ -14,7 +14,8 @@ from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 from django.conf import settings
 from django.core.cache import cache
 
-from .services import VectorSearchService, BM25SearchService, EmbeddingService
+from .hybrid_vector_service import HybridVectorService
+from .services import BM25SearchService, EmbeddingService
 from .llm_providers import LLMManager
 from .models import SearchQuery, SearchResult
 from .agentic_config import get_config
@@ -55,7 +56,7 @@ class AgenticRAGService:
     """Serviço RAG Agentic usando LangGraph"""
     
     def __init__(self):
-        self.vector_search = VectorSearchService()
+        self.vector_search = HybridVectorService()
         self.bm25_search = BM25SearchService()
         self.embedding_service = EmbeddingService()
         self.llm_manager = LLMManager()

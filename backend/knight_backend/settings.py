@@ -263,6 +263,25 @@ LOGGING = {
         'level': 'INFO',
     },
 }
+
+# =============================================
+# PGVECTOR CONFIGURATION
+# =============================================
+
+# Enable pgvector for vector similarity search
+USE_PGVECTOR = config('USE_PGVECTOR', default=True, cast=bool)
+
+# Enable fallback to FAISS if pgvector fails
+ENABLE_VECTOR_FALLBACK = config('ENABLE_VECTOR_FALLBACK', default=True, cast=bool)
+
+# pgvector specific settings
+PGVECTOR_CONFIG = {
+    'HNSW_EF_SEARCH': config('HNSW_EF_SEARCH', default=64, cast=int),
+    'IVFFLAT_PROBES': config('IVFFLAT_PROBES', default=10, cast=int),
+    'SIMILARITY_THRESHOLD': config('SIMILARITY_THRESHOLD', default=0.8, cast=float),
+    'BATCH_SIZE': config('VECTOR_BATCH_SIZE', default=100, cast=int),
+}
+
 # LocalTunnel Configuration (integrated above)
 # Note: CORS configured with specific origins to support credentials
 # ALLOWED_HOSTS includes *.loca.lt

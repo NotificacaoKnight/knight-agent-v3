@@ -70,8 +70,10 @@ def process_document_task(document_id):
         
         DocumentChunk.objects.bulk_create(chunk_objects)
         
-        # Etapa 3: Gerar embeddings
-        embedding_service.generate_embeddings_for_document(document)
+        # Etapa 3: Gerar embeddings e adicionar ao pgvector
+        from rag.hybrid_vector_service import HybridVectorService
+        vector_service = HybridVectorService()
+        vector_service.add_document_embeddings(document)
         
         # Finalizar processamento
         document.status = 'processed'
@@ -173,8 +175,10 @@ def process_document_sync(document_id):
         
         DocumentChunk.objects.bulk_create(chunk_objects)
         
-        # Etapa 3: Gerar embeddings
-        embedding_service.generate_embeddings_for_document(document)
+        # Etapa 3: Gerar embeddings e adicionar ao pgvector
+        from rag.hybrid_vector_service import HybridVectorService
+        vector_service = HybridVectorService()
+        vector_service.add_document_embeddings(document)
         
         # Finalizar processamento
         document.status = 'processed'
