@@ -130,20 +130,20 @@ export const chatApi = {
   },
 
   // Listar sessões
-  getSessions: async (): Promise<ChatSession[]> => {
+  getSessions: async (): Promise<{sessions: ChatSession[]}> => {
     const response = await api.get('/chat/sessions/');
     return response.data;
   },
 
   // Obter histórico de uma sessão
-  getSessionHistory: async (sessionId: string): Promise<ChatMessage[]> => {
+  getSessionHistory: async (sessionId: string): Promise<{messages: ChatMessage[]}> => {
     const response = await api.get(`/chat/sessions/${sessionId}/history/`);
     return response.data;
   },
 
   // Deletar sessão
   deleteSession: async (sessionId: string): Promise<void> => {
-    await api.delete(`/chat/sessions/${sessionId}/`);
+    await api.delete(`/chat/sessions/${sessionId}/delete/`);
   },
 
   // Atualizar título da sessão

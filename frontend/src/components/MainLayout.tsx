@@ -3,6 +3,11 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ThemeToggle } from './ThemeToggle';
 import { UserAvatar } from './UserAvatar';
+import { chatApi } from '../services/api';
+import { useChatContext } from '../context/ChatContext';
+import toast from 'react-hot-toast';
+import { emitChatSessionDeleted } from '../utils/events';
+import { KnightIcon } from './KnightIcon';
 import {
   BarChart3,
   Settings,
@@ -14,7 +19,9 @@ import {
   FileText,
   History,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Trash2,
+  Bell
 } from 'lucide-react';
 
 interface SidebarItem {
@@ -39,16 +46,72 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const { chatSessions, refreshChatSessions, isProcessingMessage, setIsProcessingMessage } = useChatContext();
   const [leftSidebarOpen] = useState(true);
   const [rightSidebarOpen, setRightSidebarOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [chatHistorySidebarOpen, setChatHistorySidebarOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
 
-  // Auto expand/collapse chat history sidebar based on route
+  // Auto expand/collapse sidebars based on route
   useEffect(() => {
     const isChatRoute = location.pathname.startsWith('/chat');
     setChatHistorySidebarOpen(isChatRoute);
+    setRightSidebarOpen(isChatRoute);
   }, [location.pathname]);
+
+  // Load chat sessions only once when entering chat area
+  useEffect(() => {
+    const loadChatSessions = async () => {
+      if (location.pathname.startsWith('/chat') && user && chatSessions.length === 0) {
+        setLoading(true);
+        try {
+          await refreshChatSessions();
+        } catch (error) {
+          console.error('Erro ao carregar sessões de chat:', error);
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+
+    if (!loading) {
+      loadChatSessions();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname, user]);
+
+  const handleDeleteSession = async (sessionId: string, event: React.MouseEvent) => {
+    event.stopPropagation(); // Prevent navigation when clicking delete button
+    
+    if (!window.confirm('Tem certeza que deseja excluir esta conversa?')) {
+      return;
+    }
+
+    setDeletingSessionId(sessionId);
+    
+    try {
+      await chatApi.deleteSession(sessionId);
+      await refreshChatSessions();
+      
+      // Emit event first
+      emitChatSessionDeleted(sessionId);
+      
+      // If we're currently viewing the deleted session, navigate to chat home
+      const currentSessionId = location.pathname.split('/chat/')[1];
+      if (currentSessionId === sessionId) {
+        navigate('/chat');
+      }
+      
+      toast.success('Conversa excluída com sucesso');
+    } catch (error) {
+      console.error('Erro ao excluir sessão:', error);
+      toast.error('Erro ao excluir conversa');
+    } finally {
+      setDeletingSessionId(null);
+    }
+  };
 
   // Menu items
   // Menu items dinâmico baseado no status de admin
@@ -59,27 +122,13 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     { id: 'settings', label: 'Configurações', icon: Settings, path: '/settings' },
   ];
 
-  // Mock chat history - será substituído por dados reais
-  const chatHistory: ChatHistory[] = [
-    {
-      id: '1',
-      title: 'Políticas de RH',
-      timestamp: new Date(Date.now() - 3600000),
-      preview: 'Quais são as políticas de trabalho remoto?'
-    },
-    {
-      id: '2',
-      title: 'Relatório de Vendas',
-      timestamp: new Date(Date.now() - 7200000),
-      preview: 'Preciso do relatório de vendas do último trimestre'
-    },
-    {
-      id: '3',
-      title: 'Suporte TI',
-      timestamp: new Date(Date.now() - 86400000),
-      preview: 'Como resetar minha senha do sistema?'
-    },
-  ];
+  // Convert chat sessions to chat history format
+  const chatHistory: ChatHistory[] = chatSessions.map(session => ({
+    id: session.id,
+    title: session.title || `Chat ${session.id}`,
+    timestamp: new Date(session.last_message_at || session.created_at),
+    preview: `${session.message_count} mensagens`
+  }));
 
   const handleMenuClick = (path: string) => {
     navigate(path);
@@ -102,11 +151,14 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       <div
         className={`${
           leftSidebarOpen ? 'w-16' : 'w-0'
-        } sidebar-left transition-all duration-300 overflow-hidden flex-shrink-0`}
+        } sidebar-left border-r border-border transition-all duration-700 ease-out overflow-hidden flex-shrink-0`}
+        style={{
+          transitionTimingFunction: 'cubic-bezier(0.68, -0.55, 0.265, 1.55)'
+        }}
       >
         <div className="h-full flex flex-col">
           {/* Menu Items */}
-          <nav className="pt-8 px-2">
+          <nav className="pt-5 px-2">
             {menuItems.map((item) => {
               const isActive = location.pathname === item.path;
               return (
@@ -203,7 +255,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             </div>
             
             {/* Divisória */}
-            <div className="mx-3 border-t border-gray-400 dark:border-gray-700 mb-8"></div>
+            <div className="border-t border-border mb-8"></div>
             
             {/* Theme Toggle - sem fundo quadrado */}
             <div className="px-2">
@@ -216,19 +268,44 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       </div>
 
       {/* Chat History Sidebar */}
-      <div className={`${
-        chatHistorySidebarOpen ? 'w-64' : 'w-0'
-      } sidebar-right border-r border-border flex-shrink-0 hidden md:block transition-all duration-300 overflow-hidden`}>
+      <div 
+        className={`${
+          chatHistorySidebarOpen ? 'w-64' : 'w-0'
+        } sidebar-right border-r border-border flex-shrink-0 hidden md:block transition-all duration-700 ease-out overflow-hidden`}
+        style={{
+          transitionTimingFunction: 'cubic-bezier(0.68, -0.55, 0.265, 1.55)'
+        }}
+      >
         <div className="h-full flex flex-col">
           {/* Header */}
           <div className="h-16 px-4 flex items-center justify-between border-b border-border">
-            <div className="flex items-center">
-              <History className="h-4 w-4 text-muted-foreground mr-2" />
-              <h2 className="font-semibold text-foreground">Conversas</h2>
-            </div>
+            <h2 className="font-semibold text-foreground">Histórico</h2>
             <div className="flex items-center space-x-2">
               <button
-                onClick={() => navigate('/chat')}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  console.log('🔴 Nova conversa clicked!', {
+                    isProcessingMessage,
+                    currentPath: location.pathname,
+                    timestamp: new Date().toISOString()
+                  });
+                  setIsProcessingMessage(false);
+                  console.log('🟢 About to navigate to /chat', 'Current path:', location.pathname);
+                  
+                  // Force reset by navigating to a temporary route then back
+                  if (location.pathname === '/chat' || location.pathname.startsWith('/chat/')) {
+                    console.log('🔄 Already on chat route, forcing reset...');
+                    // Navigate to root temporarily, then immediately back to chat to force reset
+                    navigate('/', { replace: true });
+                    setTimeout(() => {
+                      navigate('/chat', { replace: true });
+                    }, 10);
+                  } else {
+                    navigate('/chat', { replace: true });
+                    console.log('🟡 Navigate call completed');
+                  }
+                }}
                 className="p-2 hover:bg-muted rounded-lg transition-colors"
                 title="Nova conversa"
               >
@@ -246,25 +323,66 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
           {/* Chat List */}
           <div className="flex-1 overflow-y-auto">
-            {chatHistory.map((chat) => (
-              <button
-                key={chat.id}
-                onClick={() => navigate(`/chat/${chat.id}`)}
-                className="w-full p-4 text-left hover:bg-muted transition-colors border-b border-border"
-              >
-                <div className="flex items-start justify-between mb-1">
-                  <h3 className="font-medium text-sm text-foreground truncate flex-1">
-                    {chat.title}
-                  </h3>
-                  <span className="text-xs text-muted-foreground ml-2">
-                    {formatTimeAgo(chat.timestamp)}
-                  </span>
+            {loading ? (
+              <div className="p-4 text-center">
+                <span className="text-sm text-muted-foreground">Carregando conversas...</span>
+              </div>
+            ) : chatHistory.length === 0 ? (
+              <div className="p-4 text-center">
+                <span className="text-sm text-muted-foreground">Nenhuma conversa encontrada</span>
+              </div>
+            ) : (
+              chatHistory.map((chat) => (
+                <div
+                  key={chat.id}
+                  className={`relative group transition-colors border-b border-border ${
+                    isProcessingMessage ? 'opacity-50' : ''
+                  }`}
+                >
+                  <button
+                    onClick={() => {
+                      if (!isProcessingMessage) {
+                        navigate(`/chat/${chat.id}`);
+                      }
+                    }}
+                    disabled={isProcessingMessage}
+                    className={`w-full p-4 text-left transition-colors ${
+                      !isProcessingMessage ? 'hover:bg-muted' : 'cursor-not-allowed'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between mb-1">
+                      <h3 className="font-medium text-sm text-foreground truncate flex-1 pr-2">
+                        {chat.title}
+                      </h3>
+                      <span className="text-xs text-muted-foreground ml-2 shrink-0">
+                        {formatTimeAgo(chat.timestamp)}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {chat.preview}
+                    </p>
+                  </button>
+                  
+                  {/* Delete Button */}
+                  <button
+                    onClick={(e) => handleDeleteSession(chat.id, e)}
+                    disabled={isProcessingMessage || deletingSessionId === chat.id}
+                    className={`absolute bottom-2 right-2 p-1 rounded-md transition-all duration-200 ${
+                      isProcessingMessage || deletingSessionId === chat.id
+                        ? 'opacity-50 cursor-not-allowed'
+                        : 'opacity-0 group-hover:opacity-100 hover:bg-red-100 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400'
+                    }`}
+                    title="Excluir conversa"
+                  >
+                    {deletingSessionId === chat.id ? (
+                      <div className="w-3 h-3 border border-red-500 border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <Trash2 className="w-3 h-3" />
+                    )}
+                  </button>
                 </div>
-                <p className="text-xs text-muted-foreground truncate">
-                  {chat.preview}
-                </p>
-              </button>
-            ))}
+              ))
+            )}
           </div>
         </div>
       </div>
@@ -272,7 +390,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       {/* Main Content */}
       <div className="flex-1 flex flex-col">
         {/* Top Header */}
-        <header className="h-16 bg-card border-b border-border flex items-center justify-between px-4">
+        <header className="h-16 sidebar-right border-b border-border flex items-center justify-between px-4">
           <div className="flex items-center">
             {/* Chat History Toggle (show when collapsed) */}
             {!chatHistorySidebarOpen && (
@@ -294,9 +412,12 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               <Menu className="h-5 w-5 text-muted-foreground" />
             </button>
 
-            <h1 className="ml-4 text-xl font-semibold text-foreground">
-              Knight
-            </h1>
+            <div className="ml-4 flex items-center space-x-3">
+              <KnightIcon className="h-10 w-10 text-foreground" />
+              <h1 className="text-xl font-semibold text-foreground">
+                Knight
+              </h1>
+            </div>
           </div>
 
           <div className="flex items-center space-x-4">
@@ -306,7 +427,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               onClick={() => setRightSidebarOpen(!rightSidebarOpen)}
               className="p-2 rounded-lg hover:bg-muted transition-colors"
             >
-              <Menu className="h-5 w-5 text-muted-foreground" />
+              <Bell className="h-5 w-5 text-muted-foreground" />
             </button>
           </div>
         </header>
@@ -321,7 +442,10 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       <div
         className={`${
           rightSidebarOpen ? 'w-64' : 'w-0'
-        } bg-card border-l border-border transition-all duration-300 overflow-hidden flex-shrink-0`}
+        } sidebar-right border-l border-border transition-all duration-700 ease-out overflow-hidden flex-shrink-0`}
+        style={{
+          transitionTimingFunction: 'cubic-bezier(0.68, -0.55, 0.265, 1.55)'
+        }}
       >
         <div className="h-full p-4">
           <div className="flex items-center justify-between mb-4">
@@ -364,7 +488,10 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           <div className="fixed left-0 top-0 bottom-0 w-64 bg-card shadow-lg">
             <div className="h-full flex flex-col sidebar-left">
               <div className="h-16 px-4 flex items-center justify-between border-b border-border">
-                <span className="font-semibold text-foreground">Knight</span>
+                <div className="flex items-center space-x-2">
+                  <KnightIcon className="h-7 w-7 text-foreground" />
+                  <span className="font-semibold text-foreground">Knight</span>
+                </div>
                 <button
                   onClick={() => setMobileMenuOpen(false)}
                   className="p-2 hover:bg-muted rounded-lg transition-colors"

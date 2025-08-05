@@ -7,6 +7,7 @@ from django.conf import settings
 from django.core.files.storage import default_storage
 from documents.models import Document
 from rag.services import HybridSearchService
+from rag.agentic_rag_service import AgenticRAGServiceSync
 from rag.llm_providers import LLMManager
 from .models import ChatSession, ChatMessage, DocumentRequest
 from .audio_transcription import GeminiAudioTranscriptionService
@@ -15,7 +16,9 @@ class KnightChatService:
     """Serviço principal do agente Knight"""
     
     def __init__(self):
-        self.search_service = HybridSearchService()
+        # Usar sistema agentic como principal, híbrido como fallback
+        self.agentic_service = AgenticRAGServiceSync()
+        self.search_service = HybridSearchService()  # Fallback
         self.llm_manager = LLMManager()
         self.transcription_service = GeminiAudioTranscriptionService()
         self.max_context_chunks = 5
@@ -129,39 +132,69 @@ class KnightChatService:
                     document_request
                 )
             
-            # Buscar contexto relevante
+            # Tentar usar sistema agentic primeiro
             try:
-                search_results, search_query = self.search_service.search(
-                    user_message,
+                agentic_result = self.agentic_service.search(
+                    query=user_message,
                     k=self.max_context_chunks,
-                    user=session.user,
-                    **(search_params or {})
+                    user=session.user
                 )
-            except Exception as search_error:
-                # Se a busca falhar, continuar sem contexto
-                search_results = []
-                search_query = None
-            
-            # Preparar contexto para o LLM
-            context_chunks = []
-            context_metadata = []
-            
-            for result in search_results:
-                if len('\n'.join(context_chunks)) < self.max_context_length:
-                    context_chunks.append(result['content'])
+                
+                # Usar resposta do sistema agentic
+                llm_response = {
+                    'success': True,
+                    'response': agentic_result.get('response', ''),
+                    'provider': agentic_result.get('metadata', {}).get('provider_used', 'unknown'),
+                    'model': agentic_result.get('metadata', {}).get('model_used', '')
+                }
+                
+                # Extrair metadados de contexto
+                context_metadata = []
+                search_results = agentic_result.get('search_results', [])
+                for result in search_results:
                     context_metadata.append({
-                        'document_id': result['document_id'],
-                        'chunk_id': result['chunk_id'],
-                        'score': result['combined_score']
+                        'document_id': result.get('document_id'),
+                        'chunk_id': result.get('chunk_id'),
+                        'score': result.get('score', 0.0)
                     })
-            
-            # Gerar resposta
-            llm_response = self.llm_manager.generate_response(
-                prompt=user_message,
-                context=context_chunks,
-                max_tokens=1000,
-                temperature=0.7
-            )
+                
+                # Criar search_query para compatibilidade
+                search_query = None  # Agentic não retorna search_query
+                
+            except Exception as agentic_error:
+                # Fallback para busca híbrida tradicional
+                try:
+                    search_results, search_query = self.search_service.search(
+                        user_message,
+                        k=self.max_context_chunks,
+                        user=session.user,
+                        **(search_params or {})
+                    )
+                except Exception as search_error:
+                    # Se a busca falhar, continuar sem contexto
+                    search_results = []
+                    search_query = None
+                
+                # Preparar contexto para o LLM
+                context_chunks = []
+                context_metadata = []
+                
+                for result in search_results:
+                    if len('\n'.join(context_chunks)) < self.max_context_length:
+                        context_chunks.append(result['content'])
+                        context_metadata.append({
+                            'document_id': result['document_id'],
+                            'chunk_id': result['chunk_id'],
+                            'score': result['combined_score']
+                        })
+                
+                # Gerar resposta usando LLM manager
+                llm_response = self.llm_manager.generate_response(
+                    prompt=user_message,
+                    context=context_chunks,
+                    max_tokens=1000,
+                    temperature=0.7
+                )
             
             if not llm_response['success']:
                 return self._handle_llm_error(session, user_msg, llm_response['error'])
@@ -203,7 +236,7 @@ class KnightChatService:
                 'response': llm_response['response'],
                 'message_id': assistant_msg.id,
                 'user_message_data': user_message_data,
-                'context_used': len(context_chunks),
+                'context_used': len(context_metadata),
                 'search_results': len(search_results),
                 'response_time_ms': response_time,
                 'provider_used': llm_response['provider'],
@@ -375,7 +408,11 @@ class KnightChatService:
                     'id': message.id,
                     'type': message.message_type,
                     'content': message.content,
+                    'content_type': message.content_type,
                     'created_at': message.created_at,
+                    'transcription': message.transcription,
+                    'audio_duration': message.audio_duration,
+                    'audio_file': message.audio_file.url if message.audio_file else None,
                     'context_used': len(message.context_used) if message.context_used else 0,
                     'provider': message.llm_provider,
                     'response_time_ms': message.response_time_ms
@@ -390,12 +427,12 @@ class KnightChatService:
         """Cria nova sessão de chat"""
         return ChatSession.objects.create(user=user)
     
-    def get_user_sessions(self, user, limit: int = 20) -> List[Dict[str, Any]]:
-        """Lista sessões do usuário"""
+    def get_user_sessions(self, user, limit: int = 10) -> List[Dict[str, Any]]:
+        """Lista sessões do usuário (limitado às 10 mais recentes)"""
         sessions = ChatSession.objects.filter(
             user=user,
             is_active=True
-        )[:limit]
+        ).order_by('-updated_at')[:limit]
         
         session_list = []
         for session in sessions:
