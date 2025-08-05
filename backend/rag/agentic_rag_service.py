@@ -557,6 +557,12 @@ class AgenticRAGServiceSync:
     
     def __init__(self):
         self.async_service = AgenticRAGService()
+        # Inicializar serviços para fallback
+        self.vector_search = HybridVectorService()
+        self.bm25_search = BM25SearchService()
+        self.llm_manager = LLMManager()
+        self.config = get_config()
+        self.generation_config = self.config.get_generation_config()
     
     def search(
         self, 
@@ -592,16 +598,19 @@ class AgenticRAGServiceSync:
         start_time = time.time()
         
         try:
-            # Usar HybridSearchService existente (otimizado)
-            from .services import HybridSearchService
-            hybrid_service = HybridSearchService()
+            # Busca híbrida direta sem HybridSearchService
+            vector_results = self.vector_search.search(query, k=k*2)
+            bm25_results = self.bm25_search.search(query, k=k*2)
             
-            # Busca híbrida otimizada
-            search_results, search_query = hybrid_service.search(
-                query=query,
-                k=k,
-                user=None  # Não logar busca intermediária
-            )
+            # Combinar resultados
+            search_results = self._combine_search_results(
+                vector_results, 
+                bm25_results,
+                semantic_weight=0.7,
+                bm25_weight=0.3
+            )[:k]
+            
+            search_query = None  # Não temos SearchQuery no fallback
             
             # Gerar resposta
             context_docs = [r['content'] for r in search_results]
@@ -658,3 +667,52 @@ class AgenticRAGServiceSync:
                     "fallback_reason": "Error recovery mode"
                 }
             }
+    
+    def _combine_search_results(
+        self, 
+        semantic_results: List[Dict], 
+        bm25_results: List[Dict],
+        semantic_weight: float = 0.7,
+        bm25_weight: float = 0.3
+    ) -> List[Dict[str, Any]]:
+        """Combina resultados de busca semântica e BM25"""
+        
+        # Criar dicionários para acesso rápido
+        semantic_dict = {r['chunk_id']: r for r in semantic_results}
+        bm25_dict = {r['chunk_id']: r for r in bm25_results}
+        
+        # Normalizar scores
+        max_semantic = max([r['score'] for r in semantic_results], default=1.0)
+        max_bm25 = max([r['score'] for r in bm25_results], default=1.0)
+        
+        # Combinar resultados
+        combined_scores = {}
+        all_chunks = set(semantic_dict.keys()) | set(bm25_dict.keys())
+        
+        for chunk_id in all_chunks:
+            semantic_score = 0.0
+            bm25_score = 0.0
+            
+            if chunk_id in semantic_dict:
+                semantic_score = semantic_dict[chunk_id]['score'] / max_semantic
+            
+            if chunk_id in bm25_dict:
+                bm25_score = bm25_dict[chunk_id]['score'] / max_bm25
+            
+            combined_score = (semantic_weight * semantic_score) + (bm25_weight * bm25_score)
+            
+            # Usar o resultado que existe (semântico tem prioridade)
+            result = semantic_dict.get(chunk_id, bm25_dict.get(chunk_id))
+            result['score'] = combined_score
+            result['semantic_score'] = semantic_score
+            result['bm25_score'] = bm25_score
+            combined_scores[chunk_id] = result
+        
+        # Ordenar por score combinado
+        sorted_results = sorted(
+            combined_scores.values(), 
+            key=lambda x: x['score'], 
+            reverse=True
+        )
+        
+        return sorted_results

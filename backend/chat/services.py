@@ -6,7 +6,6 @@ from datetime import datetime
 from django.conf import settings
 from django.core.files.storage import default_storage
 from documents.models import Document
-from rag.services import HybridSearchService
 from rag.agentic_rag_service import AgenticRAGServiceSync
 from rag.llm_providers import LLMManager
 from .models import ChatSession, ChatMessage, DocumentRequest
@@ -16,9 +15,8 @@ class KnightChatService:
     """Serviço principal do agente Knight"""
     
     def __init__(self):
-        # Usar sistema agentic como principal, híbrido como fallback
+        # Usar apenas sistema agentic (que já tem fallback interno)
         self.agentic_service = AgenticRAGServiceSync()
-        self.search_service = HybridSearchService()  # Fallback
         self.llm_manager = LLMManager()
         self.transcription_service = GeminiAudioTranscriptionService()
         self.max_context_chunks = 5
@@ -132,69 +130,33 @@ class KnightChatService:
                     document_request
                 )
             
-            # Tentar usar sistema agentic primeiro
-            try:
-                agentic_result = self.agentic_service.search(
-                    query=user_message,
-                    k=self.max_context_chunks,
-                    user=session.user
-                )
-                
-                # Usar resposta do sistema agentic
-                llm_response = {
-                    'success': True,
-                    'response': agentic_result.get('response', ''),
-                    'provider': agentic_result.get('metadata', {}).get('provider_used', 'unknown'),
-                    'model': agentic_result.get('metadata', {}).get('model_used', '')
-                }
-                
-                # Extrair metadados de contexto
-                context_metadata = []
-                search_results = agentic_result.get('search_results', [])
-                for result in search_results:
-                    context_metadata.append({
-                        'document_id': result.get('document_id'),
-                        'chunk_id': result.get('chunk_id'),
-                        'score': result.get('score', 0.0)
-                    })
-                
-                # Criar search_query para compatibilidade
-                search_query = None  # Agentic não retorna search_query
-                
-            except Exception as agentic_error:
-                # Fallback para busca híbrida tradicional
-                try:
-                    search_results, search_query = self.search_service.search(
-                        user_message,
-                        k=self.max_context_chunks,
-                        user=session.user,
-                        **(search_params or {})
-                    )
-                except Exception as search_error:
-                    # Se a busca falhar, continuar sem contexto
-                    search_results = []
-                    search_query = None
-                
-                # Preparar contexto para o LLM
-                context_chunks = []
-                context_metadata = []
-                
-                for result in search_results:
-                    if len('\n'.join(context_chunks)) < self.max_context_length:
-                        context_chunks.append(result['content'])
-                        context_metadata.append({
-                            'document_id': result['document_id'],
-                            'chunk_id': result['chunk_id'],
-                            'score': result['combined_score']
-                        })
-                
-                # Gerar resposta usando LLM manager
-                llm_response = self.llm_manager.generate_response(
-                    prompt=user_message,
-                    context=context_chunks,
-                    max_tokens=1000,
-                    temperature=0.7
-                )
+            # Usar sistema agentic (que já tem fallback interno)
+            agentic_result = self.agentic_service.search(
+                query=user_message,
+                k=self.max_context_chunks,
+                user=session.user
+            )
+            
+            # Usar resposta do sistema agentic
+            llm_response = {
+                'success': True,
+                'response': agentic_result.get('response', ''),
+                'provider': agentic_result.get('metadata', {}).get('provider_used', 'unknown'),
+                'model': agentic_result.get('metadata', {}).get('model_used', '')
+            }
+            
+            # Extrair metadados de contexto
+            context_metadata = []
+            search_results = agentic_result.get('search_results', [])
+            for result in search_results:
+                context_metadata.append({
+                    'document_id': result.get('document_id'),
+                    'chunk_id': result.get('chunk_id'),
+                    'score': result.get('score', 0.0)
+                })
+            
+            # Criar search_query para compatibilidade
+            search_query = None  # Agentic não retorna search_query
             
             if not llm_response['success']:
                 return self._handle_llm_error(session, user_msg, llm_response['error'])
