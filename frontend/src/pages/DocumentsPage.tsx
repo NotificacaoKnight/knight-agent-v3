@@ -248,7 +248,7 @@ export const DocumentsPage: React.FC = () => {
 
   return (
     <MainLayout>
-      <div className="h-full overflow-y-auto">
+      <div className="h-full overflow-y-auto custom-scrollbar">
         <div className="p-6">
           {/* Header */}
           <div className="mb-6">
@@ -562,7 +562,7 @@ export const DocumentsPage: React.FC = () => {
               </p>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
               <pre className="whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-200 font-mono">
                 {documentContent}
               </pre>

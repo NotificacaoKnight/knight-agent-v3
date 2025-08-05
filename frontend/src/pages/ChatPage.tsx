@@ -478,7 +478,7 @@ export const ChatPage: React.FC = () => {
     <MainLayout>
       <div className="h-full flex flex-col sidebar-right">
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 custom-scrollbar">
           <div className="max-w-4xl mx-auto space-y-4">
             {isLoadingHistory ? (
               <div className="text-center py-12">
@@ -687,10 +687,10 @@ export const ChatPage: React.FC = () => {
                 <button
                   onClick={handleSendMessage}
                   disabled={(!inputMessage.trim() && !audioBlob) || isLoading || isRecording}
-                  className={`w-8 h-8 rounded-lg transition-all duration-200 flex items-center justify-center shadow-sm ${
+                  className={`w-8 h-8 rounded-lg transition-all duration-200 flex items-center justify-center ${
                     (!inputMessage.trim() && !audioBlob) || isLoading || isRecording
-                      ? 'bg-muted text-muted-foreground cursor-not-allowed opacity-50'
-                      : 'bg-accent text-accent-foreground hover:bg-accent-hover hover:scale-105 active:scale-95'
+                      ? 'bg-knight-secondary/30 text-knight-secondary/50 cursor-not-allowed shadow-sm'
+                      : 'bg-knight-secondary text-gray-700 hover:bg-knight-secondary/90 hover:scale-105 active:scale-95 shadow-[0_0_20px_rgba(255,166,0,0.4)]'
                   }`}
                 >
                   <ArrowUp className="h-4 w-4" />
