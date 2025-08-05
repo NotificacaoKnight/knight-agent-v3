@@ -122,6 +122,11 @@ def delete_session(request, session_id):
     """Deletar sessão"""
     try:
         session = ChatSession.objects.get(id=session_id, user=request.user)
+        
+        # Limpar arquivos de áudio antes de desativar a sessão
+        chat_service = KnightChatService()
+        chat_service._cleanup_session_audio_files(session)
+        
         session.is_active = False
         session.save()
         

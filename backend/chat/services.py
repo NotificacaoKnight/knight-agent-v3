@@ -182,6 +182,9 @@ class KnightChatService:
                 session.title = self._generate_session_title(user_message)
             session.save()
             
+            # Limpar sessões antigas quando uma sessão existente é atualizada
+            self._cleanup_old_sessions(session.user)
+            
             # Preparar dados da mensagem do usuário para retornar ao frontend
             user_message_data = {
                 'id': str(user_msg.id),
@@ -315,6 +318,9 @@ class KnightChatService:
             session.title = "Solicitação de Documentos"
         session.save()
         
+        # Limpar sessões antigas
+        self._cleanup_old_sessions(session.user)
+        
         return {
             'success': True,
             'response': response,
@@ -342,6 +348,9 @@ class KnightChatService:
         session.message_count += 2
         session.last_message_at = datetime.now()
         session.save()
+        
+        # Limpar sessões antigas
+        self._cleanup_old_sessions(session.user)
         
         return {
             'success': False,
@@ -386,8 +395,73 @@ class KnightChatService:
             return []
     
     def create_session(self, user) -> ChatSession:
-        """Cria nova sessão de chat"""
-        return ChatSession.objects.create(user=user)
+        """Cria nova sessão de chat e limpa sessões antigas automaticamente"""
+        # Criar nova sessão
+        new_session = ChatSession.objects.create(user=user)
+        
+        # Manter apenas as 10 sessões mais recentes (incluindo a nova)
+        MAX_SESSIONS = 10
+        
+        # Buscar todas as sessões ativas do usuário ordenadas por data de atualização
+        user_sessions = ChatSession.objects.filter(
+            user=user,
+            is_active=True
+        ).order_by('-updated_at')
+        
+        # Se temos mais de MAX_SESSIONS, marcar as mais antigas como inativas
+        if user_sessions.count() > MAX_SESSIONS:
+            # Pegar as sessões que excedem o limite (as mais antigas)
+            sessions_to_deactivate = user_sessions[MAX_SESSIONS:]
+            
+            # Marcar como inativas (exclusão suave)
+            for session in sessions_to_deactivate:
+                session.is_active = False
+                session.save()
+        
+        return new_session
+    
+    def _cleanup_old_sessions(self, user):
+        """Limpa sessões antigas mantendo apenas as 10 mais recentes"""
+        MAX_SESSIONS = 10
+        
+        # Buscar todas as sessões ativas do usuário ordenadas por data de atualização
+        user_sessions = ChatSession.objects.filter(
+            user=user,
+            is_active=True
+        ).order_by('-updated_at')
+        
+        # Se temos mais de MAX_SESSIONS, marcar as mais antigas como inativas
+        if user_sessions.count() > MAX_SESSIONS:
+            # Pegar as sessões que excedem o limite (as mais antigas)
+            sessions_to_deactivate = user_sessions[MAX_SESSIONS:]
+            
+            # Limpar arquivos de áudio das sessões que serão desativadas
+            for session in sessions_to_deactivate:
+                self._cleanup_session_audio_files(session)
+                session.is_active = False
+                session.save()
+    
+    def _cleanup_session_audio_files(self, session):
+        """Remove arquivos de áudio de uma sessão"""
+        # Buscar todas as mensagens com arquivos de áudio na sessão
+        audio_messages = session.messages.filter(
+            audio_file__isnull=False,
+            content_type='audio'
+        )
+        
+        for message in audio_messages:
+            if message.audio_file:
+                try:
+                    # Verificar se o arquivo existe antes de tentar deletar
+                    if default_storage.exists(message.audio_file.name):
+                        default_storage.delete(message.audio_file.name)
+                        print(f"🗑️  Arquivo de áudio removido: {message.audio_file.name}")
+                except Exception as e:
+                    print(f"⚠️  Erro ao remover arquivo de áudio {message.audio_file.name}: {e}")
+                
+                # Limpar referência do arquivo na mensagem
+                message.audio_file = None
+                message.save()
     
     def get_user_sessions(self, user, limit: int = 10) -> List[Dict[str, Any]]:
         """Lista sessões do usuário (limitado às 10 mais recentes)"""
