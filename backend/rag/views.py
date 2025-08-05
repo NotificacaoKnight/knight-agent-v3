@@ -6,6 +6,7 @@ from django.http import JsonResponse
 import logging
 
 from .services import HybridSearchService
+from .hybrid_vector_service import HybridVectorService
 from .llm_providers import LLMManager
 from .agentic_rag_service import AgenticRAGServiceSync
 
@@ -148,10 +149,36 @@ class StatsView(APIView):
     
     def get(self, request):
         try:
+            # Obter estatísticas do HybridVectorService
+            vector_service = HybridVectorService()
+            vector_stats = vector_service.get_stats()
+            
+            # Estatísticas dos LLM providers
+            llm_manager = LLMManager()
+            available_providers = llm_manager.get_available_providers()
+            
             stats = {
-                'indexed_documents': 0,
-                'vector_store_size': 0,
-                'last_update': None
+                'vector_backend': {
+                    'active_backend': vector_stats.get('active_backend', 'unknown'),
+                    'fallback_enabled': vector_stats.get('fallback_enabled', False),
+                    'pgvector_stats': vector_stats.get('pgvector', {}),
+                    'faiss_stats': vector_stats.get('faiss', {})
+                },
+                'llm_providers': {
+                    'available': available_providers,
+                    'current': llm_manager.get_current_provider()
+                },
+                'documents': {
+                    'indexed_documents': vector_stats.get('pgvector', {}).get('total_documents', 0),
+                    'total_chunks': vector_stats.get('pgvector', {}).get('total_chunks', 0),
+                    'embedded_chunks': vector_stats.get('pgvector', {}).get('embedded_chunks', 0),
+                    'embedding_coverage': vector_stats.get('pgvector', {}).get('embedding_coverage', 0)
+                },
+                'health': {
+                    'pgvector_healthy': 'pgvector' in vector_stats and 'pgvector_error' not in vector_stats,
+                    'faiss_healthy': 'faiss' in vector_stats and 'faiss_error' not in vector_stats,
+                    'system_status': 'healthy' if vector_stats.get('active_backend') != 'unknown' else 'degraded'
+                }
             }
             
             return Response(stats, status=status.HTTP_200_OK)

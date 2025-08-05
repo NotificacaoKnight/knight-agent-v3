@@ -21,7 +21,7 @@ faiss-cpu
 tiktoken
 
 # Processamento de documentos
-docling
+docling>=2.0.0,<3.0.0
 pymupdf
 pypdf
 python-docx
@@ -30,6 +30,7 @@ python-pptx
 
 # Busca híbrida
 rank-bm25
+pgvector
 
 # Provedores LLM
 cohere

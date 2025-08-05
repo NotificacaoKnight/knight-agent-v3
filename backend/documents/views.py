@@ -166,6 +166,102 @@ class DocumentViewSet(viewsets.ModelViewSet):
         except Exception as e:
             return Response({'error': str(e)}, 
                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    def destroy(self, request, pk=None):
+        """Exclusão completa de documento com limpeza total de embeddings, caches e arquivos"""
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        try:
+            document = self.get_object()
+            document_id = document.id
+            document_title = document.title
+            
+            logger.info(f"Starting COMPLETE deletion of document {document_id}: {document_title}")
+            
+            # 1. Contar chunks antes da exclusão
+            chunks_count = document.chunks.count()
+            embedded_chunks = document.chunks.filter(embedding__isnull=False).count()
+            
+            # 2. Remover embeddings dos serviços de vetor (pgvector + FAISS)
+            try:
+                from rag.hybrid_vector_service import HybridVectorService
+                vector_service = HybridVectorService()
+                vector_service.remove_document_embeddings(document_id)
+                logger.info(f"Embeddings removed from vector services for document {document_id}")
+            except Exception as vector_error:
+                logger.error(f"Failed to remove embeddings for document {document_id}: {vector_error}")
+            
+            # 3. Limpar caches relacionados ao documento
+            try:
+                from rag.cache_manager import RAGCacheManager
+                RAGCacheManager.clear_document_caches(document_id)
+                RAGCacheManager.invalidate_search_indices()
+                logger.info(f"Caches cleared for document {document_id}")
+            except Exception as cache_error:
+                logger.error(f"Failed to clear caches for document {document_id}: {cache_error}")
+            
+            # 4. Remover arquivos físicos
+            files_removed = []
+            
+            # 4a. Arquivo original
+            if document.file_path and os.path.exists(document.file_path.path):
+                try:
+                    os.remove(document.file_path.path)
+                    files_removed.append(f"Original: {document.file_path.path}")
+                    logger.info(f"Original file deleted: {document.file_path.path}")
+                except OSError as file_error:
+                    logger.warning(f"Could not delete original file: {file_error}")
+            
+            # 4b. Pasta de documentos processados
+            import shutil
+            processed_dir_paths = [
+                f"/home/felipealbertuxd/knight-agent/backend/processed_documents/{document_id}/",
+                document.processed_path
+            ]
+            
+            for processed_path in processed_dir_paths:
+                if processed_path and os.path.exists(processed_path):
+                    try:
+                        if os.path.isdir(processed_path):
+                            shutil.rmtree(processed_path)
+                        else:
+                            processed_dir = os.path.dirname(processed_path)
+                            if os.path.exists(processed_dir):
+                                shutil.rmtree(processed_dir)
+                        files_removed.append(f"Processed: {processed_path}")
+                        logger.info(f"Processed files deleted: {processed_path}")
+                        break  # Só remove uma vez
+                    except OSError as dir_error:
+                        logger.warning(f"Could not delete processed directory {processed_path}: {dir_error}")
+            
+            # 5. HARD DELETE completo - usar delete() para trigger do signal post_delete
+            logger.info(f"Performing HARD DELETE for document {document_id}")
+            document.delete()  # Isso ativa o signal post_delete automaticamente
+            
+            # 6. Notificar atualização dos índices após exclusão
+            try:
+                from rag.cache_manager import RAGCacheManager
+                RAGCacheManager.notify_index_update(f'document_hard_deleted_{document_id}')
+                logger.info(f"Index update notification sent for deleted document {document_id}")
+            except Exception as notify_error:
+                logger.warning(f"Failed to notify index update: {notify_error}")
+            
+            return Response({
+                'message': f'Documento "{document_title}" COMPLETAMENTE excluído',
+                'document_id': document_id,
+                'chunks_removed': chunks_count,
+                'embeddings_removed': embedded_chunks,
+                'files_removed': files_removed,
+                'deletion_type': 'HARD_DELETE'
+            }, status=status.HTTP_204_NO_CONTENT)
+            
+        except Exception as e:
+            logger.error(f"Error in COMPLETE deletion of document {pk}: {str(e)}")
+            
+            return Response({
+                'error': f'Erro na exclusão completa do documento: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated, IsKnightAdmin])
