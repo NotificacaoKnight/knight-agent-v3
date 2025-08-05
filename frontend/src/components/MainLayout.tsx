@@ -151,7 +151,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       <div
         className={`${
           leftSidebarOpen ? 'w-16' : 'w-0'
-        } sidebar-left border-r border-border transition-all duration-700 ease-out overflow-hidden flex-shrink-0`}
+        } sidebar-left border-r border-border transition-all duration-[900ms] ease-out overflow-hidden flex-shrink-0`}
         style={{
           transitionTimingFunction: 'cubic-bezier(0.68, -0.55, 0.265, 1.55)'
         }}
@@ -271,7 +271,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       <div 
         className={`${
           chatHistorySidebarOpen ? 'w-64' : 'w-0'
-        } sidebar-right border-r border-border flex-shrink-0 hidden md:block transition-all duration-700 ease-out overflow-hidden`}
+        } sidebar-right border-r border-border flex-shrink-0 hidden md:block transition-all duration-[900ms] ease-out overflow-hidden`}
         style={{
           transitionTimingFunction: 'cubic-bezier(0.68, -0.55, 0.265, 1.55)'
         }}
@@ -322,7 +322,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           </div>
 
           {/* Chat List */}
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto custom-scrollbar">
             {loading ? (
               <div className="p-4 text-center">
                 <span className="text-sm text-muted-foreground">Carregando conversas...</span>
@@ -442,7 +442,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       <div
         className={`${
           rightSidebarOpen ? 'w-64' : 'w-0'
-        } sidebar-right border-l border-border transition-all duration-700 ease-out overflow-hidden flex-shrink-0`}
+        } sidebar-right border-l border-border transition-all duration-[900ms] ease-out overflow-hidden flex-shrink-0`}
         style={{
           transitionTimingFunction: 'cubic-bezier(0.68, -0.55, 0.265, 1.55)'
         }}
