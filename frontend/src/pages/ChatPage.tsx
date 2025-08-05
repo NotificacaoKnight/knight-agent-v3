@@ -1,5 +1,9 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useParams } from 'react-router-dom';
 import { MainLayout } from '../components/MainLayout';
+import { useAuth } from '../context/AuthContext';
+import { usePageTitle } from '../hooks/usePageTitle';
+import { onChatSessionDeleted } from '../utils/events';
 import { 
   ArrowUp, 
   Bot, 
@@ -13,6 +17,8 @@ import ReactMarkdown from 'react-markdown';
 import { chatApi } from '../services/api';
 import toast from 'react-hot-toast';
 import { AudioPlayer } from '../components/AudioPlayer';
+import { useChatContext } from '../context/ChatContext';
+import { KnightIcon } from '../components/KnightIcon';
 
 interface Message {
   id: string;
@@ -28,20 +34,102 @@ interface Message {
 }
 
 export const ChatPage: React.FC = () => {
+  const { sessionId: urlSessionId } = useParams<{ sessionId: string }>();
+  const { refreshChatSessions, setIsProcessingMessage } = useChatContext();
+  const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(urlSessionId || null);
+  const pendingRequestRef = useRef<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [recordingTime, setRecordingTime] = useState(0);
-  const [isCancelling, setIsCancelling] = useState(false);
+  const [animationKey, setAnimationKey] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const isCancellingRef = useRef<boolean>(false);
+  const previousUrlSessionIdRef = useRef<string | undefined>(urlSessionId);
+
+
+  // Use static page title
+  usePageTitle('Knight - Assistente IA');
+  
+  // Listen for session deletion events
+  useEffect(() => {
+    const unsubscribe = onChatSessionDeleted((deletedSessionId) => {
+      // If the deleted session is the current one, clear immediately
+      if (sessionId === deletedSessionId) {
+        setMessages([]);
+        setSessionId(null);
+        setInputMessage('');
+        setIsLoading(false);
+        setIsLoadingHistory(false);
+        setAnimationKey(prev => prev + 1);
+      }
+    });
+    
+    return unsubscribe;
+  }, [sessionId]);
+  
+  // Clear messages immediately when URL changes
+  useEffect(() => {
+    
+    // Clear when going from a session to no session
+    if (previousUrlSessionIdRef.current && !urlSessionId) {
+      setMessages([]);
+      setSessionId(null);
+      setInputMessage('');
+      setIsLoading(false);
+      setIsLoadingHistory(false);
+      setAnimationKey(prev => prev + 1);
+      
+      // Force a complete reset
+      if (pendingRequestRef.current) {
+        pendingRequestRef.current = null;
+      }
+    }
+    
+    previousUrlSessionIdRef.current = urlSessionId;
+  }, [urlSessionId]);
+
+  // Memoize personalized greeting to prevent it from changing on every render
+  const personalizedGreeting = useMemo(() => {
+    const hour = new Date().getHours();
+    const firstName = user?.name?.split(' ')[0] || user?.preferred_name?.split(' ')[0] || 'usuário';
+    
+    // Time-based greetings
+    let timeGreeting = '';
+    if (hour >= 5 && hour < 12) {
+      timeGreeting = 'Bom dia';
+    } else if (hour >= 12 && hour < 18) {
+      timeGreeting = 'Boa tarde';
+    } else {
+      timeGreeting = 'Boa noite';
+    }
+
+    // Various greeting patterns
+    const greetingPatterns = [
+      `${timeGreeting}, ${firstName}!`,
+      `Olá, ${firstName}!`,
+      `Oi, ${firstName}!`,
+      `E aí, ${firstName}?`,
+      `O que há de novo, ${firstName}?`,
+      `Como posso ajudar, ${firstName}?`,
+      `Pronto para trabalhar, ${firstName}?`,
+      `Vamos começar, ${firstName}?`,
+      `${timeGreeting}! Como está, ${firstName}?`,
+      `Seja bem-vindo, ${firstName}!`
+    ];
+
+    // Select random greeting
+    const randomIndex = Math.floor(Math.random() * greetingPatterns.length);
+    return greetingPatterns[randomIndex];
+  }, [user?.name, user?.preferred_name]); // Only recalculate when user changes
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -51,24 +139,115 @@ export const ChatPage: React.FC = () => {
     scrollToBottom();
   }, [messages]);
 
-  const adjustTextareaHeight = () => {
+  const adjustTextareaHeight = useCallback(() => {
     const textarea = textareaRef.current;
     if (textarea) {
       textarea.style.height = 'auto';
       textarea.style.height = `${Math.max(40, Math.min(textarea.scrollHeight, 150))}px`;
     }
-  };
+  }, []);
 
+  // Debounced effect to prevent frequent DOM updates that might affect Edge title behavior
   useEffect(() => {
-    adjustTextareaHeight();
-  }, [inputMessage]);
+    const timeoutId = setTimeout(() => {
+      adjustTextareaHeight();
+    }, 50); // 50ms debounce to reduce frequency of DOM manipulations
+
+    return () => clearTimeout(timeoutId);
+  }, [inputMessage, adjustTextareaHeight]);
+
+  // Trigger animation when starting a new conversation
+  useEffect(() => {
+    if (!urlSessionId && messages.length === 0 && !isLoadingHistory) {
+      // Small delay to ensure the component is fully rendered
+      const timer = setTimeout(() => {
+        setAnimationKey(prev => prev + 1);
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [urlSessionId, messages.length, isLoadingHistory]);
+
+  // Reset processing state when navigating to new conversation
+  useEffect(() => {
+    if (!urlSessionId) {
+      console.log('Resetting isProcessingMessage because no urlSessionId');
+      setIsProcessingMessage(false);
+    }
+  }, [urlSessionId, setIsProcessingMessage]);
+
+  // Additional reset when component mounts or URL changes
+  useEffect(() => {
+    return () => {
+      // Cleanup on unmount
+      setIsProcessingMessage(false);
+    };
+  }, [setIsProcessingMessage]);
+
+
+  // Load session history when sessionId from URL changes
+  useEffect(() => {
+    const loadSessionHistory = async () => {
+      // Cancel any pending request when switching sessions
+      if (pendingRequestRef.current) {
+        pendingRequestRef.current = null;
+        setIsLoading(false);
+        setIsProcessingMessage(false);
+      }
+
+      if (urlSessionId) {
+        setIsLoadingHistory(true);
+        // Title is now static, no need to update
+        
+        try {
+          const historyResponse = await chatApi.getSessionHistory(urlSessionId);
+          const historyMessages = historyResponse.messages;
+          
+          if (Array.isArray(historyMessages)) {
+            const convertedMessages: Message[] = historyMessages.map((msg: any) => ({
+              id: msg.id.toString(),
+              type: msg.type as 'user' | 'assistant' | 'system',
+              content: msg.content,
+              timestamp: new Date(msg.created_at || msg.timestamp),
+              messageType: msg.content_type || 'text',
+              transcription: msg.transcription,
+              audioDuration: msg.audio_duration,
+              audioUrl: msg.audio_file ? msg.audio_file : undefined,
+            }));
+            
+            setMessages(convertedMessages);
+            setSessionId(urlSessionId);
+            
+            // Title is now static, no need to update
+          }
+        } catch (error) {
+          console.error('Erro ao carregar histórico da sessão:', error);
+          toast.error('Erro ao carregar histórico da conversa');
+          setMessages([]);
+        } finally {
+          setIsLoadingHistory(false);
+        }
+      } else {
+        // Reset for new session
+        setMessages([]);
+        setSessionId(null);
+        setInputMessage('');
+        setIsLoading(false);
+        setIsLoadingHistory(false);
+        // Force re-render of greeting
+        setAnimationKey(prev => prev + 1);
+      }
+    };
+
+    loadSessionHistory();
+  }, [urlSessionId, setIsProcessingMessage]);
 
   const handleSendMessage = async () => {
     if ((!inputMessage.trim() && !audioBlob) || isLoading) return;
 
     const isAudioMessage = audioBlob !== null;
+    const requestId = Date.now().toString();
     const userMessage: Message = {
-      id: Date.now().toString(),
+      id: requestId,
       type: 'user',
       content: isAudioMessage 
         ? (inputMessage.trim() ? inputMessage : 'Mensagem de áudio')
@@ -86,6 +265,8 @@ export const ChatPage: React.FC = () => {
     setAudioBlob(null);
     setRecordingTime(0);
     setIsLoading(true);
+    pendingRequestRef.current = requestId;
+    setIsProcessingMessage(true);
 
     try {
       const response = await chatApi.sendMessage({
@@ -95,9 +276,20 @@ export const ChatPage: React.FC = () => {
         content_type: audioBlob ? 'audio' : 'text',
       });
 
+      // Check if this request is still valid (user hasn't switched sessions)
+      if (pendingRequestRef.current !== requestId) {
+        console.log('Request cancelled due to session switch');
+        return;
+      }
+
       // Atualizar session_id se for uma nova sessão
       if (!sessionId) {
         setSessionId(response.session_id);
+        // Refresh chat sessions in sidebar when a new session is created
+        if (refreshChatSessions) {
+          refreshChatSessions();
+        }
+        // Title is now static, no need to update
       }
 
       // Atualizar a mensagem do usuário com transcrição e duração real assim que disponível
@@ -178,7 +370,12 @@ export const ChatPage: React.FC = () => {
       
       setMessages(prev => [...prev, errorMessage]);
     } finally {
-      setIsLoading(false);
+      // Always reset processing state, but only reset loading if this is still the current request
+      setIsProcessingMessage(false);
+      if (pendingRequestRef.current === requestId) {
+        setIsLoading(false);
+        pendingRequestRef.current = null;
+      }
     }
   };
 
@@ -279,21 +476,44 @@ export const ChatPage: React.FC = () => {
 
   return (
     <MainLayout>
-      <div className="h-full flex flex-col bg-background">
+      <div className="h-full flex flex-col sidebar-right">
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           <div className="max-w-4xl mx-auto space-y-4">
-            {messages.length === 0 ? (
+            {isLoadingHistory ? (
               <div className="text-center py-12">
-                <Bot className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-foreground mb-2">
-                  Bem-vindo ao Knight Agent!
-                </h3>
-                <p className="text-muted-foreground">
-                  Seu assistente IA corporativo está pronto para ajudar.
-                  <br />
-                  Digite sua mensagem ou grave um áudio para começar uma conversa.
-                </p>
+                <Loader2 className="h-8 w-8 text-muted-foreground mx-auto mb-4 animate-spin" />
+                <p className="text-muted-foreground">Carregando histórico da conversa...</p>
+              </div>
+            ) : messages.length === 0 ? (
+              <div className="text-center py-16 px-8">
+                {urlSessionId ? (
+                  <>
+                    <KnightIcon className="h-16 w-16 text-muted-foreground mx-auto mb-6" />
+                    <h3 className="text-xl font-semibold text-foreground mb-3">
+                      Conversa não encontrada
+                    </h3>
+                    <p className="text-muted-foreground text-base">
+                      Esta conversa pode ter sido removida ou você não tem acesso a ela.
+                    </p>
+                  </>
+                ) : (
+                  <h3 
+                    key={animationKey}
+                    className="text-4xl mb-4 animate-fade-in"
+                    style={{ 
+                      fontFamily: '"Playfair Display", serif',
+                      fontWeight: 200,
+                      color: 'rgb(var(--foreground-secondary))',
+                      textShadow: '0 1px 3px rgba(0, 0, 0, 0.3)',
+                      letterSpacing: '0.01em',
+                      lineHeight: '1.2',
+                      animation: 'fadeIn 1.5s ease-out forwards'
+                    }}
+                  >
+                    {personalizedGreeting}
+                  </h3>
+                )}
               </div>
             ) : (
               messages.map((message) => (
@@ -367,8 +587,24 @@ export const ChatPage: React.FC = () => {
 
         {/* Input */}
         <div className="flex-shrink-0 p-4">
+          {/* Loading overlay for navigation warning */}
+          {isLoading && (
+            <div className="max-w-4xl mx-auto mb-3">
+              <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
+                <div className="flex items-center space-x-2">
+                  <Loader2 className="h-4 w-4 animate-spin text-yellow-600 dark:text-yellow-400" />
+                  <span className="text-sm text-yellow-800 dark:text-yellow-200">
+                    Aguardando resposta da IA... Evite alternar conversas para não perder a resposta.
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+          
           <div className="max-w-4xl mx-auto">
-            <div className="relative border border-border rounded-lg bg-card focus-within:border-ring transition-colors">
+            <div className={`relative border border-border rounded-lg bg-secondary focus-within:border-ring transition-colors ${
+              isLoading ? 'opacity-60 pointer-events-none' : ''
+            }`}>
               {/* Recording indicator */}
               {isRecording && (
                 <div className="absolute -top-12 left-4 right-4 bg-gray-100 text-gray-800 px-3 py-2 rounded-lg flex items-center justify-between">
@@ -420,6 +656,10 @@ export const ChatPage: React.FC = () => {
                   rows={1}
                   style={{ minHeight: '40px', overflowY: 'auto' }}
                   disabled={isRecording}
+                  // Edge-specific attributes to prevent title interference
+                  autoComplete="off"
+                  data-form-type="other"
+                  data-lpignore="true"
                 />
               </div>
               
@@ -450,7 +690,7 @@ export const ChatPage: React.FC = () => {
                   className={`w-8 h-8 rounded-lg transition-all duration-200 flex items-center justify-center shadow-sm ${
                     (!inputMessage.trim() && !audioBlob) || isLoading || isRecording
                       ? 'bg-muted text-muted-foreground cursor-not-allowed opacity-50'
-                      : 'bg-primary text-primary-foreground hover:bg-primary/90 hover:scale-105 active:scale-95'
+                      : 'bg-accent text-accent-foreground hover:bg-accent-hover hover:scale-105 active:scale-95'
                   }`}
                 >
                   <ArrowUp className="h-4 w-4" />

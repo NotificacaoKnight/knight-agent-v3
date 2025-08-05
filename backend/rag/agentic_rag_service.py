@@ -593,6 +593,7 @@ class AgenticRAGServiceSync:
         
         try:
             # Usar HybridSearchService existente (otimizado)
+            from .services import HybridSearchService
             hybrid_service = HybridSearchService()
             
             # Busca híbrida otimizada

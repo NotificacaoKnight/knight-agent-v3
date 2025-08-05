@@ -159,4 +159,36 @@
   .sidebar-right {
     background-color: rgb(var(--sidebar-right));
   }
+
+  /* Fade in animation for greeting title */
+  @keyframes fadeIn {
+    0% {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-fade-in {
+    opacity: 0;
+    animation: fadeIn 1.5s ease-out forwards;
+  }
+
+  /* Edge-specific fixes to prevent title interference */
+  @supports (-ms-ime-align: auto) {
+    textarea, input {
+      -ms-ime-mode: disabled !important;
+    }
+  }
+  
+  /* Additional Edge title protection */
+  textarea[data-lpignore="true"], 
+  input[data-lpignore="true"] {
+    -webkit-text-security: none !important;
+    -moz-appearance: none !important;
+    -ms-filter: none !important;
+  }
 }

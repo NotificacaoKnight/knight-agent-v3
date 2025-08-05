@@ -138,7 +138,7 @@ class HybridVectorService:
         # Adicionar ao FAISS também se for fallback ou dual-write
         if self.faiss_service and (not success or self.enable_fallback):
             try:
-                self.faiss_service.add_document_embeddings(document.id)
+                self.faiss_service.add_document_embeddings(document)
                 logger.info(f"Document {document.id} embeddings added to FAISS")
             except Exception as e:
                 logger.error(f"Failed to add embeddings to FAISS: {e}")
