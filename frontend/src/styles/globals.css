@@ -69,6 +69,10 @@
     --card-effect-secondary: 128 128 128; /* #808080 - Gray secondary */
     --card-effect-glow: rgba(90, 90, 90, 0) 0deg, #5A5A5A 25deg, rgba(128, 128, 128, 0.18) 295deg, rgba(90, 90, 90, 0) 360deg;
     
+    /* Custom sidebar backgrounds - Tema claro */
+    --sidebar-left: 220 215 208; /* #DCD7D0 - Same as menu background */
+    --sidebar-right: 235 230 223; /* #EBE6DF - Same as main background */
+    
     /* Menu navigation - Tema claro */
     --menu-background: 220 215 208; /* #DCD7D0 - Mais escuro que o background principal #EBE6DF */
     --menu-button: 252 252 252; /* #FCFCFC - Off-white mais claro para botões */
