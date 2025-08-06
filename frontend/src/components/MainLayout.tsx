@@ -153,7 +153,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           leftSidebarOpen ? 'w-16' : 'w-0'
         } menu-background border-r border-border transition-all duration-[900ms] ease-out overflow-hidden flex-shrink-0`}
         style={{
-          transitionTimingFunction: 'cubic-bezier(0.68, -0.55, 0.265, 1.55)'
+          transitionTimingFunction: 'cubic-bezier(0.68, -0.55, 0.265, 1.55)',
+          transitionProperty: 'width, background-color'
         }}
       >
         <div className="h-full flex flex-col">
@@ -265,7 +266,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           chatHistorySidebarOpen ? 'w-64' : 'w-0'
         } sidebar-right border-r border-border flex-shrink-0 hidden md:block transition-all duration-[900ms] ease-out overflow-hidden`}
         style={{
-          transitionTimingFunction: 'cubic-bezier(0.68, -0.55, 0.265, 1.55)'
+          transitionTimingFunction: 'cubic-bezier(0.68, -0.55, 0.265, 1.55)',
+          transitionProperty: 'width, background-color'
         }}
       >
         <div className="h-full flex flex-col">
@@ -436,7 +438,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           rightSidebarOpen ? 'w-64' : 'w-0'
         } sidebar-right border-l border-border transition-all duration-[900ms] ease-out overflow-hidden flex-shrink-0`}
         style={{
-          transitionTimingFunction: 'cubic-bezier(0.68, -0.55, 0.265, 1.55)'
+          transitionTimingFunction: 'cubic-bezier(0.68, -0.55, 0.265, 1.55)',
+          transitionProperty: 'width, background-color'
         }}
       >
         <div className="h-full p-4">
