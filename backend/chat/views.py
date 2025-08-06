@@ -207,11 +207,12 @@ def submit_feedback(request):
 @permission_classes([IsAuthenticated])
 def chat_stats(request):
     """Estatísticas do chat do usuário"""
-    user_sessions = ChatSession.objects.filter(user=request.user, is_active=True)
+    # Contar TODAS as sessões (ativas e inativas) para total histórico
+    all_user_sessions = ChatSession.objects.filter(user=request.user)
     user_messages = ChatMessage.objects.filter(session__user=request.user)
     
     stats = {
-        'total_sessions': user_sessions.count(),
+        'total_sessions': all_user_sessions.count(),  # Total histórico incluindo excluídas
         'total_messages': user_messages.count(),
         'helpful_responses': user_messages.filter(
             message_type='assistant',
@@ -226,3 +227,65 @@ def chat_stats(request):
     }
     
     return Response(stats)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def activity_chart_data(request):
+    """Dados de atividade para gráfico histórico"""
+    from django.utils import timezone
+    from datetime import timedelta
+    from django.db.models import Count
+    from django.db.models.functions import TruncDate
+    
+    # Definir período (últimos 90 dias, incluindo hoje) - usando timezone do Brasil
+    from zoneinfo import ZoneInfo
+    import pytz
+    
+    # Usar timezone do Brasil (GMT-3)
+    brazil_tz = pytz.timezone('America/Sao_Paulo')
+    now_brazil = timezone.now().astimezone(brazil_tz)
+    today = now_brazil.date()
+    start_date = today - timedelta(days=89)  # 89 + hoje = 90 dias
+    end_date = today
+    
+    # Buscar sessões criadas por dia (no timezone do Brasil) - CONVERSAS = SESSÕES
+    chat_data = ChatSession.objects.filter(
+        user=request.user
+    ).extra(
+        select={'day': "date(chat_chatsession.created_at AT TIME ZONE 'America/Sao_Paulo')"},
+        where=["date(chat_chatsession.created_at AT TIME ZONE 'America/Sao_Paulo') BETWEEN %s AND %s"],
+        params=[start_date, end_date]
+    ).values('day').annotate(
+        conversas=Count('id')  # Contar sessões únicas por dia
+    ).order_by('day')
+    
+    # Buscar documentos processados por dia (assumindo que há campo de data de processamento)
+    from documents.models import Document
+    doc_data = Document.objects.filter(
+        uploaded_by=request.user,
+        uploaded_at__date__gte=start_date,
+        uploaded_at__date__lte=end_date,
+        status='processed'
+    ).extra(
+        select={'day': 'date(documents_document.uploaded_at)'}
+    ).values('day').annotate(
+        documentos=Count('id')
+    ).order_by('day')
+    
+    # Criar dicionário para facilitar merge
+    chat_dict = {item['day'].strftime('%Y-%m-%d'): item['conversas'] for item in chat_data}
+    doc_dict = {item['day'].strftime('%Y-%m-%d'): item['documentos'] for item in doc_data}
+    
+    # Gerar dados para todos os dias no período (incluindo hoje)
+    activity_data = []
+    current_date = start_date
+    while current_date <= end_date:
+        date_str = current_date.strftime('%Y-%m-%d')
+        activity_data.append({
+            'date': date_str,
+            'conversas': chat_dict.get(date_str, 0),
+            'documentos': doc_dict.get(date_str, 0)
+        })
+        current_date += timedelta(days=1)
+    
+    return Response(activity_data)

@@ -10,4 +10,5 @@ urlpatterns = [
     path('sessions/<int:session_id>/title/', views.update_session_title, name='update_session_title'),
     path('feedback/', views.submit_feedback, name='submit_feedback'),
     path('stats/', views.chat_stats, name='chat_stats'),
+    path('activity-chart/', views.activity_chart_data, name='activity_chart_data'),
 ]
