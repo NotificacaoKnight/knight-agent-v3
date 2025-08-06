@@ -10,8 +10,6 @@ import {
   TrendingUp,
   Activity,
   BarChart3,
-  ArrowUpRight,
-  ArrowDownRight,
   Loader2
 } from 'lucide-react';
 import { Card } from '../components/ui/card';
@@ -25,6 +23,7 @@ interface DashboardStats {
   totalDownloads: number;
   activeUsers: number;
   avgResponseTime: number;
+  avgSessionDuration: number;
   systemUptime: number;
 }
 
@@ -93,6 +92,7 @@ export const DashboardPage: React.FC = () => {
         const totalChats = chatData.total_sessions || 0;
         const totalMessages = chatData.total_messages || 0;
         const avgResponseTime = (chatData.avg_response_time || 0) / 1000; // Converter para segundos
+        const avgSessionDuration = chatData.avg_session_duration_minutes || 0; // Duração em minutos
 
         setStats({
           totalChats: totalChats, // Total de conversas (sessões)
@@ -100,6 +100,7 @@ export const DashboardPage: React.FC = () => {
           totalDownloads: 0, // TODO: Implementar endpoint de downloads
           activeUsers: 1, // Por enquanto assumir usuário atual
           avgResponseTime: parseFloat(avgResponseTime.toFixed(1)),
+          avgSessionDuration: avgSessionDuration,
           systemUptime: 99.8 // TODO: Implementar monitoramento real
         });
 
@@ -115,6 +116,7 @@ export const DashboardPage: React.FC = () => {
           totalDownloads: 0,
           activeUsers: 1,
           avgResponseTime: 0,
+          avgSessionDuration: 0,
           systemUptime: 99.8
         });
       }
@@ -186,7 +188,6 @@ export const DashboardPage: React.FC = () => {
                     Converse com o Knight
                   </p>
                 </div>
-                <ArrowUpRight className="h-4 w-4 text-muted-foreground group-hover:text-accent transition-colors" />
               </div>
             </Card>
 
@@ -206,7 +207,6 @@ export const DashboardPage: React.FC = () => {
                     Gerenciar conhecimento
                   </p>
                 </div>
-                <ArrowUpRight className="h-4 w-4 text-muted-foreground group-hover:text-accent transition-colors" />
               </div>
             </Card>
 
@@ -226,7 +226,6 @@ export const DashboardPage: React.FC = () => {
                     Arquivos temporários
                   </p>
                 </div>
-                <ArrowUpRight className="h-4 w-4 text-muted-foreground group-hover:text-accent transition-colors" />
               </div>
             </Card>
           </div>
@@ -236,8 +235,8 @@ export const DashboardPage: React.FC = () => {
             <Card className="p-4 sm:p-6 bg-gradient-to-br from-card to-card/45 border border-border relative group cursor-pointer transition-all duration-300 hover:shadow-xl overflow-hidden">
               <div className="flex items-center justify-between relative z-10">
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Total de conversas</p>
-                  <p className="text-2xl font-bold text-foreground">{stats?.totalChats.toLocaleString()}</p>
+                  <p className="text-sm font-medium text-foreground">Total de conversas</p>
+                  <p className="text-2xl font-bold text-muted-foreground">{stats?.totalChats.toLocaleString()}</p>
                 </div>
                 <div className="relative -mt-5">
                   <MessageSquare className="h-8 w-8 text-accent transition-colors duration-300 relative z-10" 
@@ -252,11 +251,6 @@ export const DashboardPage: React.FC = () => {
                     }}
                   />
                 </div>
-              </div>
-              <div className="mt-4 flex items-center text-sm relative z-10">
-                <TrendingUp className="h-4 w-4 text-accent mr-1" />
-                <span className="text-accent">Ativo</span>
-                <span className="text-muted-foreground ml-1">mensagens trocadas</span>
               </div>
               
               {/* Shine Effect */}
@@ -332,8 +326,8 @@ export const DashboardPage: React.FC = () => {
             <Card className="p-4 sm:p-6 bg-gradient-to-br from-card to-card/45 border border-border relative group cursor-pointer transition-all duration-300 hover:shadow-xl overflow-hidden">
               <div className="flex items-center justify-between relative z-10">
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Documentos ativos</p>
-                  <p className="text-2xl font-bold text-foreground">{stats?.totalDocuments}</p>
+                  <p className="text-sm font-medium text-foreground">Documentos ativos</p>
+                  <p className="text-2xl font-bold text-muted-foreground">{stats?.totalDocuments}</p>
                 </div>
                 <div className="relative -mt-5">
                   <FileText className="h-8 w-8 text-accent transition-colors duration-300 relative z-10" 
@@ -349,10 +343,8 @@ export const DashboardPage: React.FC = () => {
                   />
                 </div>
               </div>
-              <div className="mt-4 flex items-center text-sm relative z-10">
-                <TrendingUp className="h-4 w-4 text-accent mr-1" />
-                <span className="text-accent">Disponível</span>
-                <span className="text-muted-foreground ml-1">base de conhecimento</span>
+              <div className="mt-4 text-sm relative z-10">
+                <span className="text-accent">Base de conhecimento</span>
               </div>
               
               {/* Shine Effect */}
@@ -428,8 +420,8 @@ export const DashboardPage: React.FC = () => {
             <Card className="p-4 sm:p-6 bg-gradient-to-br from-card to-card/45 border border-border relative group cursor-pointer transition-all duration-300 hover:shadow-xl overflow-hidden">
               <div className="flex items-center justify-between relative z-10">
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Usuários ativos</p>
-                  <p className="text-2xl font-bold text-foreground">{stats?.activeUsers}</p>
+                  <p className="text-sm font-medium text-foreground">Usuários ativos</p>
+                  <p className="text-2xl font-bold text-muted-foreground">{stats?.activeUsers}</p>
                 </div>
                 <div className="relative -mt-5">
                   <Users className="h-8 w-8 text-accent transition-colors duration-300 relative z-10" 
@@ -446,9 +438,8 @@ export const DashboardPage: React.FC = () => {
                 </div>
               </div>
               <div className="mt-4 flex items-center text-sm relative z-10">
-                <TrendingUp className="h-4 w-4 text-accent mr-1" />
-                <span className="text-accent">Online</span>
-                <span className="text-muted-foreground ml-1">sessão ativa</span>
+                <Clock className="h-4 w-4 text-accent mr-2" />
+                <span className="text-accent">Tempo médio de sessão: {stats?.avgSessionDuration}m</span>
               </div>
               
               {/* Shine Effect */}
@@ -524,8 +515,8 @@ export const DashboardPage: React.FC = () => {
             <Card className="p-4 sm:p-6 bg-gradient-to-br from-card to-card/45 border border-border relative group cursor-pointer transition-all duration-300 hover:shadow-xl overflow-hidden">
               <div className="flex items-center justify-between relative z-10">
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Tempo de resposta</p>
-                  <p className="text-2xl font-bold text-foreground">{stats?.avgResponseTime}s</p>
+                  <p className="text-sm font-medium text-foreground">Tempo de resposta</p>
+                  <p className="text-2xl font-bold text-muted-foreground">{stats?.avgResponseTime}s</p>
                 </div>
                 <div className="relative -mt-5">
                   <Clock className="h-8 w-8 text-accent transition-colors duration-300 relative z-10" 
@@ -543,8 +534,7 @@ export const DashboardPage: React.FC = () => {
               </div>
               <div className="mt-4 flex items-center text-sm relative z-10">
                 <TrendingUp className="h-4 w-4 text-accent mr-1" />
-                <span className="text-accent">Otimizado</span>
-                <span className="text-muted-foreground ml-1">performance IA</span>
+                <span className="text-accent">Performance IA otimizada</span>
               </div>
               
               {/* Shine Effect */}
