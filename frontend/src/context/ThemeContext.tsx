@@ -39,10 +39,14 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   });
 
   useEffect(() => {
-    // Apply theme to document
+    // Apply theme to document with optimized timing
     const root = window.document.documentElement;
-    root.classList.remove('light', 'dark');
-    root.classList.add(theme);
+    
+    // Use requestAnimationFrame to ensure DOM is ready
+    requestAnimationFrame(() => {
+      root.classList.remove('light', 'dark');
+      root.classList.add(theme);
+    });
     
     // Save to localStorage
     localStorage.setItem('knight-theme', theme);
