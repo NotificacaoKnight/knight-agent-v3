@@ -151,7 +151,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       <div
         className={`${
           leftSidebarOpen ? 'w-16' : 'w-0'
-        } sidebar-left border-r border-border transition-all duration-[900ms] ease-out overflow-hidden flex-shrink-0`}
+        } menu-background border-r border-border transition-all duration-[900ms] ease-out overflow-hidden flex-shrink-0`}
         style={{
           transitionTimingFunction: 'cubic-bezier(0.68, -0.55, 0.265, 1.55)'
         }}
@@ -173,8 +173,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                     >
                       <svg width="7" height="47" viewBox="0 0 7 47" fill="none">
                         <path 
-                          d="M6.4 23.8983C6.4 17.5 0 18.322 0 0V47C0 31.4661 6.4 30.2966 6.4 23.8983Z" 
-                          fill="#D09320"
+                          className="menu-indicator"
+                          d="M6.4 23.8983C6.4 17.5 0 18.322 0 0V47C0 31.4661 6.4 30.2966 6.4 23.8983Z"
                         />
                       </svg>
                     </div>
@@ -184,11 +184,10 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                     className={`w-8 h-8 flex items-center justify-center rounded-lg relative group mx-auto transition-all duration-300 ${
                       isActive 
                         ? 'shadow-lg' 
-                        : 'bg-gray-700 hover:bg-gray-600'
+                        : 'menu-button'
                     }`}
                     style={{
-                      backgroundColor: isActive ? '#E09D1E' : undefined,
-                      animation: isActive ? 'fadeToActive 0.4s ease-out' : undefined
+                      backgroundColor: isActive ? 'rgb(var(--menu-indicator))' : undefined
                     }}
                     title={item.label}
                   >
@@ -196,11 +195,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                       className={`h-4 w-4 ${
                         isActive
                           ? 'text-white'
-                          : 'group-hover:text-white'
+                          : 'menu-icon'
                       }`}
-                      style={{
-                        color: isActive ? 'white' : '#E09D1E'
-                      }}
                     />
                     <span className="absolute left-16 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
                       {item.label}
@@ -233,7 +229,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             <div className="px-2 mb-8">
               <button
                 onClick={logout}
-                className="w-8 h-8 flex items-center justify-center rounded-lg bg-gray-700 hover:bg-red-600 transition-all group mx-auto"
+                className="w-8 h-8 flex items-center justify-center rounded-lg menu-button hover:bg-red-600 transition-all group mx-auto"
                 title="Sair"
                 onMouseEnter={(e) => {
                   const icon = e.currentTarget.querySelector('svg');
@@ -241,15 +237,11 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 }}
                 onMouseLeave={(e) => {
                   const icon = e.currentTarget.querySelector('svg');
-                  if (icon) icon.style.color = '#E09D1E';
+                  if (icon) icon.style.color = '';
                 }}
               >
                 <LogOut 
-                  className="h-4 w-4 transition-colors" 
-                  style={{ 
-                    color: '#E09D1E',
-                    transition: 'color 0.3s ease'
-                  }}
+                  className="h-4 w-4 menu-icon transition-colors"
                 />
               </button>
             </div>
@@ -390,7 +382,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       {/* Main Content */}
       <div className="flex-1 flex flex-col">
         {/* Top Header */}
-        <header className="h-16 sidebar-right border-b border-border flex items-center justify-between px-4">
+        <header className="h-16 bg-background border-b border-border flex items-center justify-between px-4">
           <div className="flex items-center">
             {/* Chat History Toggle (show when collapsed) */}
             {!chatHistorySidebarOpen && (
@@ -433,7 +425,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         </header>
 
         {/* Page Content */}
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-hidden bg-background">
           {children}
         </div>
       </div>
@@ -486,7 +478,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         <div className="fixed inset-0 z-50 md:hidden">
           <div className="fixed inset-0 bg-black bg-opacity-50" onClick={() => setMobileMenuOpen(false)} />
           <div className="fixed left-0 top-0 bottom-0 w-64 bg-card shadow-lg">
-            <div className="h-full flex flex-col sidebar-left">
+            <div className="h-full flex flex-col menu-background">
               <div className="h-16 px-4 flex items-center justify-between border-b border-border">
                 <div className="flex items-center space-x-2">
                   <KnightIcon className="h-7 w-7 text-foreground" />
@@ -515,8 +507,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                         >
                           <svg width="7" height="47" viewBox="0 0 7 47" fill="none">
                             <path 
-                              d="M6.4 23.8983C6.4 17.5 0 18.322 0 0V47C0 31.4661 6.4 30.2966 6.4 23.8983Z" 
-                              fill="#D09320"
+                              className="menu-indicator"
+                              d="M6.4 23.8983C6.4 17.5 0 18.322 0 0V47C0 31.4661 6.4 30.2966 6.4 23.8983Z"
                             />
                           </svg>
                         </div>
@@ -526,22 +518,18 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                         className={`w-full h-10 flex items-center px-3 rounded-lg transition-all duration-300 ${
                           isActive 
                             ? 'shadow-lg' 
-                            : 'bg-muted hover:bg-muted/80'
+                            : 'menu-button'
                         }`}
                         style={{
-                          backgroundColor: isActive ? '#E09D1E' : undefined,
-                          animation: isActive ? 'fadeToActive 0.4s ease-out' : undefined
+                          backgroundColor: isActive ? 'rgb(var(--menu-indicator))' : undefined
                         }}
                       >
                         <item.icon
                           className={`h-5 w-5 mr-3 ${
                             isActive
                               ? 'text-white'
-                              : ''
+                              : 'menu-icon'
                           }`}
-                          style={{
-                            color: isActive ? 'white' : '#E09D1E'
-                          }}
                         />
                         <span className={`font-medium text-sm ${
                           isActive
@@ -579,22 +567,18 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 {/* Logout */}
                 <button
                   onClick={logout}
-                  className="w-full h-10 flex items-center px-3 rounded-lg bg-muted hover:bg-destructive transition-all mb-8 group"
+                  className="w-full h-10 flex items-center px-3 rounded-lg menu-button hover:bg-destructive transition-all mb-8 group"
                   onMouseEnter={(e) => {
                     const icon = e.currentTarget.querySelector('svg');
                     if (icon) icon.style.color = 'white';
                   }}
                   onMouseLeave={(e) => {
                     const icon = e.currentTarget.querySelector('svg');
-                    if (icon) icon.style.color = '#E09D1E';
+                    if (icon) icon.style.color = '';
                   }}
                 >
                   <LogOut 
-                    className="h-5 w-5 mr-3 transition-colors" 
-                    style={{ 
-                      color: '#E09D1E',
-                      transition: 'color 0.3s ease'
-                    }}
+                    className="h-5 w-5 mr-3 menu-icon transition-colors"
                   />
                   <span className="font-medium text-muted-foreground text-sm group-hover:text-white transition-colors">Sair</span>
                 </button>
