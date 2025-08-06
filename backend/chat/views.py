@@ -211,6 +211,29 @@ def chat_stats(request):
     all_user_sessions = ChatSession.objects.filter(user=request.user)
     user_messages = ChatMessage.objects.filter(session__user=request.user)
     
+    # Calcular duração média das sessões (em minutos)
+    from django.db.models import F, ExpressionWrapper, DurationField, Avg
+    from datetime import timedelta
+    
+    # Sessões com pelo menos uma mensagem para calcular duração
+    sessions_with_duration = all_user_sessions.filter(
+        last_message_at__isnull=False
+    ).annotate(
+        duration=ExpressionWrapper(
+            F('last_message_at') - F('created_at'),
+            output_field=DurationField()
+        )
+    )
+    
+    avg_duration = sessions_with_duration.aggregate(
+        avg_duration=Avg('duration')
+    )['avg_duration']
+    
+    # Converter para minutos
+    avg_session_duration_minutes = 0
+    if avg_duration:
+        avg_session_duration_minutes = round(avg_duration.total_seconds() / 60, 1)
+    
     stats = {
         'total_sessions': all_user_sessions.count(),  # Total histórico incluindo excluídas
         'total_messages': user_messages.count(),
@@ -223,7 +246,8 @@ def chat_stats(request):
             response_time_ms__isnull=False
         ).aggregate(
             avg_time=models.Avg('response_time_ms')
-        )['avg_time'] or 0
+        )['avg_time'] or 0,
+        'avg_session_duration_minutes': avg_session_duration_minutes  # Nova métrica
     }
     
     return Response(stats)
