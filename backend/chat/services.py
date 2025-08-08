@@ -9,6 +9,7 @@ from django.db.models import F
 from documents.models import Document
 from rag.agentic_rag_service import AgenticRAGServiceSync
 from rag.llm_providers import LLMManager
+from rag.consolidated_multi_agent import consolidated_multi_agent_service
 from .models import ChatSession, ChatMessage, DocumentRequest
 from .audio_transcription import GeminiAudioTranscriptionService
 from .access_count_config import AccessCountConfig
@@ -220,28 +221,51 @@ class KnightChatService:
                     document_request
                 )
             
-            # Usar sistema agentic (que já tem fallback interno)
-            agentic_result = self.agentic_service.search(
+            # Usar sistema CONSOLIDADO (velocidade + qualidade adaptativa)
+            multi_agent_result = consolidated_multi_agent_service.process_query(
                 query=user_message,
-                k=self.max_context_chunks,
-                user=session.user
+                user=session.user,
+                user_profile={
+                    'name': session.user.username if hasattr(session.user, 'username') else 'Usuário',
+                    'session_id': str(session.id)
+                }
             )
             
+            # Fallback para sistema agentic tradicional se multi-agent falhar
+            if not multi_agent_result.get('response') or 'erro' in multi_agent_result.get('response', '').lower():
+                print("🔄 CHAT: Multi-agent falhou, usando fallback agentic")
+                agentic_result = self.agentic_service.search(
+                    query=user_message,
+                    k=self.max_context_chunks,
+                    user=session.user
+                )
+                # Usar resultado do fallback
+                final_result = agentic_result
+            else:
+                # Usar resultado multi-agent
+                final_result = {
+                    'response': multi_agent_result.get('response', ''),
+                    'search_results': multi_agent_result.get('search_results', []),
+                    'metadata': multi_agent_result.get('metadata', {}),
+                    'agent_used': multi_agent_result.get('agent_used', 'knight')
+                }
+            
             # Incrementar contador de acesso dos documentos consultados
-            search_results = agentic_result.get('search_results', [])
+            search_results = final_result.get('search_results', [])
             self._increment_document_access_count(search_results)
             
-            # Usar resposta do sistema agentic
+            # Usar resposta do sistema final (multi-agent ou fallback)
             llm_response = {
                 'success': True,
-                'response': agentic_result.get('response', ''),
-                'provider': agentic_result.get('metadata', {}).get('provider_used', 'unknown'),
-                'model': agentic_result.get('metadata', {}).get('model_used', '')
+                'response': final_result.get('response', ''),
+                'provider': final_result.get('metadata', {}).get('provider_used', 'unknown'),
+                'model': final_result.get('metadata', {}).get('model_used', ''),
+                'agent_used': final_result.get('agent_used', 'knight')
             }
             
             # Extrair metadados de contexto
             context_metadata = []
-            search_results = agentic_result.get('search_results', [])
+            search_results = final_result.get('search_results', [])
             for result in search_results:
                 context_metadata.append({
                     'document_id': result.get('document_id'),

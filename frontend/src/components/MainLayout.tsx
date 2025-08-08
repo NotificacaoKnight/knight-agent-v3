@@ -21,7 +21,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Trash2,
-  Bell
+  Bell,
+  VenetianMask,
+  Wand
 } from 'lucide-react';
 
 interface SidebarItem {
@@ -118,7 +120,9 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, title, subtitl
   // Menu items
   // Menu items dinâmico baseado no status de admin
   const menuItems: SidebarItem[] = [
-    { id: 'chat', label: 'Chat', icon: MessageSquare, path: '/chat' },
+    { id: 'chat', label: '⚔️ Knight - Chat', icon: MessageSquare, path: '/chat' },
+    { id: 'bard', label: '🎭 Bard - Relatórios', icon: VenetianMask, path: '/bard' },
+    { id: 'wizard', label: '🧙 Wizard - Capacitações', icon: Wand, path: '/wizard' },
     { id: 'dashboard', label: 'Dashboard', icon: BarChart3, path: '/dashboard' },
     ...(user?.is_admin ? [{ id: 'documents', label: 'Documentos', icon: FileText, path: '/documents' }] : []),
     { id: 'settings', label: 'Configurações', icon: Settings, path: '/settings' },
