@@ -10,6 +10,9 @@ urlpatterns = [
     path('api/rag/', include('rag.urls')),
     path('api/chat/', include('chat.urls')),
     path('api/downloads/', include('downloads.urls')),
+    # Multi-Agent endpoints são servidos via /api/rag/
+    # path('api/bard/', 'rag.multi_agent_views') -> /api/rag/bard/
+    # path('api/wizard/', 'rag.multi_agent_views') -> /api/rag/wizard/
     path('', include('knowledge_resources.urls')),
 ]
 

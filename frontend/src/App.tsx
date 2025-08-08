@@ -11,6 +11,8 @@ import { DashboardPage } from './pages/DashboardPage';
 import { ChatPage } from './pages/ChatPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { DocumentsPage } from './pages/DocumentsPage';
+import BardPage from './pages/BardPage';
+import WizardPage from './pages/WizardPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -74,6 +76,22 @@ function App() {
                   element={
                     <ProtectedRoute requireAdmin>
                       <DocumentsPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/bard"
+                  element={
+                    <ProtectedRoute>
+                      <BardPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/wizard"
+                  element={
+                    <ProtectedRoute>
+                      <WizardPage />
                     </ProtectedRoute>
                   }
                 />
