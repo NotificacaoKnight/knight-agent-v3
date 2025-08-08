@@ -5,11 +5,13 @@ from datetime import datetime
 
 from django.conf import settings
 from django.core.files.storage import default_storage
+from django.db.models import F
 from documents.models import Document
 from rag.agentic_rag_service import AgenticRAGServiceSync
 from rag.llm_providers import LLMManager
 from .models import ChatSession, ChatMessage, DocumentRequest
 from .audio_transcription import GeminiAudioTranscriptionService
+from .access_count_config import AccessCountConfig
 
 class KnightChatService:
     """Serviço principal do agente Knight"""
@@ -21,6 +23,94 @@ class KnightChatService:
         self.transcription_service = GeminiAudioTranscriptionService()
         self.max_context_chunks = 5
         self.max_context_length = 4000
+
+    def _increment_document_access_count(self, search_results):
+        """
+        Incrementa o contador de acesso apenas para documentos mais relevantes
+        baseado em threshold mínimo e estratégia configurável
+        """
+        try:
+            config = AccessCountConfig.get_config_summary()
+            print(f"🎯 CHAT: Incrementando access_count com estratégia '{config['strategy']}' - {len(search_results)} resultados iniciais")
+            print(f"⚙️ CHAT CONFIG: {config['description']}")
+            
+            if not search_results:
+                print(f"⚠️ CHAT: Nenhum resultado de busca fornecido")
+                return
+            
+            # Agrupar resultados por document_id mantendo o melhor score
+            document_scores = {}
+            for result in search_results:
+                if not isinstance(result, dict) or 'document_id' not in result:
+                    continue
+                
+                doc_id = result['document_id']
+                score = result.get('combined_score', result.get('score', 0.0))
+                
+                # Manter apenas o melhor score por documento
+                if doc_id not in document_scores or score > document_scores[doc_id]['score']:
+                    document_scores[doc_id] = {
+                        'score': score,
+                        'chunk_id': result.get('chunk_id'),
+                        'content_preview': result.get('content', '')[:100] + '...' if result.get('content') else ''
+                    }
+            
+            print(f"📋 CHAT: {len(document_scores)} documentos únicos encontrados")
+            
+            # Aplicar threshold mínimo
+            min_score = config['min_score']
+            relevant_docs = {
+                doc_id: data for doc_id, data in document_scores.items() 
+                if data['score'] >= min_score
+            }
+            
+            print(f"✅ CHAT: {len(relevant_docs)} documentos passaram no threshold ≥ {min_score}")
+            
+            if not relevant_docs:
+                print(f"⚠️ CHAT: Nenhum documento atingiu score mínimo de {min_score}")
+                return
+            
+            # Aplicar estratégia de seleção
+            strategy = config['strategy']
+            selected_docs = {}
+            
+            if strategy == 'single_best':
+                # Apenas o documento com maior score
+                best_doc_id = max(relevant_docs.keys(), key=lambda k: relevant_docs[k]['score'])
+                selected_docs[best_doc_id] = relevant_docs[best_doc_id]
+                
+            elif strategy == 'top_n':
+                # Top N documentos mais relevantes
+                max_docs = config['max_docs']
+                sorted_docs = sorted(relevant_docs.items(), key=lambda x: x[1]['score'], reverse=True)
+                selected_docs = dict(sorted_docs[:max_docs])
+                
+            else:  # threshold_only
+                # Todos os documentos que passaram no threshold
+                selected_docs = relevant_docs
+            
+            print(f"🎯 CHAT: {len(selected_docs)} documentos selecionados para incremento:")
+            for doc_id, data in selected_docs.items():
+                print(f"   📄 Doc {doc_id}: score={data['score']:.3f}")
+            
+            if selected_docs:
+                # Incrementar contador atomicamente
+                document_ids = set(selected_docs.keys())
+                updated_count = Document.objects.filter(id__in=document_ids).update(
+                    access_count=F('access_count') + 1
+                )
+                print(f"🚀 CHAT SUCCESS: Incrementado access_count para {updated_count} documentos relevantes")
+                
+                # Debug: verificar resultado
+                updated_docs = Document.objects.filter(id__in=document_ids)
+                for doc in updated_docs:
+                    score = selected_docs[doc.id]['score']
+                    print(f"📊 CHAT: {doc.title} (score={score:.3f}) agora tem {doc.access_count} acessos")
+                    
+        except Exception as e:
+            print(f"💥 CHAT ERRO ao incrementar access_count: {e}")
+            import traceback
+            traceback.print_exc()
     
     def transcribe_audio(self, audio_file) -> Dict[str, Any]:
         """Transcrever áudio para texto usando Google Gemini"""
@@ -136,6 +226,10 @@ class KnightChatService:
                 k=self.max_context_chunks,
                 user=session.user
             )
+            
+            # Incrementar contador de acesso dos documentos consultados
+            search_results = agentic_result.get('search_results', [])
+            self._increment_document_access_count(search_results)
             
             # Usar resposta do sistema agentic
             llm_response = {

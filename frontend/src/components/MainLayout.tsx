@@ -40,9 +40,11 @@ interface ChatHistory {
 
 interface MainLayoutProps {
   children: React.ReactNode;
+  title?: string;
+  subtitle?: string;
 }
 
-export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
+export const MainLayout: React.FC<MainLayoutProps> = ({ children, title, subtitle }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -407,10 +409,30 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             </button>
 
             <div className="ml-4 flex items-center space-x-3">
-              <KnightIcon className="h-10 w-10 text-foreground" />
-              <h1 className="text-xl font-semibold text-foreground">
-                Knight
-              </h1>
+              {/* Mostrar logo apenas no chat */}
+              {location.pathname.startsWith('/chat') ? (
+                <>
+                  <KnightIcon className="h-10 w-10 text-foreground" />
+                  <h1 className="text-xl font-semibold text-foreground">
+                    Knight
+                  </h1>
+                </>
+              ) : (
+                /* Mostrar título e subtítulo nas outras páginas */
+                <div className="flex items-center">
+                  <h1 className="text-xl font-semibold text-foreground">
+                    {title || 'Knight'}
+                  </h1>
+                  {subtitle && (
+                    <>
+                      <span className="mx-3 text-muted-foreground">|</span>
+                      <span className="text-lg text-muted-foreground">
+                        {subtitle}
+                      </span>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 

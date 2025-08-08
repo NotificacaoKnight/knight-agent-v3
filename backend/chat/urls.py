@@ -11,4 +11,5 @@ urlpatterns = [
     path('feedback/', views.submit_feedback, name='submit_feedback'),
     path('stats/', views.chat_stats, name='chat_stats'),
     path('activity-chart/', views.activity_chart_data, name='activity_chart_data'),
+    path('access-metrics/', views.access_count_metrics, name='access_count_metrics'),
 ]

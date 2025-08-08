@@ -154,21 +154,14 @@ export const DashboardPage: React.FC = () => {
   }
 
   return (
-    <MainLayout>
+    <MainLayout title="Dashboard" subtitle="Visão geral do sistema">
       <div className="h-full overflow-y-auto custom-scrollbar">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
-          {/* Header */}
-          <div className="flex flex-col space-y-2">
-            <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Dashboard</h1>
-            <p className="text-muted-foreground">
-              Visão geral do Knight Agent - Seu assistente IA corporativo
-            </p>
-            {error && (
-              <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-2 rounded-lg text-sm">
-                {error}
-              </div>
-            )}
-          </div>
+          {error && (
+            <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-2 rounded-lg text-sm">
+              {error}
+            </div>
+          )}
 
           {/* Quick Actions Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
@@ -342,9 +335,6 @@ export const DashboardPage: React.FC = () => {
                     }}
                   />
                 </div>
-              </div>
-              <div className="mt-4 text-sm relative z-10">
-                <span className="text-accent">Base de conhecimento</span>
               </div>
               
               {/* Shine Effect */}
@@ -612,7 +602,7 @@ export const DashboardPage: React.FC = () => {
           <div className="w-full">
             <ChartAreaInteractive 
               data={activityData && activityData.length > 0 ? activityData : null}
-              title="Atividade do Knight Agent"
+              title="Atividade do Knight"
               description="Conversas iniciadas e documentos consultados"
             />
           </div>

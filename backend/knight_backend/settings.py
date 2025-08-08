@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'rag',
     'chat',
     'downloads',
+    'knowledge_resources',
 ]
 
 MIDDLEWARE = [

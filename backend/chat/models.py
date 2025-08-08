@@ -83,6 +83,38 @@ class DocumentRequest(models.Model):
     def __str__(self):
         return f"Solicitação: {self.document_name}"
 
+class LinkRequest(models.Model):
+    """Links úteis enviados durante o chat"""
+    session = models.ForeignKey(ChatSession, on_delete=models.CASCADE, related_name='link_requests')
+    message = models.ForeignKey(ChatMessage, on_delete=models.CASCADE, related_name='link_requests')
+    
+    link_title = models.CharField(max_length=255)
+    link_url = models.URLField()
+    link_id = models.IntegerField(null=True, blank=True)  # ID do link útil se encontrado no sistema
+    
+    # Contexto da solicitação
+    request_context = models.TextField(blank=True, help_text="Contexto da pergunta que levou ao envio do link")
+    
+    status = models.CharField(max_length=20, choices=[
+        ('sent', 'Enviado'),
+        ('clicked', 'Clicado'),
+        ('not_relevant', 'Não Relevante'),  # Feedback do usuário
+    ], default='sent')
+    
+    # Metadados para análise
+    ai_confidence = models.FloatField(null=True, blank=True, help_text="Confiança da IA na relevância do link (0-1)")
+    user_feedback = models.CharField(max_length=20, choices=[
+        ('helpful', 'Útil'),
+        ('not_helpful', 'Não Útil'),
+        ('irrelevant', 'Irrelevante'),
+    ], null=True, blank=True)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    clicked_at = models.DateTimeField(null=True, blank=True)
+    
+    def __str__(self):
+        return f"Link enviado: {self.link_title}"
+
 class ChatFeedback(models.Model):
     """Feedback sobre respostas do chat com sistema de thumbs up/down"""
     RATING_CHOICES = [

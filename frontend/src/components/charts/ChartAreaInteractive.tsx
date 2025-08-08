@@ -82,7 +82,7 @@ const chartConfig = {
 } satisfies ChartConfig
 
 export function ChartAreaInteractive({ 
-  title = "Atividade do Knight Agent",
+  title = "Atividade do Knight",
   description = "Conversas e consultas de documentos",
   data
 }: ChartAreaInteractiveProps) {
@@ -161,7 +161,7 @@ export function ChartAreaInteractive({
             >
               <SelectValue placeholder="Últimos 30 dias" />
             </SelectTrigger>
-            <SelectContent className="rounded-xl">
+            <SelectContent className="rounded-xl bg-card border-border shadow-lg">
               <SelectItem value="90d" className="rounded-lg">
                 3 meses
               </SelectItem>

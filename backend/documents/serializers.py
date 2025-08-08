@@ -10,7 +10,7 @@ class DocumentSerializer(serializers.ModelSerializer):
         model = Document
         fields = [
             'id', 'title', 'original_filename', 'file_type', 'file_size', 'file_size_mb',
-            'status', 'processing_error', 'is_downloadable', 'is_active',
+            'status', 'processing_error', 'is_downloadable', 'is_active', 'access_count',
             'uploaded_by', 'uploaded_by_name', 'uploaded_at', 'processed_at', 'updated_at',
             'metadata', 'chunks_count'
         ]

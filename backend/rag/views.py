@@ -3,13 +3,57 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from django.http import JsonResponse
+from django.db.models import F
 import logging
 
 from .hybrid_vector_service import HybridVectorService
 from .llm_providers import LLMManager
 from .agentic_rag_service import AgenticRAGServiceSync
+from documents.models import Document
 
 logger = logging.getLogger(__name__)
+
+def increment_document_access_count(search_results):
+    """Incrementa o contador de acesso para documentos retornados na busca"""
+    try:
+        print(f"🔍 DEBUG: Função increment_document_access_count chamada com {len(search_results)} resultados")
+        
+        # Extrair IDs únicos dos documentos dos resultados
+        document_ids = set()
+        for result in search_results:
+            print(f"🔍 DEBUG: Resultado individual keys: {result.keys() if isinstance(result, dict) else type(result)}")
+            
+            if isinstance(result, dict):
+                if 'document_id' in result:
+                    document_ids.add(result['document_id'])
+                    print(f"✅ Found document_id: {result['document_id']}")
+                else:
+                    print(f"❌ document_id não encontrado. Keys disponíveis: {list(result.keys())}")
+        
+        print(f"🎯 Document IDs extraídos: {document_ids}")
+        
+        if document_ids:
+            # Verificar se os documentos existem
+            existing_docs = Document.objects.filter(id__in=document_ids)
+            existing_list = list(existing_docs.values('id', 'title', 'access_count'))
+            print(f"📋 Documentos existentes no DB: {existing_list}")
+            
+            # Incrementar contador atomicamente para todos os documentos encontrados
+            updated_count = Document.objects.filter(id__in=document_ids).update(
+                access_count=F('access_count') + 1
+            )
+            print(f"✨ SUCCESS: Incrementado access_count para {updated_count} documentos. IDs: {document_ids}")
+            
+            # Verificar resultado após update
+            updated_docs = Document.objects.filter(id__in=document_ids)
+            updated_list = list(updated_docs.values('id', 'title', 'access_count'))
+            print(f"📊 Documentos após update: {updated_list}")
+        else:
+            print(f"⚠️ AVISO: Nenhum document_id encontrado nos resultados da busca")
+    
+    except Exception as e:
+        print(f"💥 ERRO ao incrementar access_count: {e}")
+        logger.error(f"ERRO ao incrementar access_count: {e}", exc_info=True)
 
 class SearchView(APIView):
     """Agentic RAG search endpoint"""
@@ -40,14 +84,19 @@ class SearchView(APIView):
                 user=getattr(request, 'user', None)
             )
             
+            # Incrementar contador de acesso dos documentos retornados
+            search_results = agentic_result.get('search_results', [])
+            print(f"🚀 SearchView: Chamando increment_document_access_count com {len(search_results)} resultados")
+            increment_document_access_count(search_results)
+            
             # Formatear resultado para compatibilidade com API existente
             result = {
                 'query': query,
                 'search_id': agentic_result.get('search_id'),
                 'response': agentic_result.get('response'),
-                'results': agentic_result.get('search_results', []),
+                'results': search_results,
                 'search_stats': {
-                    'total_results': len(agentic_result.get('search_results', [])),
+                    'total_results': len(search_results),
                     'search_duration_ms': agentic_result.get('metadata', {}).get('search_duration_ms', 0),
                     'total_duration_ms': agentic_result.get('metadata', {}).get('total_duration_ms', 0),
                     'search_attempts': agentic_result.get('quality_metrics', {}).get('search_attempts', 1),
@@ -94,6 +143,11 @@ class AgenticSearchView(APIView):
                 k=k,
                 user=getattr(request, 'user', None)
             )
+            
+            # Incrementar contador de acesso dos documentos retornados
+            search_results = result.get('search_results', [])
+            print(f"🚀 AgenticSearchView: Chamando increment_document_access_count com {len(search_results)} resultados")
+            increment_document_access_count(search_results)
             
             return Response(result, status=status.HTTP_200_OK)
             

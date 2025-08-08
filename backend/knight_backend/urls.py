@@ -10,6 +10,7 @@ urlpatterns = [
     path('api/rag/', include('rag.urls')),
     path('api/chat/', include('chat.urls')),
     path('api/downloads/', include('downloads.urls')),
+    path('', include('knowledge_resources.urls')),
 ]
 
 if settings.DEBUG:

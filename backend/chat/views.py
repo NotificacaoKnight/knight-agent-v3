@@ -313,3 +313,46 @@ def activity_chart_data(request):
         current_date += timedelta(days=1)
     
     return Response(activity_data)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def access_count_metrics(request):
+    """Métricas do sistema de contagem de acesso de documentos"""
+    from .access_count_metrics import access_count_metrics
+    
+    try:
+        # Coletar métricas do sistema
+        system_metrics = access_count_metrics.collect_system_metrics()
+        
+        # Analisar padrões recentes de chat (parâmetro opcional)
+        days = int(request.GET.get('days', 7))
+        chat_patterns = access_count_metrics.analyze_recent_chat_patterns(days=days)
+        
+        # Relatório de precisão (parâmetro opcional)
+        generate_precision = request.GET.get('precision_report', 'false').lower() == 'true'
+        precision_report = None
+        if generate_precision:
+            precision_report = access_count_metrics.generate_precision_report()
+        
+        response_data = {
+            'system_metrics': system_metrics,
+            'chat_patterns_analysis': chat_patterns,
+            'precision_report': precision_report,
+            'collection_timestamp': datetime.now().isoformat(),
+            'parameters': {
+                'analysis_days': days,
+                'precision_report_generated': generate_precision
+            }
+        }
+        
+        return Response(response_data)
+        
+    except Exception as e:
+        return Response(
+            {
+                'error': f'Erro ao coletar métricas: {str(e)}',
+                'system_metrics': None,
+                'chat_patterns_analysis': None
+            },
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
