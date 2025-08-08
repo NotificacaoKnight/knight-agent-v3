@@ -87,6 +87,10 @@
     --chat-send-button-shadow: rgba(128, 128, 128, 0.4); /* Gray shadow */
     --chat-send-button-disabled: 208 199 186; /* #D0C7BA - Gray desativado tema claro */
     --chat-send-button-disabled-text: 176 176 176; /* #B0B0B0 - Texto desativado tema claro */
+    
+    /* Popover/Dropdown - Tema claro */
+    --popover: 249 247 243; /* #F9F7F3 - Same as card background */
+    --popover-foreground: 42 42 42; /* #2A2A2A - Dark text */
   }
 
   .dark {
@@ -157,6 +161,10 @@
     --chat-send-button-shadow: rgba(255, 166, 0, 0.4); /* Golden shadow */
     --chat-send-button-disabled: 255 166 0; /* #FFA600 - Amarelo opaco desativado (original) */
     --chat-send-button-disabled-text: 255 166 0; /* #FFA600 - Amarelo opaco texto desativado (original) */
+    
+    /* Popover/Dropdown - Tema escuro */
+    --popover: 56 56 56; /* #383838 - Same as card background */
+    --popover-foreground: 255 255 255; /* #FFFFFF - Light text */
   }
 }
 

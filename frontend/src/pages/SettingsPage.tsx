@@ -1,30 +1,29 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { MainLayout } from '../components/MainLayout';
 import { UserAvatar } from '../components/UserAvatar';
 import { useAuth } from '../context/AuthContext';
 import { User, Bell, Shield, Palette } from 'lucide-react';
+import { Card } from '../components/ui/card';
+import { Checkbox } from '../components/ui/checkbox';
 
 export const SettingsPage: React.FC = () => {
   const { user } = useAuth();
+  
+  // Estados para controlar as notificações
+  const [newMessageNotifications, setNewMessageNotifications] = useState(true);
+  const [documentNotifications, setDocumentNotifications] = useState(true);
+  const [emailNotifications, setEmailNotifications] = useState(false);
 
   return (
-    <MainLayout>
+    <MainLayout title="Configurações" subtitle="Preferências do sistema">
       <div className="h-full overflow-y-auto custom-scrollbar">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="mb-8">
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-              Configurações
-            </h2>
-            <p className="text-gray-600 dark:text-gray-400">
-              Gerencie suas preferências e configurações do sistema
-            </p>
-          </div>
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-14 pb-8">
 
           {/* Profile Section */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
+          <Card className="p-4 sm:p-6 bg-gradient-to-br from-card to-card/45 border border-border mb-6">
             <div className="flex items-center mb-4">
-              <User className="h-5 w-5 text-gray-600 dark:text-gray-400 mr-2" />
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white">
+              <User className="h-5 w-5 text-accent mr-2" />
+              <h3 className="text-lg font-semibold text-foreground">
                 Perfil do Usuário
               </h3>
             </div>
@@ -32,93 +31,122 @@ export const SettingsPage: React.FC = () => {
               <div className="flex items-center space-x-3">
                 <UserAvatar user={user || {}} size="lg" />
                 <div>
-                  <h4 className="text-lg font-medium text-gray-900 dark:text-white">
+                  <h4 className="text-lg font-medium text-foreground">
                     {user?.name || 'Usuário'}
                   </h4>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                  <p className="text-sm text-muted-foreground">
                     Foto sincronizada do Microsoft 365
                   </p>
                 </div>
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Nome</label>
-                <p className="text-gray-900 dark:text-white">{user?.name || 'Não informado'}</p>
+                <label className="text-sm font-medium text-muted-foreground">Nome</label>
+                <p className="text-foreground">{user?.name || 'Não informado'}</p>
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Email</label>
-                <p className="text-gray-900 dark:text-white">{user?.email}</p>
+                <label className="text-sm font-medium text-muted-foreground">Email</label>
+                <p className="text-foreground">{user?.email}</p>
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Departamento</label>
-                <p className="text-gray-900 dark:text-white">{user?.department || 'Não informado'}</p>
+                <label className="text-sm font-medium text-muted-foreground">Departamento</label>
+                <p className="text-foreground">{user?.department || 'Não informado'}</p>
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Cargo</label>
-                <p className="text-gray-900 dark:text-white">{user?.job_title || 'Não informado'}</p>
+                <label className="text-sm font-medium text-muted-foreground">Cargo</label>
+                <p className="text-foreground">{user?.job_title || 'Não informado'}</p>
               </div>
             </div>
-          </div>
+          </Card>
 
           {/* Notifications Section */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
+          <Card className="p-4 sm:p-6 bg-gradient-to-br from-card to-card/45 border border-border mb-6">
             <div className="flex items-center mb-4">
-              <Bell className="h-5 w-5 text-gray-600 dark:text-gray-400 mr-2" />
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white">
+              <Bell className="h-5 w-5 text-accent mr-2" />
+              <h3 className="text-lg font-semibold text-foreground">
                 Notificações
               </h3>
             </div>
-            <div className="space-y-3">
-              <label className="flex items-center">
-                <input type="checkbox" className="mr-2" defaultChecked />
-                <span className="text-gray-700 dark:text-gray-300">Notificações de novas mensagens</span>
-              </label>
-              <label className="flex items-center">
-                <input type="checkbox" className="mr-2" defaultChecked />
-                <span className="text-gray-700 dark:text-gray-300">Notificações de documentos processados</span>
-              </label>
-              <label className="flex items-center">
-                <input type="checkbox" className="mr-2" />
-                <span className="text-gray-700 dark:text-gray-300">Notificações por email</span>
-              </label>
+            <div className="space-y-4">
+              <div className="flex items-center space-x-3">
+                <Checkbox 
+                  id="new-messages"
+                  checked={newMessageNotifications}
+                  onCheckedChange={(checked) => setNewMessageNotifications(checked === true)}
+                />
+                <label 
+                  htmlFor="new-messages" 
+                  className="text-sm font-medium text-foreground cursor-pointer"
+                >
+                  Notificações de novas mensagens
+                </label>
+              </div>
+              
+              <div className="flex items-center space-x-3">
+                <Checkbox 
+                  id="document-processed"
+                  checked={documentNotifications}
+                  onCheckedChange={(checked) => setDocumentNotifications(checked === true)}
+                />
+                <label 
+                  htmlFor="document-processed" 
+                  className="text-sm font-medium text-foreground cursor-pointer"
+                >
+                  Notificações de documentos processados
+                </label>
+              </div>
+              
+              <div className="flex items-center space-x-3">
+                <Checkbox 
+                  id="email-notifications"
+                  checked={emailNotifications}
+                  onCheckedChange={(checked) => setEmailNotifications(checked === true)}
+                />
+                <label 
+                  htmlFor="email-notifications" 
+                  className="text-sm font-medium text-foreground cursor-pointer"
+                >
+                  Notificações por email
+                </label>
+              </div>
             </div>
-          </div>
+          </Card>
 
           {/* Appearance Section */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
+          <Card className="p-4 sm:p-6 bg-gradient-to-br from-card to-card/45 border border-border mb-6">
             <div className="flex items-center mb-4">
-              <Palette className="h-5 w-5 text-gray-600 dark:text-gray-400 mr-2" />
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white">
+              <Palette className="h-5 w-5 text-accent mr-2" />
+              <h3 className="text-lg font-semibold text-foreground">
                 Aparência
               </h3>
             </div>
-            <p className="text-gray-600 dark:text-gray-400">
+            <p className="text-muted-foreground">
               Use o botão de tema no menu lateral para alternar entre modo claro e escuro.
             </p>
-          </div>
+          </Card>
 
           {/* Privacy Section */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          <Card className="p-4 sm:p-6 bg-gradient-to-br from-card to-card/45 border border-border">
             <div className="flex items-center mb-4">
-              <Shield className="h-5 w-5 text-gray-600 dark:text-gray-400 mr-2" />
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white">
+              <Shield className="h-5 w-5 text-accent mr-2" />
+              <h3 className="text-lg font-semibold text-foreground">
                 Privacidade e Segurança
               </h3>
             </div>
             <div className="space-y-3">
               <div>
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Sessão</label>
-                <p className="text-gray-600 dark:text-gray-400 text-sm">
+                <label className="text-sm font-medium text-muted-foreground">Sessão</label>
+                <p className="text-muted-foreground text-sm">
                   Sua sessão expira automaticamente após 1 hora de inatividade
                 </p>
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Histórico de Conversas</label>
-                <p className="text-gray-600 dark:text-gray-400 text-sm">
-                  Suas conversas são armazenadas de forma segura e são acessíveis apenas por você
+                <label className="text-sm font-medium text-muted-foreground">Histórico de Conversas</label>
+                <p className="text-muted-foreground text-sm">
+                  Suas 10 últimas conversas são armazenadas de forma segura
                 </p>
               </div>
             </div>
-          </div>
+          </Card>
         </div>
       </div>
     </MainLayout>

@@ -40,6 +40,10 @@ module.exports = {
           DEFAULT: "rgb(var(--card))",
           foreground: "rgb(var(--card-foreground))",
         },
+        popover: {
+          DEFAULT: "rgb(var(--popover))",
+          foreground: "rgb(var(--popover-foreground))",
+        },
         knight: {
           // Dark theme colors
           'dark-bg': '#2A2A2A',
