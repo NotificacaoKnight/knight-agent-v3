@@ -26,7 +26,7 @@
     --foreground-secondary: 90 90 90; /* #5A5A5A */
     --foreground-tertiary: 128 128 128; /* #808080 */
     
-    --card: 249 247 243; /* #F9F7F3 */
+    --card: 255 255 255; /* #FFFFFF - White for better contrast */
     --card-foreground: 42 42 42; /* #2A2A2A */
     
     --primary: 42 42 42; /* #2A2A2A */
@@ -89,7 +89,7 @@
     --chat-send-button-disabled-text: 176 176 176; /* #B0B0B0 - Texto desativado tema claro */
     
     /* Popover/Dropdown - Tema claro */
-    --popover: 249 247 243; /* #F9F7F3 - Same as card background */
+    --popover: 255 255 255; /* #FFFFFF - White background for contrast */
     --popover-foreground: 42 42 42; /* #2A2A2A - Dark text */
   }
 
@@ -101,7 +101,7 @@
     --foreground-secondary: 176 176 176; /* #B0B0B0 */
     --foreground-tertiary: 128 128 128; /* #808080 */
     
-    --card: 56 56 56; /* #383838 */
+    --card: 48 48 48; /* #303030 - Darker for better contrast */
     --card-foreground: 255 255 255; /* #FFFFFF */
     
     --primary: 245 245 245; /* #F5F5F5 - Off-white for user messages */
@@ -163,7 +163,7 @@
     --chat-send-button-disabled-text: 255 166 0; /* #FFA600 - Amarelo opaco texto desativado (original) */
     
     /* Popover/Dropdown - Tema escuro */
-    --popover: 56 56 56; /* #383838 - Same as card background */
+    --popover: 24 24 24; /* #181818 - Darker background for contrast */
     --popover-foreground: 255 255 255; /* #FFFFFF - Light text */
   }
 }

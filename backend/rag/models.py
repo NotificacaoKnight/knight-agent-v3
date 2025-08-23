@@ -104,3 +104,48 @@ class RagMetrics(models.Model):
     
     def __str__(self):
         return f"RAG Metrics - {self.date}"
+
+
+class RAGQueryLog(models.Model):
+    """Log detalhado de queries para LLM providers"""
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    
+    # Query info
+    query_text = models.TextField()
+    provider = models.CharField(max_length=50)
+    model = models.CharField(max_length=100, null=True, blank=True)
+    
+    # Request details
+    input_tokens = models.IntegerField(null=True, blank=True)
+    output_tokens = models.IntegerField(null=True, blank=True)
+    max_tokens = models.IntegerField(null=True, blank=True)
+    temperature = models.FloatField(null=True, blank=True)
+    
+    # Response info
+    success = models.BooleanField(default=False)
+    response_text = models.TextField(blank=True)
+    error_message = models.TextField(blank=True)
+    
+    # Performance
+    response_time_ms = models.FloatField(null=True, blank=True)
+    
+    # Cost estimation
+    estimated_cost_usd = models.DecimalField(max_digits=10, decimal_places=6, null=True, blank=True)
+    
+    # Metadata
+    user_agent = models.CharField(max_length=500, blank=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['provider', 'created_at']),
+            models.Index(fields=['success', 'created_at']),
+            models.Index(fields=['user', 'created_at']),
+        ]
+    
+    def __str__(self):
+        return f"{self.provider} - {self.query_text[:50]}... ({'✓' if self.success else '✗'})"

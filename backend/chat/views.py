@@ -85,10 +85,19 @@ def send_message(request):
 @permission_classes([IsAuthenticated])
 def get_sessions(request):
     """Listar sessões do usuário"""
-    chat_service = KnightChatService()
-    sessions = chat_service.get_user_sessions(request.user)
-    
-    return Response({'sessions': sessions})
+    try:
+        chat_service = KnightChatService()
+        sessions = chat_service.get_user_sessions(request.user)
+        
+        return Response({'sessions': sessions})
+    except Exception as e:
+        import traceback
+        error_details = {
+            'error': str(e),
+            'type': type(e).__name__,
+            'traceback': traceback.format_exc()
+        }
+        return Response(error_details, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])

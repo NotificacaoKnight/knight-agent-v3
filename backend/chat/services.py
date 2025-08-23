@@ -8,7 +8,7 @@ from django.core.files.storage import default_storage
 from django.db.models import F
 from documents.models import Document
 from rag.agentic_rag_service import AgenticRAGServiceSync
-from rag.llm_providers import LLMManager
+from rag.llm_providers import get_llm_manager
 from rag.consolidated_multi_agent import consolidated_multi_agent_service
 from .models import ChatSession, ChatMessage, DocumentRequest
 from .audio_transcription import GeminiAudioTranscriptionService
@@ -20,7 +20,7 @@ class KnightChatService:
     def __init__(self):
         # Usar apenas sistema agentic (que já tem fallback interno)
         self.agentic_service = AgenticRAGServiceSync()
-        self.llm_manager = LLMManager()
+        self.llm_manager = get_llm_manager()
         self.transcription_service = GeminiAudioTranscriptionService()
         self.max_context_chunks = 5
         self.max_context_length = 4000
