@@ -1,9 +1,13 @@
 import os
 import json
 import requests
+import time
+import threading
 from abc import ABC, abstractmethod
 from typing import Dict, List, Any, Optional
+from pathlib import Path
 from django.conf import settings
+from dotenv import load_dotenv
 
 import cohere
 import together
@@ -11,8 +15,171 @@ from groq import Groq
 import openai
 import google.generativeai as genai
 
+
+class ConfigManager:
+    """Gerenciador centralizado e otimizado de configurações LLM"""
+    
+    _env_loaded = False
+    _config_cache = {}
+    _cache_lock = threading.Lock()
+    
+    @classmethod
+    def get_config(cls, key: str, default=None):
+        """Busca configuração com fallback chain otimizado"""
+        # Cache hit - performance crítica
+        with cls._cache_lock:
+            if key in cls._config_cache:
+                return cls._config_cache[key]
+        
+        # Ordem de prioridade: os.environ → Django settings → default
+        value = os.environ.get(key)
+        if value is None:
+            value = getattr(settings, key, None)
+        
+        final_value = value if value is not None else default
+        
+        # Cache para próximas chamadas
+        with cls._cache_lock:
+            cls._config_cache[key] = final_value
+        
+        return final_value
+    
+    @classmethod
+    def reload_env(cls):
+        """Recarrega .env de forma otimizada (apenas quando necessário)"""
+        if not cls._env_loaded:
+            env_path = Path(__file__).parent.parent.parent / '.env'
+            if env_path.exists():
+                load_dotenv(env_path, override=True)
+                cls._env_loaded = True
+                cls._sync_with_django()
+    
+    @classmethod
+    def _sync_with_django(cls):
+        """Sincroniza configurações críticas com Django settings"""
+        critical_configs = [
+            'LLM_PROVIDER', 'OPENAI_API_KEY', 'DEEPSEEK_API_KEY',
+            'GEMINI_API_KEY', 'COHERE_API_KEY', 'GROQ_API_KEY', 'TOGETHER_API_KEY'
+        ]
+        
+        if hasattr(settings, '_wrapped'):
+            for config in critical_configs:
+                value = os.getenv(config)
+                if value is not None:
+                    setattr(settings._wrapped, config, value)
+    
+    @classmethod
+    def clear_cache(cls):
+        """Limpa cache de configurações (usado no reload)"""
+        with cls._cache_lock:
+            cls._config_cache.clear()
+    
+    @classmethod
+    def set_config(cls, key: str, value: str):
+        """Define configuração no ambiente (para switch de provider)"""
+        os.environ[key] = value
+        with cls._cache_lock:
+            cls._config_cache[key] = value
+
+
+class ProviderCache:
+    """Cache inteligente para instâncias de providers com TTL"""
+    
+    def __init__(self, ttl_seconds=3600):
+        self._cache = {}
+        self._timestamps = {}
+        self._ttl = ttl_seconds
+        self._lock = threading.Lock()
+    
+    def get(self, key: str):
+        """Busca provider do cache com verificação de TTL"""
+        with self._lock:
+            if key in self._cache:
+                if time.time() - self._timestamps[key] < self._ttl:
+                    return self._cache[key]
+                else:
+                    # Expirou - remover e cleanup
+                    provider = self._cache.pop(key, None)
+                    self._timestamps.pop(key, None)
+                    if provider and hasattr(provider, 'cleanup'):
+                        provider.cleanup()
+        return None
+    
+    def set(self, key: str, provider):
+        """Armazena provider no cache"""
+        with self._lock:
+            self._cache[key] = provider
+            self._timestamps[key] = time.time()
+    
+    def remove(self, key: str):
+        """Remove provider específico do cache"""
+        with self._lock:
+            provider = self._cache.pop(key, None)
+            self._timestamps.pop(key, None)
+            if provider and hasattr(provider, 'cleanup'):
+                provider.cleanup()
+    
+    def clear(self):
+        """Limpa todo o cache"""
+        with self._lock:
+            for provider in self._cache.values():
+                if hasattr(provider, 'cleanup'):
+                    provider.cleanup()
+            self._cache.clear()
+            self._timestamps.clear()
+
+
 class LLMProvider(ABC):
-    """Interface abstrata para provedores de LLM"""
+    """Interface abstrata otimizada para provedores de LLM com lazy loading"""
+    
+    def __init__(self):
+        self._api_key = None
+        self._client = None
+        self._model = None
+        self._initialized = False
+        self._lock = threading.Lock()
+    
+    @property
+    def api_key(self):
+        """Lazy loading da API key com fallback chain"""
+        if self._api_key is None:
+            with self._lock:
+                if self._api_key is None:
+                    self._api_key = self._get_api_key()
+        return self._api_key
+    
+    @property
+    def client(self):
+        """Lazy loading do cliente"""
+        if self._client is None and self.api_key:
+            with self._lock:
+                if self._client is None:
+                    self._client = self._create_client()
+        return self._client
+    
+    @property
+    def model(self):
+        """Lazy loading do modelo"""
+        if self._model is None:
+            with self._lock:
+                if self._model is None:
+                    self._model = self._get_model()
+        return self._model
+    
+    @abstractmethod
+    def _get_api_key(self) -> Optional[str]:
+        """Implementar busca específica da API key para cada provider"""
+        pass
+    
+    @abstractmethod
+    def _create_client(self):
+        """Implementar criação específica do cliente para cada provider"""
+        pass
+    
+    @abstractmethod
+    def _get_model(self) -> str:
+        """Implementar busca específica do modelo para cada provider"""
+        pass
     
     @abstractmethod
     def generate_response(
@@ -26,18 +193,48 @@ class LLMProvider(ABC):
         """Gera resposta usando o LLM"""
         pass
     
-    @abstractmethod
     def is_available(self) -> bool:
-        """Verifica se o provedor está disponível"""
-        pass
+        """Verifica se o provedor está disponível (implementação padrão)"""
+        return bool(self.api_key and self.client)
+    
+    def reload_config(self):
+        """Recarrega configurações do provider (força refresh)"""
+        with self._lock:
+            self._api_key = None
+            self._client = None
+            self._model = None
+            self._initialized = False
+    
+    def cleanup(self):
+        """Cleanup de recursos do provider"""
+        with self._lock:
+            if self._client and hasattr(self._client, 'close'):
+                try:
+                    self._client.close()
+                except:
+                    pass
+            self._client = None
 
 class CohereProvider(LLMProvider):
-    """Provedor Cohere - Recomendado para RAG"""
+    """Provedor Cohere - Recomendado para RAG com lazy loading otimizado"""
     
     def __init__(self):
-        self.api_key = settings.COHERE_API_KEY
-        self.client = cohere.Client(self.api_key) if self.api_key else None
-        self.model = "command-r-plus"  # Modelo otimizado para RAG
+        super().__init__()
+    
+    def _get_api_key(self) -> Optional[str]:
+        """Busca API key com fallback chain"""
+        return ConfigManager.get_config('COHERE_API_KEY')
+    
+    def _create_client(self):
+        """Cria cliente Cohere com lazy loading"""
+        try:
+            return cohere.Client(self.api_key)
+        except Exception:
+            return None
+    
+    def _get_model(self) -> str:
+        """Retorna modelo otimizado para RAG"""
+        return ConfigManager.get_config('COHERE_MODEL', 'command-r-plus')
     
     def generate_response(
         self, 
@@ -108,12 +305,27 @@ class CohereProvider(LLMProvider):
         return bool(self.api_key and self.client)
 
 class TogetherProvider(LLMProvider):
-    """Provedor Together AI"""
+    """Provedor Together AI com lazy loading otimizado"""
     
     def __init__(self):
-        self.api_key = settings.TOGETHER_API_KEY
+        super().__init__()
         self.base_url = "https://api.together.xyz/v1"
-        self.model = "meta-llama/Llama-2-70b-chat-hf"
+    
+    def _get_api_key(self) -> Optional[str]:
+        """Busca API key com fallback chain"""
+        return ConfigManager.get_config('TOGETHER_API_KEY')
+    
+    def _create_client(self):
+        """Together usa requests HTTP, não cliente específico"""
+        return True  # Placeholder - Together usa requests direto
+    
+    def _get_model(self) -> str:
+        """Retorna modelo Together AI"""
+        return ConfigManager.get_config('TOGETHER_MODEL', 'meta-llama/Llama-2-70b-chat-hf')
+    
+    def is_available(self) -> bool:
+        """Verifica disponibilidade específica do Together"""
+        return bool(self.api_key)
     
     def generate_response(
         self, 
@@ -186,12 +398,25 @@ class TogetherProvider(LLMProvider):
         return bool(self.api_key)
 
 class GroqProvider(LLMProvider):
-    """Provedor Groq - Rápido para inferência"""
+    """Provedor Groq - Rápido para inferência com lazy loading otimizado"""
     
     def __init__(self):
-        self.api_key = settings.GROQ_API_KEY
-        self.client = Groq(api_key=self.api_key) if self.api_key else None
-        self.model = "llama3-70b-8192"  # Modelo rápido
+        super().__init__()
+    
+    def _get_api_key(self) -> Optional[str]:
+        """Busca API key com fallback chain"""
+        return ConfigManager.get_config('GROQ_API_KEY')
+    
+    def _create_client(self):
+        """Cria cliente Groq com lazy loading"""
+        try:
+            return Groq(api_key=self.api_key)
+        except Exception:
+            return None
+    
+    def _get_model(self) -> str:
+        """Retorna modelo otimizado para velocidade"""
+        return ConfigManager.get_config('GROQ_MODEL', 'llama3-70b-8192')
     
     def generate_response(
         self, 
@@ -246,12 +471,27 @@ class GroqProvider(LLMProvider):
 
 
 class DeepSeekProvider(LLMProvider):
-    """Provedor DeepSeek - API compatível com OpenAI"""
+    """Provedor DeepSeek - API compatível com OpenAI com lazy loading otimizado"""
     
     def __init__(self):
-        self.api_key = getattr(settings, 'DEEPSEEK_API_KEY', None)
+        super().__init__()
         self.base_url = "https://api.deepseek.com"
-        self.model = getattr(settings, 'DEEPSEEK_MODEL', 'deepseek-chat')
+    
+    def _get_api_key(self) -> Optional[str]:
+        """Busca API key com fallback chain"""
+        return ConfigManager.get_config('DEEPSEEK_API_KEY')
+    
+    def _create_client(self):
+        """DeepSeek usa requests HTTP, não cliente específico"""
+        return True  # Placeholder - DeepSeek usa requests direto
+    
+    def _get_model(self) -> str:
+        """Retorna modelo DeepSeek"""
+        return ConfigManager.get_config('DEEPSEEK_MODEL', 'deepseek-chat')
+    
+    def is_available(self) -> bool:
+        """Verifica disponibilidade específica do DeepSeek"""
+        return bool(self.api_key)
     
     def generate_response(
         self, 
@@ -347,21 +587,137 @@ class DeepSeekProvider(LLMProvider):
         """Verifica se o DeepSeek está disponível"""
         return bool(self.api_key)
 
-class GeminiProvider(LLMProvider):
-    """Provedor Google Gemini"""
+
+class OpenAIProvider(LLMProvider):
+    """Provedor OpenAI - GPT-4 e GPT-3.5 com lazy loading otimizado"""
     
     def __init__(self):
-        self.api_key = getattr(settings, 'GOOGLE_API_KEY', None) or getattr(settings, 'GEMINI_API_KEY', None)
-        if self.api_key:
-            genai.configure(api_key=self.api_key)
-            self.model_name = getattr(settings, 'GEMINI_MODEL', 'gemini-1.5-flash')
-            try:
-                self.model = genai.GenerativeModel(self.model_name)
-            except Exception as e:
-                print(f"Erro ao inicializar Gemini: {e}")
-                self.model = None
-        else:
-            self.model = None
+        super().__init__()
+    
+    def _get_api_key(self) -> Optional[str]:
+        """Busca API key com fallback chain"""
+        return ConfigManager.get_config('OPENAI_API_KEY')
+    
+    def _create_client(self):
+        """Cria cliente OpenAI com lazy loading"""
+        try:
+            return openai.OpenAI(api_key=self.api_key)
+        except Exception:
+            return None
+    
+    def _get_model(self) -> str:
+        """Retorna modelo OpenAI"""
+        return ConfigManager.get_config('OPENAI_MODEL', 'gpt-4o-mini')
+    
+    def generate_response(
+        self, 
+        prompt: str, 
+        context: List[str] = None,
+        max_tokens: int = 1000,
+        temperature: float = 0.7,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """Gera resposta usando OpenAI"""
+        try:
+            if not self.client:
+                return {
+                    'success': False,
+                    'error': 'OpenAI não está configurado ou API key inválida',
+                    'provider': 'openai'
+                }
+            
+            system_prompt = (
+                "Você é o Knight, um assistente IA interno da empresa. "
+                "Responda sempre em português brasileiro de forma clara e útil. "
+                "Use apenas as informações fornecidas no contexto para responder. "
+                "Se não souber a resposta baseada no contexto fornecido, diga que não tem informações suficientes "
+                "e sugira entrar em contato com o RH ou a pessoa responsável."
+            )
+            
+            messages = [{"role": "system", "content": system_prompt}]
+            
+            if context:
+                context_text = "\n\n".join([f"Documento {i+1}:\n{doc}" for i, doc in enumerate(context)])
+                user_message = f"Contexto:\n{context_text}\n\nPergunta: {prompt}"
+            else:
+                user_message = prompt
+            
+            messages.append({"role": "user", "content": user_message})
+            
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                timeout=30
+            )
+            
+            usage = response.usage
+            
+            return {
+                'success': True,
+                'response': response.choices[0].message.content,
+                'model': self.model,
+                'provider': 'openai',
+                'documents_used': len(context) if context else 0,
+                'usage': {
+                    'input_tokens': usage.prompt_tokens,
+                    'output_tokens': usage.completion_tokens,
+                    'total_tokens': usage.total_tokens
+                }
+            }
+            
+        except Exception as e:
+            error_msg = str(e)
+            if "rate limit" in error_msg.lower():
+                error_msg = "Rate limit excedido. Tente novamente em alguns segundos."
+            elif "insufficient quota" in error_msg.lower():
+                error_msg = "Cota da API OpenAI esgotada."
+            elif "invalid api key" in error_msg.lower():
+                error_msg = "Chave da API OpenAI inválida."
+            
+            return {
+                'success': False,
+                'error': f"OpenAI Error: {error_msg}",
+                'provider': 'openai'
+            }
+    
+    def is_available(self) -> bool:
+        """Verifica se o OpenAI está disponível"""
+        return bool(self.api_key)
+
+
+class GeminiProvider(LLMProvider):
+    """Provedor Google Gemini com lazy loading otimizado"""
+    
+    def __init__(self):
+        super().__init__()
+        self._configured = False
+    
+    def _get_api_key(self) -> Optional[str]:
+        """Busca API key com fallback chain (Google ou Gemini)"""
+        key = ConfigManager.get_config('GEMINI_API_KEY')
+        if not key:
+            key = ConfigManager.get_config('GOOGLE_API_KEY')
+        return key
+    
+    def _create_client(self):
+        """Cria cliente Gemini com lazy loading"""
+        try:
+            if not self._configured and self.api_key:
+                genai.configure(api_key=self.api_key)
+                self._configured = True
+            return genai.GenerativeModel(self.model)
+        except Exception:
+            return None
+    
+    def _get_model(self) -> str:
+        """Retorna modelo Gemini"""
+        return ConfigManager.get_config('GEMINI_MODEL', 'gemini-1.5-flash')
+    
+    def is_available(self) -> bool:
+        """Verifica disponibilidade específica do Gemini"""
+        return bool(self.api_key)
     
     def generate_response(
         self, 
@@ -460,27 +816,114 @@ class GeminiProvider(LLMProvider):
         return bool(self.api_key and self.model)
 
 class LLMManager:
-    """Gerenciador de provedores LLM com fallback automático"""
+    """Gerenciador otimizado de provedores LLM com lazy loading, cache e hot reload inteligente"""
     
-    def __init__(self):
-        self.providers = {
-            'deepseek': DeepSeekProvider(),
-            'cohere': CohereProvider(),
-            'together': TogetherProvider(),
-            'groq': GroqProvider(),
-            'gemini': GeminiProvider(),
-            'mock': MockProvider()
+    _instance = None
+    _lock = threading.Lock()
+    
+    def __new__(cls):
+        if cls._instance is None:
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = super(LLMManager, cls).__new__(cls)
+                    cls._instance._initialize()
+        return cls._instance
+    
+    def _initialize(self):
+        """Inicialização única e thread-safe"""
+        self._provider_cache = ProviderCache(ttl_seconds=3600)  # Cache 1h
+        self._config_manager = ConfigManager()
+        self._fallback_order = ['openai', 'deepseek', 'gemini', 'cohere', 'groq', 'together']
+        self._provider_classes = {
+            'openai': OpenAIProvider,
+            'deepseek': DeepSeekProvider,
+            'cohere': CohereProvider,
+            'together': TogetherProvider,
+            'groq': GroqProvider,
+            'gemini': GeminiProvider,
+            'mock': MockProvider
         }
-        self.primary_provider = settings.LLM_PROVIDER
-        self.fallback_order = ['deepseek', 'gemini', 'cohere', 'groq', 'together']
+        
+        # Carregar configurações iniciais
+        self._config_manager.reload_env()
+        self._primary_provider = self._config_manager.get_config('LLM_PROVIDER', 'deepseek')
+        self._initialized = True
+    
+    @property
+    def primary_provider(self) -> str:
+        """Lazy loading do provider primário"""
+        return self._config_manager.get_config('LLM_PROVIDER', self._primary_provider)
+    
+    def _get_provider(self, name: str) -> Optional[LLMProvider]:
+        """Lazy loading otimizado de providers com cache"""
+        # Verificar cache primeiro
+        provider = self._provider_cache.get(name)
+        if provider is not None:
+            return provider
+        
+        # Criar provider apenas se necessário
+        if name in self._provider_classes:
+            try:
+                provider = self._provider_classes[name]()
+                self._provider_cache.set(name, provider)
+                return provider
+            except Exception:
+                return None
+        
+        return None
+    
+    def reload_config(self):
+        """Força recarregamento otimizado das configurações"""
+        self._config_manager.reload_env()
+        self._config_manager.clear_cache()
+        return True
+    
+    def reload_provider(self, provider_name: str):
+        """Recarrega apenas um provider específico (otimização crítica)"""
+        if provider_name in self._provider_classes:
+            # Remover do cache - será recriado no próximo uso
+            self._provider_cache.remove(provider_name)
+            self._config_manager.clear_cache()
+            return True
+        return False
+    
+    def switch_provider(self, new_provider: str):
+        """Muda provider de forma otimizada sem recriar outros"""
+        if new_provider in self._provider_classes:
+            self._config_manager.set_config('LLM_PROVIDER', new_provider)
+            self._primary_provider = new_provider
+            return True
+        return False
+    
+    def get_current_provider(self) -> str:
+        """Retorna o provedor atual"""
+        return self.primary_provider
     
     def get_available_providers(self) -> List[str]:
-        """Lista provedores disponíveis"""
+        """Lista provedores disponíveis com lazy loading"""
         available = []
-        for name, provider in self.providers.items():
-            if provider.is_available():
-                available.append(name)
+        for name in self._provider_classes.keys():
+            if name == 'mock':
+                available.append(name)  # Mock sempre disponível
+                continue
+            
+            # Lazy check - só cria provider se não estiver no cache
+            provider = self._provider_cache.get(name)
+            if provider is None:
+                # Check rápido sem criar o provider
+                api_key = self._config_manager.get_config(f'{name.upper()}_API_KEY')
+                if api_key:
+                    available.append(name)
+            else:
+                if provider.is_available():
+                    available.append(name)
+        
         return available
+    
+    @property
+    def fallback_order(self) -> List[str]:
+        """Retorna a ordem de fallback dos providers (read-only)"""
+        return self._fallback_order.copy()
     
     def generate_response(
         self, 
@@ -489,42 +932,90 @@ class LLMManager:
         provider: str = None,
         **kwargs
     ) -> Dict[str, Any]:
-        """Gera resposta com fallback automático"""
+        """Gera resposta otimizada com lazy loading e fallback automático"""
         
         # Usar provedor especificado ou primário
         target_provider = provider or self.primary_provider
         
-        # Tentar provedor principal
-        if target_provider in self.providers:
-            llm_provider = self.providers[target_provider]
-            if llm_provider.is_available():
-                result = llm_provider.generate_response(prompt, context, **kwargs)
-                if result['success']:
-                    return result
+        # Tentar provedor principal com lazy loading
+        llm_provider = self._get_provider(target_provider)
+        if llm_provider and llm_provider.is_available():
+            result = llm_provider.generate_response(prompt, context, **kwargs)
+            if result.get('success'):
+                return result
         
-        # Fallback para outros provedores
-        for fallback_provider in self.fallback_order:
+        # Fallback otimizado para outros provedores
+        for fallback_provider in self._fallback_order:
             if fallback_provider == target_provider:
                 continue
                 
-            llm_provider = self.providers[fallback_provider]
-            if llm_provider.is_available():
+            llm_provider = self._get_provider(fallback_provider)
+            if llm_provider and llm_provider.is_available():
                 result = llm_provider.generate_response(prompt, context, **kwargs)
-                if result['success']:
+                if result.get('success'):
                     result['fallback_used'] = True
                     result['original_provider'] = target_provider
+                    result['fallback_provider'] = fallback_provider
                     return result
         
         # Se nenhum provedor funcionou
         return {
             'success': False,
             'error': 'Nenhum provedor LLM disponível',
-            'provider': 'none'
+            'provider': 'none',
+            'attempted_providers': [target_provider] + self._fallback_order
         }
+    
+    def get_provider_stats(self) -> Dict[str, Any]:
+        """Retorna estatísticas de uso dos providers"""
+        stats = {
+            'cache_size': len(self._provider_cache._cache),
+            'primary_provider': self.primary_provider,
+            'available_providers': self.get_available_providers(),
+            'cached_providers': list(self._provider_cache._cache.keys()),
+            'fallback_order': self._fallback_order
+        }
+        return stats
+    
+    def clear_cache(self):
+        """Limpa todo o cache de providers"""
+        self._provider_cache.clear()
+        self._config_manager.clear_cache()
+    
+    def cleanup(self):
+        """Cleanup completo do manager"""
+        self.clear_cache()
+        with self._lock:
+            self._initialized = False
+
+
+# Função global para obter instância singleton do LLMManager
+def get_llm_manager():
+    """Retorna instância singleton do LLMManager"""
+    return LLMManager()
 
 
 class MockProvider(LLMProvider):
-    """Provider mock para testes - não precisa de configuração externa"""
+    """Provider mock otimizado para testes - não precisa de configuração externa"""
+    
+    def __init__(self):
+        super().__init__()
+    
+    def _get_api_key(self) -> Optional[str]:
+        """Mock sempre tem 'API key' disponível"""
+        return "mock-api-key"
+    
+    def _create_client(self):
+        """Mock sempre tem 'client' disponível"""
+        return True
+    
+    def _get_model(self) -> str:
+        """Retorna modelo mock"""
+        return "mock-model"
+    
+    def is_available(self) -> bool:
+        """Mock está sempre disponível"""
+        return True
     
     def generate_response(
         self, 

@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { MainLayout } from '../components/MainLayout';
 import { UserAvatar } from '../components/UserAvatar';
+import { LLMManagement } from '../components/LLMManagement';
 import { useAuth } from '../context/AuthContext';
-import { User, Bell, Shield, Palette } from 'lucide-react';
+import { User, Bell, Shield, Palette, Bot } from 'lucide-react';
 import { Card } from '../components/ui/card';
 import { Checkbox } from '../components/ui/checkbox';
 
@@ -123,6 +124,22 @@ export const SettingsPage: React.FC = () => {
               Use o botão de tema no menu lateral para alternar entre modo claro e escuro.
             </p>
           </Card>
+
+          {/* LLM Management Section - Admin only */}
+          {user?.is_admin && (
+            <Card className="p-4 sm:p-6 bg-gradient-to-br from-card to-card/45 border border-border mb-6">
+              <div className="flex items-center mb-4">
+                <Bot className="h-5 w-5 text-accent mr-2" />
+                <h3 className="text-lg font-semibold text-foreground">
+                  Configurações de IA
+                </h3>
+                <span className="ml-2 bg-accent text-accent-foreground text-xs px-2 py-1 rounded-full">
+                  Admin
+                </span>
+              </div>
+              <LLMManagement />
+            </Card>
+          )}
 
           {/* Privacy Section */}
           <Card className="p-4 sm:p-6 bg-gradient-to-br from-card to-card/45 border border-border">

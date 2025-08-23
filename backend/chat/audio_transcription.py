@@ -16,15 +16,30 @@ class GeminiAudioTranscriptionService:
     """Serviço para transcrever áudio usando Google Gemini"""
     
     def __init__(self):
+        # Lazy initialization - configurar apenas quando necessário
+        self.model = None
+        self._initialized = False
+    
+    def _ensure_initialized(self):
+        """Inicializa o serviço apenas quando necessário"""
+        if self._initialized:
+            return
+        
         # Configurar Gemini API
         api_key = getattr(settings, 'GEMINI_API_KEY', os.getenv('GEMINI_API_KEY'))
         if not api_key:
-            raise ValueError("GEMINI_API_KEY não encontrada nas configurações")
+            logger.warning("GEMINI_API_KEY não encontrada - transcrição de áudio não estará disponível")
+            return
         
-        genai.configure(api_key=api_key)
-        
-        # Usar modelo Gemini 1.5 Flash para transcrição eficiente
-        self.model = genai.GenerativeModel('gemini-1.5-flash')
+        try:
+            genai.configure(api_key=api_key)
+            # Usar modelo Gemini 1.5 Flash para transcrição eficiente
+            self.model = genai.GenerativeModel('gemini-1.5-flash')
+            self._initialized = True
+            logger.info("Serviço de transcrição Gemini inicializado com sucesso")
+        except Exception as e:
+            logger.error(f"Erro ao inicializar serviço de transcrição: {e}")
+            self.model = None
         
     def _wait_for_file_active(self, uploaded_file, max_wait_time: int = 30) -> bool:
         """
@@ -91,6 +106,16 @@ class GeminiAudioTranscriptionService:
         Returns:
             Dict com resultado da transcrição
         """
+        # Garantir que o serviço está inicializado
+        self._ensure_initialized()
+        
+        if not self.model:
+            return {
+                'success': False,
+                'error': 'Serviço de transcrição não está disponível',
+                'text': ''
+            }
+        
         temp_file_path = None
         uploaded_file = None
         

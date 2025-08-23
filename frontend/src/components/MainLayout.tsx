@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ThemeToggle } from './ThemeToggle';
@@ -8,6 +8,7 @@ import { useChatContext } from '../context/ChatContext';
 import toast from 'react-hot-toast';
 import { emitChatSessionDeleted } from '../utils/events';
 import { KnightIcon } from './KnightIcon';
+import { LLMStatusIndicator, LLMStatusIndicatorRef } from './LLMStatusIndicator';
 import {
   BarChart3,
   Settings,
@@ -56,6 +57,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, title, subtitl
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [chatHistorySidebarOpen, setChatHistorySidebarOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const llmStatusRef = useRef<LLMStatusIndicatorRef>(null);
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
 
   // Auto expand/collapse sidebars based on route
@@ -437,6 +439,9 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, title, subtitl
                   )}
                 </div>
               )}
+              
+              {/* LLM Status Indicator - Apenas para admins */}
+              <LLMStatusIndicator ref={llmStatusRef} />
             </div>
           </div>
 

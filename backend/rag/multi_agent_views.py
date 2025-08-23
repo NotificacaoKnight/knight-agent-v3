@@ -12,6 +12,7 @@ import json
 from datetime import datetime
 
 from .consolidated_multi_agent import consolidated_multi_agent_service
+from .behavior_monitoring import behavior_monitor
 from .llm_providers import LLMManager
 from documents.models import Document
 from authentication.models import User
@@ -460,3 +461,366 @@ class WizardProgressView(APIView):
                 {'error': str(e)}, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+
+class BehaviorMonitoringView(APIView):
+    """Endpoint para monitoramento de comportamento inteligente"""
+    permission_classes = [AllowAny]
+    
+    def get(self, request):
+        """Obter métricas de performance"""
+        try:
+            hours_back = int(request.GET.get('hours', 24))
+            metric_type = request.GET.get('type', 'performance')
+            
+            if metric_type == 'performance':
+                data = behavior_monitor.get_performance_summary(hours_back)
+            elif metric_type == 'quality':
+                data = behavior_monitor.get_quality_insights(hours_back)
+            elif metric_type == 'feedback':
+                days_back = int(request.GET.get('days', 7))
+                data = behavior_monitor.get_user_feedback_summary(days_back)
+            else:
+                return Response(
+                    {'error': 'Invalid metric type. Use: performance, quality, or feedback'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            return Response({
+                "success": True,
+                "metric_type": metric_type,
+                "data": data
+            })
+            
+        except Exception as e:
+            logger.error(f"Erro ao obter métricas: {str(e)}")
+            return Response(
+                {'error': str(e)}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    def post(self, request):
+        """Registrar feedback do usuário"""
+        try:
+            query_hash = request.data.get('query_hash')
+            feedback_type = request.data.get('feedback_type')
+            feedback_details = request.data.get('feedback_details', '')
+            
+            if not query_hash or not feedback_type:
+                return Response(
+                    {'error': 'query_hash and feedback_type are required'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            valid_feedback_types = ['helpful', 'not_helpful', 'incomplete', 'wrong']
+            if feedback_type not in valid_feedback_types:
+                return Response(
+                    {'error': f'Invalid feedback_type. Must be one of: {valid_feedback_types}'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Contexto do usuário
+            user_context = {}
+            if hasattr(request, 'user') and request.user:
+                user_context = {
+                    'department': getattr(request.user, 'department', None),
+                    'role': getattr(request.user, 'role', None)
+                }
+            
+            behavior_monitor.log_user_feedback(
+                query_hash=int(query_hash),
+                feedback_type=feedback_type,
+                feedback_details=feedback_details,
+                user_context=user_context
+            )
+            
+            return Response({
+                "success": True,
+                "message": "Feedback registrado com sucesso"
+            })
+            
+        except Exception as e:
+            logger.error(f"Erro ao registrar feedback: {str(e)}")
+            return Response(
+                {'error': str(e)}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class SystemHealthView(APIView):
+    """Endpoint para status de saúde do sistema inteligente"""
+    permission_classes = [AllowAny]
+    
+    def get(self, request):
+        """Obter status geral do sistema"""
+        try:
+            # Performance das últimas 6 horas
+            performance = behavior_monitor.get_performance_summary(6)
+            
+            # Insights de qualidade das últimas 12 horas  
+            quality = behavior_monitor.get_quality_insights(12)
+            
+            # Status dos agentes
+            agent_status = {}
+            if "error" not in performance:
+                for agent, data in performance.get("agent_performance", {}).items():
+                    status_level = "healthy"
+                    if data["avg_quality"] < 0.4:
+                        status_level = "critical"
+                    elif data["avg_quality"] < 0.6:
+                        status_level = "warning"
+                    
+                    agent_status[agent] = {
+                        "status": status_level,
+                        "quality": data["avg_quality"],
+                        "avg_response_time": data["avg_time"],
+                        "request_count": data["count"]
+                    }
+            
+            # Status geral do sistema
+            overall_status = "healthy"
+            alerts = []
+            
+            if "error" not in performance:
+                avg_quality = performance["summary"]["avg_quality_score"]
+                avg_time = performance["summary"]["avg_processing_time_ms"]
+                
+                if avg_quality < 0.4:
+                    overall_status = "critical"
+                    alerts.append("Qualidade geral abaixo do aceitável")
+                elif avg_quality < 0.6:
+                    overall_status = "warning"
+                    alerts.append("Qualidade geral precisa de atenção")
+                
+                if avg_time > 20000:  # 20 segundos
+                    if overall_status == "healthy":
+                        overall_status = "warning"
+                    alerts.append("Tempo de resposta alto")
+            
+            # Recomendações
+            recommendations = []
+            if "error" not in quality and quality.get("recommendations"):
+                recommendations = quality["recommendations"]
+            
+            return Response({
+                "overall_status": overall_status,
+                "timestamp": datetime.now().isoformat(),
+                "alerts": alerts,
+                "agent_status": agent_status,
+                "performance_summary": performance.get("summary", {}),
+                "quality_summary": quality.get("quality_issues", {}),
+                "recommendations": recommendations,
+                "system_info": {
+                    "intelligent_behavior": True,
+                    "monitoring_enabled": True,
+                    "consolidated_multi_agent": True
+                }
+            })
+            
+        except Exception as e:
+            logger.error(f"Erro ao obter status do sistema: {str(e)}")
+            return Response(
+                {'error': str(e)}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class LLMProviderView(APIView):
+    """Endpoint para gerenciar provedores LLM"""
+    permission_classes = [AllowAny]
+    
+    def get(self, request):
+        """Obter informações dos provedores LLM"""
+        try:
+            # Obter instância do LLM manager
+            llm_manager = LLMManager()
+            
+            # Provedor atual
+            current_provider = llm_manager.primary_provider
+            
+            # Provedores disponíveis
+            available_providers = llm_manager.get_available_providers()
+            
+            # Informações detalhadas dos provedores
+            provider_info = {
+                'openai': {
+                    'name': 'OpenAI (GPT-4, GPT-3.5)',
+                    'description': 'Qualidade alta, custo médio',
+                    'icon': '🤖',
+                    'models': ['gpt-4o-mini', 'gpt-4o', 'gpt-3.5-turbo']
+                },
+                'deepseek': {
+                    'name': 'DeepSeek',
+                    'description': 'Custo baixo, boa performance',
+                    'icon': '🧠',
+                    'models': ['deepseek-chat']
+                },
+                'gemini': {
+                    'name': 'Google Gemini',
+                    'description': 'Gratuito com limite, rápido',
+                    'icon': '🌟',
+                    'models': ['gemini-1.5-flash', 'gemini-1.5-pro']
+                },
+                'cohere': {
+                    'name': 'Cohere',
+                    'description': 'Otimizado para RAG',
+                    'icon': '🎯',
+                    'models': ['command-r-plus', 'command-r']
+                },
+                'groq': {
+                    'name': 'Groq',
+                    'description': 'Muito rápido, menos preciso',
+                    'icon': '⚡',
+                    'models': ['llama-3.1-70b-versatile', 'mixtral-8x7b-32768']
+                }
+            }
+            
+            # Status de cada provedor
+            provider_status = {}
+            for provider_name in provider_info.keys():
+                if provider_name in llm_manager.providers:
+                    provider_status[provider_name] = {
+                        **provider_info[provider_name],
+                        'available': provider_name in available_providers,
+                        'is_current': provider_name == current_provider
+                    }
+            
+            return Response({
+                "current_provider": current_provider,
+                "available_providers": available_providers,
+                "fallback_order": llm_manager.fallback_order,
+                "providers": provider_status
+            })
+            
+        except Exception as e:
+            logger.error(f"Erro ao obter provedores LLM: {str(e)}")
+            return Response(
+                {'error': str(e)}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    def post(self, request):
+        """Alterar provedor LLM em tempo real"""
+        try:
+            new_provider = request.data.get('provider')
+            
+            if not new_provider:
+                return Response(
+                    {'error': 'Provider parameter is required'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Obter instância do LLM manager
+            llm_manager = LLMManager()
+            
+            # Verificar se o provedor é válido
+            valid_providers = ['openai', 'deepseek', 'gemini', 'cohere', 'groq', 'together']
+            if new_provider not in valid_providers:
+                return Response(
+                    {'error': f'Invalid provider. Valid options: {valid_providers}'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Verificar se o provedor está disponível
+            if new_provider not in llm_manager.providers:
+                return Response(
+                    {'error': f'Provider {new_provider} not configured'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            if not llm_manager.providers[new_provider].is_available():
+                return Response(
+                    {'error': f'Provider {new_provider} is not available (missing API key)'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Testar o provedor antes de alterar
+            test_result = llm_manager.providers[new_provider].generate_response(
+                "Teste", max_tokens=10, temperature=0.1
+            )
+            
+            if not test_result.get('success', False):
+                return Response(
+                    {'error': f'Provider {new_provider} test failed: {test_result.get("error", "Unknown error")}'},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+            
+            # Alterar provedor no sistema
+            old_provider = llm_manager.primary_provider
+            llm_manager.primary_provider = new_provider
+            
+            # Atualizar configuração no Django settings (em memória)
+            from django.conf import settings
+            settings.LLM_PROVIDER = new_provider
+            
+            # Atualizar no consolidated_multi_agent_service
+            consolidated_multi_agent_service.llm_manager.primary_provider = new_provider
+            
+            return Response({
+                "success": True,
+                "message": f"Provedor alterado de {old_provider} para {new_provider}",
+                "old_provider": old_provider,
+                "new_provider": new_provider,
+                "test_response": test_result.get('response', ''),
+                "note": "Alteração aplicada em tempo real - sem necessidade de reiniciar"
+            })
+            
+        except Exception as e:
+            logger.error(f"Erro ao alterar provedor LLM: {str(e)}")
+            return Response(
+                {'error': str(e)}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class LLMStatusView(APIView):
+    """Endpoint simplificado para status do LLM no header"""
+    permission_classes = [AllowAny]  # Controle de admin será feito no frontend
+    
+    def get(self, request):
+        """Obter status atual do LLM para exibição no header"""
+        try:
+            from .llm_providers import get_llm_manager
+            
+            # Usar LLMManager como fonte única de verdade
+            llm_manager = get_llm_manager()
+            current_provider = llm_manager.get_current_provider()
+            
+            # Informações dos provedores
+            provider_info = {
+                'openai': {'name': 'OpenAI', 'color': '#10a37f'},
+                'deepseek': {'name': 'DeepSeek', 'color': '#6366f1'},
+                'gemini': {'name': 'Gemini', 'color': '#4285f4'},
+                'cohere': {'name': 'Cohere', 'color': '#d946ef'},
+                'groq': {'name': 'Groq', 'color': '#f59e0b'},
+                'together': {'name': 'Together', 'color': '#8b5cf6'}
+            }
+            
+            provider_data = provider_info.get(current_provider, {
+                'name': current_provider.title(),
+                'color': '#6b7280'
+            })
+            
+            # Verificar se o provedor está funcionando
+            try:
+                is_healthy = current_provider in llm_manager.get_available_providers()
+            except:
+                is_healthy = False
+            
+            return Response({
+                "current_provider": current_provider,
+                "provider_name": provider_data['name'],
+                "provider_color": provider_data['color'],
+                "is_healthy": is_healthy,
+                "status": "healthy" if is_healthy else "error"
+            })
+            
+        except Exception as e:
+            return Response({
+                "current_provider": "error",
+                "provider_name": "Error",
+                "provider_color": "#ef4444",
+                "is_healthy": False,
+                "status": "error",
+                "error": str(e)
+            })

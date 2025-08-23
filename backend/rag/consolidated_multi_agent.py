@@ -21,6 +21,8 @@ from .hybrid_vector_service import HybridVectorService
 from .services import BM25SearchService
 from .llm_providers import LLMManager
 from .agentic_config import get_config
+from .intelligent_behavior import intelligent_behavior
+from .behavior_monitoring import behavior_monitor
 
 
 class MultiAgentState(TypedDict):
@@ -71,7 +73,7 @@ class ConsolidatedMultiAgentService:
             if force_mode:
                 complexity_mode = force_mode
             else:
-                complexity_mode = self._analyze_query_complexity(query)
+                complexity_mode = self._analyze_query_complexity(query, user_profile)
             
             # 2. PROCESSAMENTO BASEADO NA COMPLEXIDADE
             if complexity_mode == 'fast':
@@ -87,87 +89,64 @@ class ConsolidatedMultiAgentService:
                 'consolidated_system': True
             })
             
+            # 4. MONITORAMENTO DE COMPORTAMENTO
+            try:
+                behavior_monitor.log_response_metrics(
+                    query=query,
+                    agent_used=result.get('agent_used', 'unknown'),
+                    response=result.get('response', ''),
+                    analysis=result.get('metadata', {}).get('intelligent_analysis', {}),
+                    quality_validation=result.get('metadata', {}).get('quality_validation', {}),
+                    processing_time_ms=total_time,
+                    user_context=user_profile
+                )
+            except Exception as e:
+                # Log erro mas não falha o processamento principal
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"Erro no monitoramento de comportamento: {str(e)}")
+            
             return result
             
         except Exception as e:
             return self._handle_error(query, str(e), int((time.time() - start_time) * 1000))
     
-    def _analyze_query_complexity(self, query: str) -> str:
-        """Análise inteligente de complexidade com cache"""
+    def _analyze_query_complexity(self, query: str, user_profile: Dict[str, Any] = None) -> str:
+        """Análise inteligente de complexidade usando sistema refinado"""
         
-        # Cache para evitar reprocessamento
-        cache_key = f"complexity_analysis_{hash(query)}"
-        cached = cache.get(cache_key)
-        if cached:
-            return cached
+        # Usar sistema inteligente de comportamento
+        analysis = intelligent_behavior.analyze_query_intelligence(query, user_profile or {})
         
-        query_lower = query.lower()
-        complexity_score = 0
-        
-        # Indicadores de query simples (favorece velocidade)
-        simple_patterns = [
-            r'^(como|qual|quando|onde|quem)\s+',  # Perguntas diretas
-            r'^(o que é|que é)\s+',  # Definições
-            r'\b(férias|licença|benefício|plano de saúde|vale refeição|horário)\b',  # FAQ
-            r'^.{1,50}[?]?$'  # Query muito curta
-        ]
-        
-        for pattern in simple_patterns:
-            if re.search(pattern, query_lower):
-                complexity_score -= 1
-        
-        # Indicadores de query complexa (favorece qualidade)
-        complex_patterns = [
-            r'\b(análise|compare|explique|detalhe|completo|relatório|dashboard)\b',
-            r'\b(capacitação|trilha|desenvolvimento|onboarding|certificação)\b',
-            r'\b(como funciona|por que|qual a diferença)\b',
-            r'.{100,}',  # Query longa
-            r'\?.*\?',  # Múltiplas perguntas
-            r'\b(e também|além disso|primeiro|segundo|depois)\b'  # Multi-parte
-        ]
-        
-        for pattern in complex_patterns:
-            if re.search(pattern, query_lower):
-                complexity_score += 1
-        
-        # Decisão final
-        if complexity_score <= -1:
-            decision = 'fast'
-        elif complexity_score >= 1:
-            decision = 'complete'
-        else:
-            # Neutro: baseado no tamanho
-            decision = 'fast' if len(query) < 60 else 'complete'
-        
-        # Cache por 1 hora
-        cache.set(cache_key, decision, 3600)
-        return decision
+        return analysis["processing_mode"]
     
     def _process_fast_mode(self, query: str, user: Any, user_profile: Dict) -> Dict[str, Any]:
-        """Modo rápido - sem LangGraph, direto ao agente"""
+        """Modo rápido - sem LangGraph, direto ao agente com comportamento inteligente"""
         
-        # Análise rápida de intenção
-        target_agent = self._fast_intent_analysis(query)
+        # Análise inteligente completa
+        analysis = intelligent_behavior.analyze_query_intelligence(query, user_profile)
+        target_agent = analysis["recommended_agent"]
         
-        # Processamento direto por agente
+        # Processamento direto por agente com comportamento refinado
         if target_agent == "bard":
-            result = self._bard_fast_response(query, user_profile)
+            result = self._bard_fast_response(query, user_profile, analysis)
         elif target_agent == "wizard":
-            result = self._wizard_fast_response(query, user_profile)
+            result = self._wizard_fast_response(query, user_profile, analysis)
         else:
-            result = self._knight_fast_response(query, user)
+            result = self._knight_fast_response(query, user, analysis)
         
         return {
             "query": query,
             "response": result.get("response", "Erro no processamento"),
             "agent_used": target_agent,
-            "execution_path": [f"{target_agent}_fast"],
+            "execution_path": [f"{target_agent}_fast_intelligent"],
             "search_results": result.get("search_results", []),
             "metadata": {
                 "provider_used": result.get("provider_used", "unknown"),
                 "task_type": result.get("task_type", "general"),
                 "performance_mode": "fast",
-                "is_optimized": True
+                "is_optimized": True,
+                "intelligent_analysis": analysis,
+                "quality_validation": result.get("quality_validation", {})
             }
         }
     
@@ -547,10 +526,10 @@ class ConsolidatedMultiAgentService:
         cache.set(cache_key, intent, 3600)
         return intent
     
-    def _knight_fast_response(self, query: str, user: Any) -> Dict[str, Any]:
-        """Knight RAG ultra-rápido"""
+    def _knight_fast_response(self, query: str, user: Any, analysis: Dict[str, Any]) -> Dict[str, Any]:
+        """Knight RAG ultra-rápido com comportamento inteligente"""
         
-        cache_key = f"knight_fast_{hash(query)}"
+        cache_key = f"knight_intelligent_{hash(query)}_{hash(str(analysis.get('personalization', {})))}"
         cached = cache.get(cache_key)
         if cached:
             return cached
@@ -560,7 +539,7 @@ class ConsolidatedMultiAgentService:
         
         if not search_results:
             result = {
-                "response": f"Não encontrei informações específicas sobre '{query}'. Como posso ajudar?",
+                "response": f"Não encontrei informações específicas sobre '{query}'. Como posso ajudá-lo de outra forma?",
                 "search_results": [],
                 "provider_used": "no_results",
                 "task_type": "general"
@@ -568,89 +547,153 @@ class ConsolidatedMultiAgentService:
             cache.set(cache_key, result, 1800)
             return result
         
-        # Contexto mínimo
-        context = ' '.join([r.get('content', '')[:200] for r in search_results])[:600]
+        # Contexto formatado
+        context = self._prepare_context(search_results, max_length=600)
+        
+        # Usar análise inteligente para prompt otimizado
+        user_context = {
+            'name': getattr(user, 'name', 'Colaborador') if user else 'Colaborador',
+            'department': analysis.get('personalization', {}).get('department'),
+            'role': analysis.get('personalization', {}).get('role')
+        }
+        
+        optimized_prompt = intelligent_behavior.generate_optimized_prompt(
+            agent_type="knight",
+            query=query,
+            context=context,
+            user_context=user_context,
+            strategy=analysis["response_strategy"]
+        )
         
         llm_response = self.llm_manager.generate_response(
-            prompt=f"Contexto: {context}\n\nPergunta: {query}\n\nResposta:",
-            max_tokens=150,
+            prompt=optimized_prompt,
+            max_tokens=200,
             temperature=0.3
         )
         
+        response_text = llm_response.get("response", "Erro ao gerar resposta")
+        
+        # Validar qualidade da resposta
+        quality_validation = intelligent_behavior.validate_response_quality(
+            response_text, query, analysis["response_strategy"], context
+        )
+        
         result = {
-            "response": llm_response.get("response", "Erro ao gerar resposta"),
+            "response": response_text,
             "search_results": search_results,
             "provider_used": llm_response.get("provider", "unknown"),
-            "task_type": "general"
+            "task_type": "general",
+            "quality_validation": quality_validation
         }
         
         cache.set(cache_key, result, 1800)
         return result
     
-    def _bard_fast_response(self, query: str, user_profile: Dict) -> Dict[str, Any]:
-        """Bard resposta rápida e personalizada"""
+    def _bard_fast_response(self, query: str, user_profile: Dict, analysis: Dict[str, Any]) -> Dict[str, Any]:
+        """Bard resposta rápida e personalizada com comportamento inteligente"""
         
-        prompt = f"""Como analista Bard, responda sobre: {query}
-Usuário: {user_profile.get('name', 'Usuário')}
-Forneça análise concisa + direcionamento para interface Bard."""
+        # Contexto do usuário para personalização
+        user_context = {
+            'name': user_profile.get('name', 'Colaborador'),
+            'department': user_profile.get('department'),
+            'role': user_profile.get('role')
+        }
+        
+        # Prompt otimizado usando sistema inteligente
+        optimized_prompt = intelligent_behavior.generate_optimized_prompt(
+            agent_type="bard",
+            query=query,
+            context="",  # Bard fast mode sem contexto de documentos
+            user_context=user_context,
+            strategy=analysis["response_strategy"]
+        )
         
         llm_response = self.llm_manager.generate_response(
-            prompt=prompt,
-            max_tokens=120,
+            prompt=optimized_prompt,
+            max_tokens=150,
             temperature=0.7
         )
         
-        if llm_response["success"]:
-            enhanced_response = f"""📊 **ANÁLISE BARD**
+        response_text = llm_response.get('response', '')
+        
+        if llm_response["success"] and response_text:
+            enhanced_response = f"""📊 **ANÁLISE BARD - {user_context['name']}**
 
-{llm_response['response']}
+{response_text}
 
-🎭 [Central de Relatórios](/bard) - Para análise completa com gráficos"""
+🎭 [Central de Relatórios](/bard) - Para análise completa com gráficos interativos"""
         else:
-            enhanced_response = f"""📊 **ANÁLISE BARD**
+            enhanced_response = f"""📊 **ANÁLISE BARD - {user_context['name']}**
 
 Sua consulta sobre "{query}" requer análise de dados especializada.
 
-🎭 [Central de Relatórios](/bard) - Para relatórios personalizados"""
+🎭 [Central de Relatórios](/bard) - Para relatórios personalizados com métricas detalhadas"""
+        
+        # Validar qualidade
+        quality_validation = intelligent_behavior.validate_response_quality(
+            enhanced_response, query, analysis["response_strategy"]
+        )
         
         return {
             "response": enhanced_response,
             "search_results": [],
             "provider_used": llm_response.get("provider", "fallback"),
-            "task_type": "report"
+            "task_type": "report",
+            "quality_validation": quality_validation
         }
     
-    def _wizard_fast_response(self, query: str, user_profile: Dict) -> Dict[str, Any]:
-        """Wizard resposta rápida e personalizada"""
+    def _wizard_fast_response(self, query: str, user_profile: Dict, analysis: Dict[str, Any]) -> Dict[str, Any]:
+        """Wizard resposta rápida e personalizada com comportamento inteligente"""
         
-        prompt = f"""Como especialista Wizard, responda sobre: {query}
-Usuário: {user_profile.get('name', 'Usuário')}
-Forneça plano inicial + direcionamento para interface Wizard."""
+        # Contexto do usuário para personalização
+        user_context = {
+            'name': user_profile.get('name', 'Colaborador'),
+            'department': user_profile.get('department'),
+            'role': user_profile.get('role'),
+            'is_new_employee': user_profile.get('is_new', False)
+        }
+        
+        # Prompt otimizado usando sistema inteligente
+        optimized_prompt = intelligent_behavior.generate_optimized_prompt(
+            agent_type="wizard",
+            query=query,
+            context="",  # Wizard fast mode sem contexto de documentos
+            user_context=user_context,
+            strategy=analysis["response_strategy"]
+        )
         
         llm_response = self.llm_manager.generate_response(
-            prompt=prompt,
-            max_tokens=120,
+            prompt=optimized_prompt,
+            max_tokens=150,
             temperature=0.7
         )
         
-        if llm_response["success"]:
-            enhanced_response = f"""🧙 **PLANO WIZARD**
+        response_text = llm_response.get('response', '')
+        
+        if llm_response["success"] and response_text:
+            enhanced_response = f"""🧙 **PLANO WIZARD - {user_context['name']}**
 
-{llm_response['response']}
+{response_text}
 
-🧙 [Trilha de Capacitação](/wizard) - Para plano completo personalizado"""
+🧙 [Trilha de Capacitação](/wizard) - Para plano completo e acompanhamento personalizado"""
         else:
-            enhanced_response = f"""🧙 **PLANO WIZARD**
+            enhanced_response = f"""🧙 **PLANO WIZARD - {user_context['name']}**
 
-Sua consulta sobre "{query}" indica necessidade de capacitação personalizada.
+Sua consulta sobre "{query}" indica necessidade de capacitação personalizada para sua função.
 
-🧙 [Trilha de Capacitação](/wizard) - Para criar trilha específica"""
+🧙 [Trilha de Capacitação](/wizard) - Para criar trilha específica com certificações"""
+        
+        # Validar qualidade
+        quality_validation = intelligent_behavior.validate_response_quality(
+            enhanced_response, query, analysis["response_strategy"]
+        )
         
         return {
             "response": enhanced_response,
             "search_results": [],
             "provider_used": llm_response.get("provider", "fallback"),
-            "task_type": "training"
+            "task_type": "training",
+            "quality_validation": quality_validation
         }
     
     def _prepare_context(self, search_results: List[Dict], max_length: int = 1000) -> str:
