@@ -288,14 +288,6 @@ export const LLMManagement: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header com título */}
-      <div className="flex items-center space-x-2 mb-6">
-        <Bot className="h-6 w-6 text-accent" />
-        <h2 className="text-2xl font-bold text-foreground">Configurações de IA</h2>
-      </div>
-
-      {/* Mensagens de feedback */}
-
       <Tabs defaultValue="config" className="w-full">
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="config">Configuração</TabsTrigger>

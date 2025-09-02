@@ -19,6 +19,7 @@ from .services import BM25SearchService, EmbeddingService
 from .llm_providers import LLMManager
 from .models import SearchQuery, SearchResult
 from .agentic_config import get_config
+from .knowledge_resources_service import KnowledgeResourcesService
 
 
 class AgenticRAGState(TypedDict):
@@ -41,6 +42,10 @@ class AgenticRAGState(TypedDict):
     retrieved_documents: List[str]
     context_summary: str
     
+    # Knowledge resources
+    useful_links: List[Dict[str, Any]]
+    downloadable_documents: List[Dict[str, Any]]
+    
     # Quality control
     response_quality: float
     needs_refinement: bool
@@ -60,6 +65,7 @@ class AgenticRAGService:
         self.bm25_search = BM25SearchService()
         self.embedding_service = EmbeddingService()
         self.llm_manager = LLMManager()
+        self.knowledge_resources = KnowledgeResourcesService()
         
         # Carregar configurações
         self.config = get_config()
@@ -79,6 +85,7 @@ class AgenticRAGService:
         workflow.add_node("searcher", self._search_node)
         workflow.add_node("quality_checker", self._quality_check_node)
         workflow.add_node("query_refiner", self._query_refinement_node)
+        workflow.add_node("resources_finder", self._resources_finder_node)
         workflow.add_node("context_manager", self._context_management_node)
         workflow.add_node("generator", self._generation_node)
         workflow.add_node("validator", self._validation_node)
@@ -95,11 +102,12 @@ class AgenticRAGService:
             self._quality_routing_logic,
             {
                 "refine": "query_refiner",
-                "generate": "generator"  # Removido context_manager para velocidade
+                "generate": "resources_finder"  # Primeiro buscar recursos
             }
         )
         
         workflow.add_edge("query_refiner", "searcher")
+        workflow.add_edge("resources_finder", "generator")  # Recursos -> Geração
         workflow.add_edge("generator", "finalizer")  # Direto para finalizer, sem validação
         
         workflow.add_edge("finalizer", END)
@@ -257,15 +265,60 @@ class AgenticRAGService:
             "next_action": "generate"
         }
     
+    def _resources_finder_node(self, state: AgenticRAGState) -> Dict[str, Any]:
+        """Nó para buscar links úteis e documentos relevantes"""
+        query = state["query"]
+        search_results = state.get("search_results", [])
+        
+        try:
+            # Criar contexto a partir dos resultados da busca
+            context = " ".join([r.get("content", "")[:200] for r in search_results[:3]])
+            
+            # Buscar recursos relevantes
+            resources = self.knowledge_resources.find_relevant_resources(
+                query=query,
+                context=context
+            )
+            
+            # Adicionar ao estado
+            return {
+                "useful_links": resources.get("useful_links", []),
+                "downloadable_documents": resources.get("downloadable_documents", []),
+                "next_action": "generate"
+            }
+        except Exception as e:
+            # Log erro mas continuar sem recursos
+            print(f"Erro ao buscar recursos: {e}")
+            return {
+                "useful_links": [],
+                "downloadable_documents": [],
+                "next_action": "generate"
+            }
+    
     def _generation_node(self, state: AgenticRAGState) -> Dict[str, Any]:
         """Nó de geração de resposta"""
         query = state["query"]
         search_results = state.get("search_results", [])
+        useful_links = state.get("useful_links", [])
+        downloadable_documents = state.get("downloadable_documents", [])
         
         # Extrair conteúdo dos resultados da busca
         retrieved_docs = [result.get("content", "") for result in search_results[:5]]
         
-        # Gerar resposta usando LLM com contexto
+        # Adicionar recursos ao contexto se disponíveis
+        resources_context = ""
+        if useful_links or downloadable_documents:
+            resources_dict = {
+                "useful_links": useful_links,
+                "downloadable_documents": downloadable_documents
+            }
+            resources_context = self.knowledge_resources.format_resources_for_llm(resources_dict)
+            
+            # Adicionar ao contexto
+            if resources_context:
+                retrieved_docs.append(resources_context)
+        
+        # Gerar resposta usando LLM com contexto enriquecido
         llm_response = self.llm_manager.generate_response(
             prompt=query,
             context=retrieved_docs,
@@ -472,6 +525,8 @@ class AgenticRAGService:
                 current_step=0,
                 retrieved_documents=[],
                 context_summary="",
+                useful_links=[],
+                downloadable_documents=[],
                 response_quality=0.0,
                 needs_refinement=False,
                 search_duration_ms=0,
@@ -511,6 +566,8 @@ class AgenticRAGService:
             "query": query,
             "response": final_state.get("final_response", "Não foi possível gerar resposta."),
             "search_results": final_state.get("search_results", []),
+            "useful_links": final_state.get("useful_links", []),
+            "downloadable_documents": final_state.get("downloadable_documents", []),
             "quality_metrics": {
                 "search_quality": final_state.get("search_quality_score", 0.0),
                 "response_quality": final_state.get("response_quality", 0.0),
@@ -561,6 +618,7 @@ class AgenticRAGServiceSync:
         self.vector_search = HybridVectorService()
         self.bm25_search = BM25SearchService()
         self.llm_manager = LLMManager()
+        self.knowledge_resources = KnowledgeResourcesService()
         self.config = get_config()
         self.generation_config = self.config.get_generation_config()
     
@@ -612,8 +670,27 @@ class AgenticRAGServiceSync:
             
             search_query = None  # Não temos SearchQuery no fallback
             
+            # Buscar recursos de conhecimento
+            resources = {}
+            try:
+                context = " ".join([r.get('content', '')[:200] for r in search_results[:3]])
+                resources = self.knowledge_resources.find_relevant_resources(
+                    query=query,
+                    context=context
+                )
+            except Exception as e:
+                print(f"Erro ao buscar recursos no fallback: {e}")
+                resources = {"useful_links": [], "downloadable_documents": []}
+            
             # Gerar resposta
             context_docs = [r['content'] for r in search_results]
+            
+            # Adicionar recursos ao contexto se disponíveis
+            if resources.get("useful_links") or resources.get("downloadable_documents"):
+                resources_context = self.knowledge_resources.format_resources_for_llm(resources)
+                if resources_context:
+                    context_docs.append(resources_context)
+            
             llm_manager = LLMManager()
             llm_response = llm_manager.generate_response(
                 prompt=query,
@@ -627,6 +704,8 @@ class AgenticRAGServiceSync:
                 "query": query,
                 "response": llm_response.get("response", "Erro ao gerar resposta"),
                 "search_results": search_results,
+                "useful_links": resources.get("useful_links", []),
+                "downloadable_documents": resources.get("downloadable_documents", []),
                 "quality_metrics": {
                     "search_quality": 0.8 if search_results else 0.0,
                     "response_quality": 0.8 if llm_response.get("success") else 0.3,
@@ -651,6 +730,8 @@ class AgenticRAGServiceSync:
                 "query": query,
                 "response": f"Desculpe, ocorreu um erro ao processar sua consulta: {str(e)}",
                 "search_results": [],
+                "useful_links": [],
+                "downloadable_documents": [],
                 "quality_metrics": {
                     "search_quality": 0.0,
                     "response_quality": 0.1,

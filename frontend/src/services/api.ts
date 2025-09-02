@@ -94,6 +94,22 @@ export interface SendMessageResponse {
   session_id: string;
   context_used: boolean;
   response_time: number;
+  useful_links?: Array<{
+    id: number;
+    title: string;
+    url: string;
+    description?: string;
+    category: string;
+  }>;
+  downloadable_documents?: Array<{
+    id: number;
+    title: string;
+    description?: string;
+    file_name: string;
+    file_type: string;
+    file_size: number;
+    category: string;
+  }>;
 }
 
 // Funções da API de chat

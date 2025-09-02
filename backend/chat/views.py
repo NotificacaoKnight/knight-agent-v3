@@ -57,7 +57,9 @@ def send_message(request):
                 },
                 'user_message': result.get('user_message_data'),  # Dados da mensagem do usuário
                 'context_used': result.get('context_used', 0) > 0,
-                'response_time': result.get('response_time_ms', 0)
+                'response_time': result.get('response_time_ms', 0),
+                'useful_links': result.get('useful_links', []),
+                'downloadable_documents': result.get('downloadable_documents', [])
             }
         else:
             # Em caso de erro, ainda fornecer estrutura básica

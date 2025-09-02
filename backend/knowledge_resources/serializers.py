@@ -25,8 +25,8 @@ class UsefulLinkListSerializer(serializers.ModelSerializer):
     class Meta:
         model = UsefulLink
         fields = [
-            'id', 'title', 'url', 'category', 'is_active', 'send_count',
-            'created_by_name', 'created_at'
+            'id', 'title', 'url', 'description', 'ai_guidance', 'category', 
+            'is_active', 'send_count', 'created_by_name', 'created_at'
         ]
 
 class DownloadableDocumentSerializer(serializers.ModelSerializer):
@@ -63,8 +63,8 @@ class DownloadableDocumentListSerializer(serializers.ModelSerializer):
     class Meta:
         model = DownloadableDocument
         fields = [
-            'id', 'title', 'category', 'file_type', 'file_size',
-            'is_active', 'download_count', 'created_by_name', 'created_at'
+            'id', 'title', 'description', 'ai_guidance', 'category', 'file_type', 
+            'file_size', 'is_active', 'download_count', 'created_by_name', 'created_at'
         ]
 
 class ResourceUsageSerializer(serializers.ModelSerializer):
