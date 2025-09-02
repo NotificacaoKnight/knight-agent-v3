@@ -267,7 +267,9 @@ class CohereProvider(LLMProvider):
                             "Responda sempre em português brasileiro de forma clara e útil. "
                             "Use apenas as informações fornecidas nos documentos para responder. "
                             "Se não souber a resposta, diga que não tem informações suficientes "
-                            "e sugira entrar em contato com o RH."
+                            "e sugira entrar em contato com o RH. "
+                            "Quando houver LINKS ÚTEIS ou DOCUMENTOS PARA DOWNLOAD disponíveis no contexto, "
+                            "mencione-os na sua resposta quando forem relevantes para ajudar o usuário."
                 )
                 
                 return {
@@ -343,7 +345,9 @@ class TogetherProvider(LLMProvider):
                 "Responda sempre em português brasileiro de forma clara e útil. "
                 "Use apenas as informações fornecidas no contexto para responder. "
                 "Se não souber a resposta, diga que não tem informações suficientes "
-                "e sugira entrar em contato com o RH."
+                "e sugira entrar em contato com o RH. "
+                "Quando houver LINKS ÚTEIS ou DOCUMENTOS PARA DOWNLOAD disponíveis no contexto, "
+                "mencione-os na sua resposta quando forem relevantes para ajudar o usuário."
             )
             
             if context:
@@ -433,7 +437,9 @@ class GroqProvider(LLMProvider):
                 "Responda sempre em português brasileiro de forma clara e útil. "
                 "Use apenas as informações fornecidas no contexto para responder. "
                 "Se não souber a resposta, diga que não tem informações suficientes "
-                "e sugira entrar em contato com o RH."
+                "e sugira entrar em contato com o RH. "
+                "Quando houver LINKS ÚTEIS ou DOCUMENTOS PARA DOWNLOAD disponíveis no contexto, "
+                "mencione-os na sua resposta quando forem relevantes para ajudar o usuário."
             )
             
             messages = [{"role": "system", "content": system_prompt}]
@@ -515,7 +521,9 @@ class DeepSeekProvider(LLMProvider):
                 "Responda sempre em português brasileiro de forma clara e útil. "
                 "Use apenas as informações fornecidas no contexto para responder. "
                 "Se não souber a resposta baseada no contexto fornecido, diga que não tem informações suficientes "
-                "e sugira entrar em contato com o RH ou a pessoa responsável."
+                "e sugira entrar em contato com o RH ou a pessoa responsável. "
+                "Quando houver LINKS ÚTEIS ou DOCUMENTOS PARA DOWNLOAD disponíveis no contexto, "
+                "mencione-os na sua resposta quando forem relevantes para ajudar o usuário."
             )
             
             messages = [{"role": "system", "content": system_prompt}]
@@ -631,7 +639,9 @@ class OpenAIProvider(LLMProvider):
                 "Responda sempre em português brasileiro de forma clara e útil. "
                 "Use apenas as informações fornecidas no contexto para responder. "
                 "Se não souber a resposta baseada no contexto fornecido, diga que não tem informações suficientes "
-                "e sugira entrar em contato com o RH ou a pessoa responsável."
+                "e sugira entrar em contato com o RH ou a pessoa responsável. "
+                "Quando houver LINKS ÚTEIS ou DOCUMENTOS PARA DOWNLOAD disponíveis no contexto, "
+                "mencione-os na sua resposta quando forem relevantes para ajudar o usuário."
             )
             
             messages = [{"role": "system", "content": system_prompt}]
@@ -741,7 +751,9 @@ class GeminiProvider(LLMProvider):
                 "Responda sempre em português brasileiro de forma clara e útil. "
                 "Use apenas as informações fornecidas no contexto para responder. "
                 "Se não souber a resposta baseada no contexto fornecido, diga que não tem informações suficientes "
-                "e sugira entrar em contato com o RH ou a pessoa responsável."
+                "e sugira entrar em contato com o RH ou a pessoa responsável. "
+                "Quando houver LINKS ÚTEIS ou DOCUMENTOS PARA DOWNLOAD disponíveis no contexto, "
+                "mencione-os na sua resposta quando forem relevantes para ajudar o usuário."
             )
             
             if context:

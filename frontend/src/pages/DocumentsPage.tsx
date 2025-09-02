@@ -362,8 +362,8 @@ export const DocumentsPage: React.FC = () => {
       setEditingLink(link);
       setLinkTitle(link.title);
       setLinkUrl(link.url);
-      setLinkDescription(link.description || '');
-      setLinkAiGuidance(link.ai_guidance || '');
+      setLinkDescription(link.description ?? '');
+      setLinkAiGuidance(link.ai_guidance ?? '');
       setLinkCategory(link.category);
     } else {
       resetLinkForm();
@@ -407,8 +407,8 @@ export const DocumentsPage: React.FC = () => {
     if (doc) {
       setEditingDownloadableDoc(doc);
       setDownloadableDocTitle(doc.title);
-      setDownloadableDocDescription(doc.description || '');
-      setDownloadableDocAiGuidance(doc.ai_guidance || '');
+      setDownloadableDocDescription(doc.description ?? '');
+      setDownloadableDocAiGuidance(doc.ai_guidance ?? '');
       setDownloadableDocCategory(doc.category);
     } else {
       resetDownloadableDocForm();

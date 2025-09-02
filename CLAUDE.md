@@ -9,6 +9,7 @@ Knight Agent is a corporate AI assistant system built for internal company suppo
 **Recent Migrations**: 
 1. **LangGraph Agentic RAG**: Migrated from traditional LangChain RAG to LangGraph-based agentic RAG with dynamic decision-making and self-reflection
 2. **PgVector Integration**: Migrated from FAISS to pgvector for production-ready vector similarity search with true concurrent access and atomic updates
+3. **Knowledge Resources**: Added contextual link and document suggestion system with semantic matching on ai_guidance fields
 
 ## Architecture
 
@@ -18,10 +19,13 @@ The project uses a **microservices-style Django architecture** with separate app
 - **documents/**: Document processing pipeline using Docling + async Celery tasks
 - **rag/**: **Agentic RAG system** using LangGraph with traditional hybrid search fallback
 - **chat/**: Conversational interface with session management
+- **knowledge_resources/**: Useful links and downloadable documents that AI can suggest contextually
 - **downloads/**: Temporary file distribution system (7-day expiry)
 
 **Key architectural patterns:**
 - **Agentic RAG**: `rag/agentic_rag_service.py` implements LangGraph-based multi-step reasoning with self-reflection, planning, and dynamic decision-making
+- **Multi-Agent System**: `rag/consolidated_multi_agent.py` provides specialized agents (Knight, Bard, Wizard) for different query types
+- **Knowledge Resources Integration**: `rag/knowledge_resources_service.py` finds and suggests relevant links and documents based on context using semantic search
 - **Hybrid Vector Search**: `rag/hybrid_vector_service.py` provides pgvector-first with FAISS fallback for optimal performance and reliability
 - **Production Vector Storage**: pgvector integration (`rag/pgvector_service.py`) enables concurrent access, atomic updates, and PostgreSQL-native vector operations
 - **Provider Pattern**: `rag/llm_providers.py` abstracts multiple LLM APIs (Cohere, Groq, Together AI, Ollama) with automatic fallback
@@ -56,25 +60,42 @@ knight-agent/
 ### Quick Start
 
 ```bash
-# Initial setup scripts
+# Automated setup scripts (recommended)
 ./setup.sh         # Linux/Mac
 setup.bat          # Windows
 
-# Or manual setup:
+# Manual setup:
 cd backend
+
+# 1. Create virtual environment (only once)
 python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
+
+# 2. Activate virtual environment (REQUIRED every time you open a new terminal)
+source venv/bin/activate  # Linux/Mac
+# OR
+venv\Scripts\activate     # Windows
+
+# 3. Install dependencies (only first time or when requirements.txt changes)
 pip install -r requirements.txt
+
+# 4. Setup database (only first time or when models change)
 python manage.py migrate
+
+# 5. Run development server
 python manage.py runserver
 ```
+
+**IMPORTANT**: You must activate the virtual environment (`source venv/bin/activate`) every time you open a new terminal before running any Python/Django commands.
 
 ### Backend (Django)
 
 **Working Directory**: All Django commands must be run from `/backend/` directory.
 
+**PREREQUISITE**: Always activate virtual environment first: `source venv/bin/activate` (Linux/Mac) or `venv\Scripts\activate` (Windows)
+
 ```bash
 cd backend  # IMPORTANT: Always run from backend directory
+source venv/bin/activate  # REQUIRED: Activate virtual environment first
 
 # Database operations
 python manage.py makemigrations
@@ -83,7 +104,6 @@ python manage.py createsuperuser
 
 # Create all app migrations at once
 python create_migrations.py
-
 
 # Fix migration issues
 ./fix_migrations.sh  # Linux/Mac
@@ -400,6 +420,16 @@ The system uses a provider abstraction that allows runtime switching between:
 
 Change providers by updating `LLM_PROVIDER` environment variable. Fallback order is configurable in `rag/llm_providers.py`.
 
+## Knowledge Resources System
+
+The system can suggest contextual links and documents to users based on their queries:
+
+- **UsefulLink**: External links with `ai_guidance` field for when to suggest them
+- **DownloadableDocument**: Files for download with `ai_guidance` field for contextual relevance
+- **Semantic Matching**: Uses both keyword search and embeddings on title, description, ai_guidance, and category fields
+- **Integration**: Automatically included in RAG responses when relevant (max 3 links, 2 documents per response)
+- **Usage Tracking**: Increments counters (send_count, download_count) for analytics
+
 ## Portuguese Optimization
 
 - **Chunking**: 500-800 tokens optimized for Portuguese text structure
@@ -414,16 +444,19 @@ Change providers by updating `LLM_PROVIDER` environment variable. Fallback order
 - `backend/authentication/middleware.py`: Custom token authentication
 - `backend/rag/agentic_rag_service.py`: **LangGraph-based agentic RAG system**
 - `backend/rag/agentic_config.py`: **Centralized configuration for agentic parameters**
+- `backend/rag/consolidated_multi_agent.py`: **Multi-agent system with specialized agents**
+- `backend/rag/knowledge_resources_service.py`: **Service for finding relevant links and documents**
 - `backend/rag/pgvector_service.py`: **Production pgvector vector search service**
 - `backend/rag/hybrid_vector_service.py`: **pgvector-first service with FAISS fallback**
 - `backend/rag/llm_providers.py`: LLM provider abstraction layer
 - `backend/rag/services.py`: Traditional FAISS hybrid search implementation (fallback)
 - `backend/rag/views.py`: RAG API endpoints with agentic/fallback routing
+- `backend/knowledge_resources/models.py`: UsefulLink and DownloadableDocument models with ai_guidance fields
 - `backend/documents/tasks.py`: Celery async document processing
 - `backend/documents/management/commands/migrate_to_pgvector.py`: pgvector migration command
 - `backend/create_migrations.py`: Utility to create migrations for all apps
 - `backend/setup_pgvector.sh`: pgvector installation and setup script
-- `backend/test_pgvector.py`: pgvector integration testing script
+- `backend/test_knowledge_resources_integration.py`: Test script for knowledge resources integration
 
 ### Frontend Key Files
 - `frontend/src/App.tsx`: Main React application entry point
@@ -497,6 +530,10 @@ python manage.py shell
 >>> hybrid_service = HybridVectorService()
 >>> results = hybrid_service.search("test query", k=5)
 >>> stats = hybrid_service.get_stats()
+
+# Test knowledge resources integration
+cd backend
+python test_knowledge_resources_integration.py
 ```
 
 ## Frontend Architecture
@@ -573,10 +610,10 @@ curl -X POST http://localhost:8000/api/rag/search/ \
 4. **Full Development Environment**:
    ```bash
    # Terminal 1: Django server
-   cd backend && python manage.py runserver
+   cd backend && source venv/bin/activate && python manage.py runserver
    
    # Terminal 2: Celery worker (for document processing)
-   cd backend && celery -A knight_backend worker -l info
+   cd backend && source venv/bin/activate && celery -A knight_backend worker -l info
    
    # Terminal 3: Frontend development server
    cd frontend && npm start
@@ -589,7 +626,7 @@ curl -X POST http://localhost:8000/api/rag/search/ \
 
 ### Troubleshooting Common Issues
 
-**"No module named 'X'" errors**: Ensure you're in the correct directory and virtual environment is activated.
+**"No module named 'X'" errors**: Ensure you're in the correct directory (`/backend/`) and virtual environment is activated (`source venv/bin/activate`).
 
 **Celery tasks not processing**: Check Redis is running and Celery worker is started with correct app name.
 

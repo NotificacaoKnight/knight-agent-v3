@@ -323,7 +323,9 @@ class KnightChatService:
                 'search_results': len(search_results),
                 'response_time_ms': response_time,
                 'provider_used': llm_response['provider'],
-                'fallback_used': llm_response.get('fallback_used', False)
+                'fallback_used': llm_response.get('fallback_used', False),
+                'useful_links': final_result.get('useful_links', []),
+                'downloadable_documents': final_result.get('downloadable_documents', [])
             }
             
         except Exception as e:

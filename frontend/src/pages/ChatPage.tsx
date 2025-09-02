@@ -11,7 +11,11 @@ import {
   Loader2,
   Mic,
   Square,
-  Volume2
+  Volume2,
+  Link,
+  Download,
+  FileText,
+  ExternalLink
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { chatApi } from '../services/api';
@@ -31,6 +35,22 @@ interface Message {
   messageType?: 'text' | 'audio';
   audioDuration?: number;
   isProcessingTranscription?: boolean;
+  usefulLinks?: Array<{
+    id: number;
+    title: string;
+    url: string;
+    description?: string;
+    category: string;
+  }>;
+  downloadableDocuments?: Array<{
+    id: number;
+    title: string;
+    description?: string;
+    file_name: string;
+    file_type: string;
+    file_size: number;
+    category: string;
+  }>;
 }
 
 export const ChatPage: React.FC = () => {
@@ -328,6 +348,8 @@ export const ChatPage: React.FC = () => {
         type: 'assistant',
         content: response.message.content,
         timestamp: new Date(response.message.timestamp),
+        usefulLinks: response.useful_links,
+        downloadableDocuments: response.downloadable_documents,
       };
 
       setMessages(prev => [...prev, botMessage]);
@@ -558,9 +580,79 @@ export const ChatPage: React.FC = () => {
                           <p className="text-sm">{message.content}</p>
                         )
                       ) : (
-                        <div className="text-sm prose dark:prose-invert max-w-none">
-                          <ReactMarkdown>{message.content}</ReactMarkdown>
-                        </div>
+                        <>
+                          <div className="text-sm prose dark:prose-invert max-w-none">
+                            <ReactMarkdown>{message.content}</ReactMarkdown>
+                          </div>
+                          
+                          {/* Renderizar Links Úteis */}
+                          {message.usefulLinks && message.usefulLinks.length > 0 && (
+                            <div className="mt-4 space-y-2">
+                              <div className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
+                                <Link className="h-3 w-3" />
+                                <span>Links Úteis</span>
+                              </div>
+                              <div className="space-y-1">
+                                {message.usefulLinks.map((link) => (
+                                  <a
+                                    key={link.id}
+                                    href={link.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-2 p-2 text-xs rounded-lg bg-secondary/50 hover:bg-secondary transition-colors group"
+                                  >
+                                    <ExternalLink className="h-3 w-3 text-muted-foreground group-hover:text-primary" />
+                                    <div className="flex-1">
+                                      <div className="font-medium">{link.title}</div>
+                                      {link.description && (
+                                        <div className="text-muted-foreground line-clamp-1">{link.description}</div>
+                                      )}
+                                    </div>
+                                    <span className="text-[10px] px-1.5 py-0.5 bg-primary/10 text-primary rounded">
+                                      {link.category}
+                                    </span>
+                                  </a>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* Renderizar Documentos para Download */}
+                          {message.downloadableDocuments && message.downloadableDocuments.length > 0 && (
+                            <div className="mt-4 space-y-2">
+                              <div className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
+                                <FileText className="h-3 w-3" />
+                                <span>Documentos Disponíveis</span>
+                              </div>
+                              <div className="space-y-1">
+                                {message.downloadableDocuments.map((doc) => (
+                                  <button
+                                    key={doc.id}
+                                    onClick={() => {
+                                      // TODO: Implementar download
+                                      toast.success(`Download de ${doc.file_name} iniciado`);
+                                    }}
+                                    className="flex items-center gap-2 p-2 w-full text-xs rounded-lg bg-secondary/50 hover:bg-secondary transition-colors group text-left"
+                                  >
+                                    <Download className="h-3 w-3 text-muted-foreground group-hover:text-primary" />
+                                    <div className="flex-1">
+                                      <div className="font-medium">{doc.title}</div>
+                                      {doc.description && (
+                                        <div className="text-muted-foreground line-clamp-1">{doc.description}</div>
+                                      )}
+                                      <div className="text-[10px] text-muted-foreground">
+                                        {doc.file_name} • {(doc.file_size / 1024).toFixed(1)} KB
+                                      </div>
+                                    </div>
+                                    <span className="text-[10px] px-1.5 py-0.5 bg-primary/10 text-primary rounded">
+                                      {doc.file_type.toUpperCase()}
+                                    </span>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </>
                       )}
                     </div>
                   </div>
