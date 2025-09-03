@@ -14,6 +14,10 @@ class User(AbstractUser):
     department = models.CharField(max_length=100, blank=True)
     job_title = models.CharField(max_length=100, blank=True)
     is_admin = models.BooleanField(default=False, help_text="Designates whether the user has admin privileges")
+    
+    # Language preference field
+    preferred_language = models.CharField(max_length=10, blank=True, null=True, help_text="User's manually chosen language preference (e.g., pt-BR, en-US)")
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     

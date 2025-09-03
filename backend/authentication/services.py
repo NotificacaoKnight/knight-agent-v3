@@ -11,6 +11,7 @@ import base64
 # Configure secure logging
 logger = logging.getLogger(__name__)
 
+
 class MicrosoftAuthService:
     """Serviço para integração com Microsoft Azure AD"""
     
@@ -118,8 +119,9 @@ class MicrosoftAuthService:
         }
         
         try:
+            # Buscar informações básicas do usuário
             response = requests.get(
-                'https://graph.microsoft.com/v1.0/me',
+                'https://graph.microsoft.com/v1.0/me?$select=id,userPrincipalName,mail,displayName,givenName,surname,department,jobTitle',
                 headers=headers,
                 timeout=10  # Timeout de segurança
             )
@@ -139,6 +141,7 @@ class MicrosoftAuthService:
             for field in required_fields:
                 if not user_data.get(field):
                     raise ValidationError(f"Campo obrigatório ausente: {field}")
+            
             
             return user_data
             

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Trash2, AlertTriangle, X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 interface DeleteChatModalProps {
   isOpen: boolean;
@@ -16,6 +17,8 @@ export function DeleteChatModal({
   onConfirm,
   onCancel
 }: DeleteChatModalProps) {
+  const { t } = useTranslation();
+  
   if (!isOpen) return null;
 
   return (
@@ -35,7 +38,7 @@ export function DeleteChatModal({
               <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />
             </div>
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-              Excluir conversa
+              {t('deleteModal.delete_conversation')}
             </h2>
           </div>
           <button
@@ -50,11 +53,10 @@ export function DeleteChatModal({
         {/* Content */}
         <div className="p-6">
           <p className="text-gray-600 dark:text-gray-300">
-            Tem certeza de que deseja excluir a conversa{' '}
-            <span className="font-medium text-gray-900 dark:text-gray-100">"{chatTitle}"</span>?
+            {t('deleteModal.confirm_delete_conversation', { title: chatTitle })}
           </p>
           <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-            Esta ação não pode ser desfeita e todas as mensagens serão permanentemente removidas.
+            {t('deleteModal.permanent_action_warning')}
           </p>
         </div>
 
@@ -65,7 +67,7 @@ export function DeleteChatModal({
             disabled={isDeleting}
             className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Cancelar
+            {t('common.cancel')}
           </button>
           <button
             onClick={onConfirm}
@@ -75,12 +77,12 @@ export function DeleteChatModal({
             {isDeleting ? (
               <>
                 <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-                Excluindo...
+                {t('deleteModal.deleting')}
               </>
             ) : (
               <>
                 <Trash2 className="w-4 h-4" />
-                Excluir conversa
+                {t('deleteModal.delete_conversation_button')}
               </>
             )}
           </button>

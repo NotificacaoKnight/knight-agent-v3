@@ -7,6 +7,7 @@ import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { ChatProvider } from './context/ChatContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { LanguageInitializer } from './components/LanguageInitializer';
 import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { ChatPage } from './pages/ChatPage';
@@ -14,6 +15,9 @@ import { SettingsPage } from './pages/SettingsPage';
 import { DocumentsPage } from './pages/DocumentsPage';
 import BardPage from './pages/BardPage';
 import WizardPage from './pages/WizardPage';
+
+// Initialize i18n
+import './i18n';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -34,6 +38,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <AuthProvider>
+          <LanguageInitializer />
           <ChatProvider>
             <Router>
             <div className="min-h-screen bg-background">

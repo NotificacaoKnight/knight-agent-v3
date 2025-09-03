@@ -145,6 +145,7 @@ def microsoft_token_login(request):
         # Extrair email do usuário
         user_email = user_info.get('mail', user_info.get('userPrincipalName', ''))
         
+        
         # Verificar se deve ser admin
         should_be_admin = is_admin_email(user_email)
         
@@ -201,18 +202,34 @@ def microsoft_token_login(request):
                     department=user_info.get('department', '')[:100],
                     job_title=user_info.get('jobTitle', '')[:100],
                     is_admin=should_be_admin,
+                    # Set default language to English
+                    preferred_language='en-US',
                 )
                 created = True
                 logger.info(f"Novo usuário criado com ID: {user.id}")
             
-            # Para usuários existentes, atualizar status de admin se necessário
-            if not created and user.is_admin != should_be_admin:
-                old_status = user.is_admin
-                user.is_admin = should_be_admin
-                user.save(update_fields=['is_admin'])
-                SecurityAuditLogger.log_admin_privilege_change(
-                    user.id, old_status, should_be_admin, 'system_auto'
-                )
+            # Para usuários existentes, atualizar informações quando necessário
+            if not created:
+                fields_to_update = []
+                
+                # Atualizar status admin se necessário
+                if user.is_admin != should_be_admin:
+                    old_status = user.is_admin
+                    user.is_admin = should_be_admin
+                    fields_to_update.append('is_admin')
+                    SecurityAuditLogger.log_admin_privilege_change(
+                        user.id, old_status, should_be_admin, 'system_auto'
+                    )
+                
+                # Se o usuário não tem idioma preferido, definir inglês como padrão
+                if not user.preferred_language:
+                    user.preferred_language = 'en-US'
+                    fields_to_update.append('preferred_language')
+                
+                # Salvar apenas os campos que mudaram
+                if fields_to_update:
+                    user.save(update_fields=fields_to_update)
+                    logger.info(f"Usuário {user.email} atualizado - campos: {fields_to_update}")
         
             # Buscar e salvar foto do perfil (tanto para novos usuários quanto existentes)
             try:
@@ -368,3 +385,37 @@ def me(request):
             'authenticated': False,
             'user': None
         })
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def update_language_preference(request):
+    """Update user's language preference"""
+    try:
+        language = request.data.get('language')
+        
+        if not language:
+            return Response({'error': 'Language is required'}, 
+                           status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validate language code
+        valid_languages = ['en-US', 'pt-BR', 'es-ES', 'sv-SE']
+        if language not in valid_languages:
+            return Response({'error': 'Invalid language code'}, 
+                           status=status.HTTP_400_BAD_REQUEST)
+        
+        # Update user's preferred language
+        request.user.preferred_language = language
+        request.user.save(update_fields=['preferred_language'])
+        
+        logger.info(f"Language preference updated for user {request.user.email}: {language}")
+        
+        return Response({
+            'success': True,
+            'message': 'Language preference updated successfully',
+            'language': language
+        })
+        
+    except Exception as e:
+        logger.error(f"Error updating language preference: {type(e).__name__}: {str(e)}")
+        return Response({'error': 'Failed to update language preference'}, 
+                       status=status.HTTP_500_INTERNAL_SERVER_ERROR)

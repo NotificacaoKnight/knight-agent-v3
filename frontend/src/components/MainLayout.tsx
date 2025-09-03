@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { ThemeToggle } from './ThemeToggle';
 import { UserAvatar } from './UserAvatar';
+import { ThemeToggle } from './ThemeToggle';
 import { chatApi } from '../services/api';
 import { useChatContext } from '../context/ChatContext';
 import { toast as sonnerToast } from 'sonner';
@@ -460,7 +460,6 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, title, subtitl
           </div>
 
           <div className="flex items-center space-x-4">
-            
             {/* Right sidebar toggle */}
             <button
               onClick={() => setRightSidebarOpen(!rightSidebarOpen)}

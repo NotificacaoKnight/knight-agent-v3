@@ -1,0 +1,29 @@
+{
+  "messages": {
+    "authentication_required": "Authentication required",
+    "invalid_credentials": "Invalid credentials",
+    "access_denied": "Access denied",
+    "resource_not_found": "Resource not found",
+    "operation_successful": "Operation completed successfully",
+    "data_saved": "Data saved successfully",
+    "data_updated": "Data updated successfully",
+    "data_deleted": "Data deleted successfully",
+    "invalid_request": "Invalid request",
+    "server_error": "Internal server error",
+    "validation_failed": "Validation failed",
+    "field_required": "This field is required",
+    "invalid_format": "Invalid format",
+    "file_too_large": "File is too large",
+    "file_uploaded": "File uploaded successfully",
+    "file_processed": "File processed successfully",
+    "search_completed": "Search completed",
+    "no_results": "No results found",
+    "results_found": "{{count}} results found",
+    "processing": "Processing...",
+    "please_wait": "Please wait",
+    "operation_cancelled": "Operation cancelled",
+    "session_expired": "Session expired",
+    "language_changed": "Language changed successfully",
+    "settings_saved": "Settings saved successfully"
+  }
+}
