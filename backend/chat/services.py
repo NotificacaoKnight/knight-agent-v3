@@ -13,6 +13,7 @@ from rag.consolidated_multi_agent import consolidated_multi_agent_service
 from .models import ChatSession, ChatMessage, DocumentRequest
 from .audio_transcription import GeminiAudioTranscriptionService
 from .access_count_config import AccessCountConfig
+from .agent_detector import agent_detector
 
 class KnightChatService:
     """Serviço principal do agente Knight"""
@@ -210,45 +211,70 @@ class KnightChatService:
                 transcription=transcription if content_type == 'audio' else ''
             )
             
-            # Verificar se é solicitação de documento
-            document_request = self._detect_document_request(user_message)
             
-            if document_request:
-                return self._handle_document_request(
-                    user_message, 
-                    session, 
-                    user_msg, 
-                    document_request
+            
+            # 🎯 SISTEMA MULTI-AGENTE
+            target_agent, transition_reason = agent_detector.detect_appropriate_agent(user_message)
+            
+            if target_agent != "knight" and transition_reason:
+                # Knight faz a introdução
+                handoff_message = agent_detector.generate_handoff_message(target_agent, transition_reason)
+                
+                knight_msg = ChatMessage.objects.create(
+                    session=session,
+                    message_type='assistant',
+                    content=handoff_message,
+                    agent_type='knight',
+                    is_handoff=True,
+                    llm_provider='handoff',
+                    response_time_ms=50  # Resposta instantânea
                 )
-            
-            # Usar sistema CONSOLIDADO (velocidade + qualidade adaptativa)
-            multi_agent_result = consolidated_multi_agent_service.process_query(
-                query=user_message,
-                user=session.user,
-                user_profile={
-                    'name': session.user.username if hasattr(session.user, 'username') else 'Usuário',
-                    'session_id': str(session.id)
-                }
-            )
-            
-            # Fallback para sistema agentic tradicional se multi-agent falhar
-            if not multi_agent_result.get('response') or 'erro' in multi_agent_result.get('response', '').lower():
-                print("🔄 CHAT: Multi-agent falhou, usando fallback agentic")
-                agentic_result = self.agentic_service.search(
-                    query=user_message,
-                    k=self.max_context_chunks,
-                    user=session.user
+                
+                # Processar com agente específico
+                agent_result = self._process_with_agent(user_message, target_agent, session.user)
+                
+                # Salvar resposta do agente específico
+                agent_msg = ChatMessage.objects.create(
+                    session=session,
+                    message_type='assistant',
+                    content=agent_result.get('response', 'Erro no processamento'),
+                    agent_type=target_agent,
+                    llm_provider=agent_result.get('metadata', {}).get('provider_used', 'unknown'),
+                    response_time_ms=agent_result.get('metadata', {}).get('total_duration_ms', 0),
+                    context_used=agent_result.get('search_results', [])[:5]  # Top 5 contextos
                 )
-                # Usar resultado do fallback
-                final_result = agentic_result
-            else:
-                # Usar resultado multi-agent
-                final_result = {
-                    'response': multi_agent_result.get('response', ''),
-                    'search_results': multi_agent_result.get('search_results', []),
-                    'metadata': multi_agent_result.get('metadata', {}),
-                    'agent_used': multi_agent_result.get('agent_used', 'knight')
+                
+                # Incrementar contador para documentos usados
+                if agent_result.get('search_results'):
+                    self._increment_document_access_count(agent_result['search_results'])
+                
+                # Atualizar metadados da sessão (3 mensagens: user + handoff + agent)
+                self._update_session_metadata(session, user_message, message_count=3)
+                
+                # Resposta multi-agente
+                return {
+                    'success': True,
+                    'response': agent_result.get('response', 'Erro no processamento'),
+                    'message_id': agent_msg.id,
+                    'handoff_message_id': knight_msg.id,
+                    'user_message_data': {
+                        'id': str(user_msg.id),
+                        'type': 'user',
+                        'content': user_message,
+                        'timestamp': user_msg.created_at.isoformat()
+                    },
+                    'context_used': len(agent_result.get('search_results', [])),
+                    'response_time_ms': int((time.time() - start_time) * 1000),
+                    'useful_links': agent_result.get('useful_links', []),
+                    'downloadable_documents': agent_result.get('downloadable_documents', []),
+                    'agent_type': target_agent,
+                    'is_multi_agent': True,
+                    'handoff_message': handoff_message
                 }
+            
+            # 🛡️ PROCESSAMENTO TRADICIONAL COM KNIGHT
+            knight_result = self._process_with_agent(user_message, 'knight', session.user)
+            final_result = knight_result
             
             # Incrementar contador de acesso dos documentos consultados
             search_results = final_result.get('search_results', [])
@@ -286,6 +312,7 @@ class KnightChatService:
                 session=session,
                 message_type='assistant',
                 content=llm_response['response'],
+                agent_type=llm_response.get('agent_used', 'knight'),
                 context_used=context_metadata,
                 search_query_id=search_query.id if search_query else None,
                 llm_provider=llm_response['provider'],
@@ -293,15 +320,8 @@ class KnightChatService:
                 response_time_ms=response_time
             )
             
-            # Atualizar sessão
-            session.message_count += 2  # user + assistant
-            session.last_message_at = datetime.now()
-            if not session.title:
-                session.title = self._generate_session_title(user_message)
-            session.save()
-            
-            # Limpar sessões antigas quando uma sessão existente é atualizada
-            self._cleanup_old_sessions(session.user)
+            # Atualizar metadados da sessão
+            self._update_session_metadata(session, user_message, message_count=2)
             
             # Preparar dados da mensagem do usuário para retornar ao frontend
             user_message_data = {
@@ -325,7 +345,8 @@ class KnightChatService:
                 'provider_used': llm_response['provider'],
                 'fallback_used': llm_response.get('fallback_used', False),
                 'useful_links': final_result.get('useful_links', []),
-                'downloadable_documents': final_result.get('downloadable_documents', [])
+                'downloadable_documents': final_result.get('downloadable_documents', []),
+                'agent_type': llm_response.get('agent_used', 'knight')
             }
             
         except Exception as e:
@@ -336,118 +357,76 @@ class KnightChatService:
                 'response_time_ms': int((time.time() - start_time) * 1000)
             }
     
-    def _detect_document_request(self, message: str) -> Optional[str]:
-        """Detecta se a mensagem é uma solicitação de documento"""
-        message_lower = message.lower()
+    def _process_with_agent(self, query: str, agent_type: str, user: Any) -> Dict[str, Any]:
+        """Processa query com agente específico"""
+        import logging
+        import traceback
         
-        # Palavras-chave que indicam solicitação de documento
-        document_keywords = [
-            'baixar', 'download', 'enviar', 'mandar', 'preciso do',
-            'me mande', 'pode enviar', 'formulário', 'documento',
-            'arquivo', 'modelo', 'template'
-        ]
+        logger = logging.getLogger(__name__)
         
-        if any(keyword in message_lower for keyword in document_keywords):
-            return message
-        
-        return None
+        try:
+            if agent_type == 'knight':
+                # Usar sistema agentic para Knight
+                logger.info(f"Processing with Knight agent for query: {query[:50]}...")
+                return self.agentic_service.search(
+                    query=query,
+                    k=self.max_context_chunks,
+                    user=user
+                )
+            else:
+                # Usar consolidated multi-agent para Wizard e Bard
+                logger.info(f"Processing with {agent_type} agent for query: {query[:50]}...")
+                
+                result = consolidated_multi_agent_service.process_query(
+                    query=query,
+                    user=user,
+                    user_profile={
+                        'name': getattr(user, 'username', 'Usuário') if user else 'Usuário',
+                        'preferred_agent': agent_type
+                    },
+                    force_mode=agent_type  # Forçar agente específico
+                )
+                
+                # Garantir estrutura de resposta completa
+                if not result.get('useful_links'):
+                    result['useful_links'] = []
+                if not result.get('downloadable_documents'):
+                    result['downloadable_documents'] = []
+                    
+                logger.info(f"Successfully processed with {agent_type} agent")
+                return result
+                
+        except Exception as e:
+            logger.error(f"Error processing with {agent_type} agent: {str(e)}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            
+            # Fallback mockado para testes
+            if agent_type == 'wizard':
+                return {
+                    'response': f"🧙 Olá! Sou o Wizard, especialista em capacitação. Vi que você está interessado em cursos! Posso sugerir:\n\n• Trilha de Desenvolvimento de Liderança\n• Curso de Comunicação Assertiva\n• Workshop de Gestão do Tempo\n• Programa de Mentoria Profissional\n\nQual área mais te interessa desenvolver?",
+                    'search_results': [],
+                    'metadata': {'provider_used': 'fallback_mock', 'total_duration_ms': 100},
+                    'useful_links': [],
+                    'downloadable_documents': []
+                }
+            elif agent_type == 'bard':
+                return {
+                    'response': f"🎭 Olá! Sou o Bard, especialista em análise de dados. Posso ajudar com:\n\n• Análise de métricas de performance\n• Criação de dashboards personalizados\n• Relatórios de indicadores (KPIs)\n• Insights baseados em dados\n\nQue tipo de análise você precisa?",
+                    'search_results': [],
+                    'metadata': {'provider_used': 'fallback_mock', 'total_duration_ms': 100},
+                    'useful_links': [],
+                    'downloadable_documents': []
+                }
+            else:
+                return {
+                    'response': f"Desculpe, ocorreu um erro ao processar com o agente {agent_type}. Erro: {str(e)}",
+                    'search_results': [],
+                    'metadata': {'provider_used': 'error', 'total_duration_ms': 0},
+                    'useful_links': [],
+                    'downloadable_documents': []
+                }
     
-    def _handle_document_request(
-        self, 
-        user_message: str, 
-        session: ChatSession,
-        user_msg: ChatMessage,
-        document_request: str
-    ) -> Dict[str, Any]:
-        """Lida com solicitações de documentos"""
-        
-        # Buscar documentos baixáveis relacionados
-        search_results, _ = self.search_service.search(
-            document_request,
-            k=5,
-            user=session.user
-        )
-        
-        # Filtrar apenas documentos baixáveis
-        downloadable_docs = []
-        for result in search_results:
-            try:
-                document = Document.objects.get(
-                    id=result['document_id'],
-                    is_downloadable=True,
-                    is_active=True
-                )
-                downloadable_docs.append({
-                    'id': document.id,
-                    'title': document.title,
-                    'filename': document.original_filename,
-                    'score': result['combined_score']
-                })
-            except Document.DoesNotExist:
-                continue
-        
-        # Gerar resposta
-        if downloadable_docs:
-            # Criar requisições de documento
-            for doc in downloadable_docs[:3]:  # Máximo 3 documentos
-                DocumentRequest.objects.create(
-                    session=session,
-                    message=user_msg,
-                    document_name=doc['title'],
-                    document_id=doc['id'],
-                    status='found'
-                )
-            
-            doc_list = "\n".join([
-                f"• {doc['title']} ({doc['filename']})"
-                for doc in downloadable_docs[:3]
-            ])
-            
-            response = (
-                f"Encontrei os seguintes documentos relacionados à sua solicitação:\n\n"
-                f"{doc_list}\n\n"
-                f"Você pode baixá-los na seção de Downloads. "
-                f"Se não encontrou o que procura, entre em contato com o RH."
-            )
-        else:
-            # Nenhum documento encontrado
-            DocumentRequest.objects.create(
-                session=session,
-                message=user_msg,
-                document_name=document_request,
-                status='not_found'
-            )
-            
-            response = (
-                "Não encontrei documentos baixáveis relacionados à sua solicitação. "
-                "Entre em contato com o RH para obter os documentos necessários."
-            )
-        
-        # Salvar resposta
-        assistant_msg = ChatMessage.objects.create(
-            session=session,
-            message_type='assistant',
-            content=response,
-            llm_provider='document_search'
-        )
-        
-        # Atualizar sessão
-        session.message_count += 2
-        session.last_message_at = datetime.now()
-        if not session.title:
-            session.title = "Solicitação de Documentos"
-        session.save()
-        
-        # Limpar sessões antigas
-        self._cleanup_old_sessions(session.user)
-        
-        return {
-            'success': True,
-            'response': response,
-            'message_id': assistant_msg.id,
-            'documents_found': len(downloadable_docs),
-            'document_request': True
-        }
+    
     
     def _handle_llm_error(self, session: ChatSession, user_msg: ChatMessage, error: str) -> Dict[str, Any]:
         """Lida com erros do LLM"""
@@ -465,12 +444,8 @@ class KnightChatService:
             llm_provider='error_handler'
         )
         
-        session.message_count += 2
-        session.last_message_at = datetime.now()
-        session.save()
-        
-        # Limpar sessões antigas
-        self._cleanup_old_sessions(session.user)
+        # Atualizar metadados da sessão
+        self._update_session_metadata(session, user_message, message_count=2)
         
         return {
             'success': False,
@@ -478,6 +453,17 @@ class KnightChatService:
             'message_id': assistant_msg.id,
             'error': error
         }
+    
+    def _update_session_metadata(self, session: ChatSession, user_message: str, message_count: int = 2):
+        """Atualiza metadados da sessão (título, contagem, timestamp)"""
+        session.message_count += message_count
+        session.last_message_at = datetime.now()
+        if not session.title:
+            session.title = self._generate_session_title(user_message)
+        session.save()
+        
+        # Limpar sessões antigas quando uma sessão existente é atualizada
+        self._cleanup_old_sessions(session.user)
     
     def _generate_session_title(self, first_message: str) -> str:
         """Gera título para a sessão baseado na primeira mensagem"""
@@ -506,7 +492,9 @@ class KnightChatService:
                     'audio_file': message.audio_file.url if message.audio_file else None,
                     'context_used': len(message.context_used) if message.context_used else 0,
                     'provider': message.llm_provider,
-                    'response_time_ms': message.response_time_ms
+                    'response_time_ms': message.response_time_ms,
+                    'agent_type': message.agent_type,
+                    'agent_emoji': self._get_agent_emoji(message.agent_type)
                 })
             
             return history
@@ -582,6 +570,15 @@ class KnightChatService:
                 # Limpar referência do arquivo na mensagem
                 message.audio_file = None
                 message.save()
+    
+    def _get_agent_emoji(self, agent_type: str) -> str:
+        """Retorna emoji correspondente ao tipo de agente"""
+        emojis = {
+            "knight": "⚔️",
+            "wizard": "🪄", 
+            "bard": "🎭"
+        }
+        return emojis.get(agent_type, "🤖")
     
     def get_user_sessions(self, user, limit: int = 10) -> List[Dict[str, Any]]:
         """Lista sessões do usuário (limitado às 10 mais recentes)"""

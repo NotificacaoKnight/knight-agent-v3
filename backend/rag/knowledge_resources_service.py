@@ -5,12 +5,12 @@ import os
 import re
 from typing import List, Dict, Any, Optional
 from django.db.models import Q, F
-from sentence_transformers import SentenceTransformer
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 import logging
 
 from knowledge_resources.models import UsefulLink, DownloadableDocument, ResourceUsage
+from .model_cache import get_cached_model
 
 logger = logging.getLogger(__name__)
 
@@ -28,12 +28,15 @@ class KnowledgeResourcesService:
         self.max_documents_per_response = 2
     
     def _load_embedding_model(self):
-        """Carrega modelo de embedding (mesmo usado no RAG principal)"""
+        """Carrega modelo de embedding usando cache global thread-safe"""
         try:
             from django.conf import settings
             model_name = getattr(settings, 'EMBEDDING_MODEL', 'BAAI/bge-m3')
-            self.embedding_model = SentenceTransformer(model_name, device='cpu')
-            logger.info(f"Modelo de embedding carregado: {model_name}")
+            self.embedding_model = get_cached_model(model_name, device='cpu')
+            if self.embedding_model is not None:
+                logger.info(f"Modelo de embedding obtido do cache: {model_name}")
+            else:
+                logger.warning(f"Modelo de embedding não disponível: {model_name}")
         except Exception as e:
             logger.error(f"Erro ao carregar modelo de embedding: {e}")
             self.embedding_model = None
@@ -61,9 +64,18 @@ class KnowledgeResourcesService:
             if context:
                 search_text = f"{query} {context}"
             
+            logger.info(f"Buscando recursos para query: '{query[:50]}...'")
+            
             # Buscar recursos relevantes
             relevant_links = self._find_relevant_links(search_text)
             relevant_documents = self._find_relevant_documents(search_text)
+            
+            logger.info(f"Encontrados: {len(relevant_links)} links, {len(relevant_documents)} documentos")
+            
+            # Log detalhado dos documentos encontrados
+            if relevant_documents:
+                for doc in relevant_documents:
+                    logger.info(f"Documento encontrado: {doc.get('title', 'N/A')} (ID: {doc.get('id', 'N/A')})")
             
             return {
                 'useful_links': relevant_links,
@@ -120,8 +132,10 @@ class KnowledgeResourcesService:
         try:
             # Buscar documentos ativos
             active_docs = DownloadableDocument.objects.filter(is_active=True)
+            logger.info(f"Total de documentos ativos disponíveis: {active_docs.count()}")
             
             if not active_docs.exists():
+                logger.warning("Nenhum documento ativo encontrado na base")
                 return []
             
             relevant_docs = []

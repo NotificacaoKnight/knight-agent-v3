@@ -263,13 +263,12 @@ class CohereProvider(LLMProvider):
                     model=self.model,
                     max_tokens=max_tokens,
                     temperature=temperature,
-                    preamble="Você é o Knight, um assistente IA interno da empresa. "
-                            "Responda sempre em português brasileiro de forma clara e útil. "
-                            "Use apenas as informações fornecidas nos documentos para responder. "
-                            "Se não souber a resposta, diga que não tem informações suficientes "
-                            "e sugira entrar em contato com o RH. "
-                            "Quando houver LINKS ÚTEIS ou DOCUMENTOS PARA DOWNLOAD disponíveis no contexto, "
-                            "mencione-os na sua resposta quando forem relevantes para ajudar o usuário."
+                    preamble="Você é o Knight, assistente de RH da empresa. "
+                            "Responda em português de forma clara e natural. "
+                            "Use as informações dos documentos fornecidos. "
+                            "Quando tiver documentos ou links relevantes disponíveis, mencione-os na resposta. "
+                            "Se tiver acesso a documentos para download, informe que estão disponíveis. "
+                            "Seja consistente: se documentos estão sendo retornados, você TEM acesso a eles."
                 )
                 
                 return {
@@ -517,13 +516,13 @@ class DeepSeekProvider(LLMProvider):
                 }
             
             system_prompt = (
-                "Você é o Knight, um assistente IA interno da empresa. "
-                "Responda sempre em português brasileiro de forma clara e útil. "
-                "Use apenas as informações fornecidas no contexto para responder. "
-                "Se não souber a resposta baseada no contexto fornecido, diga que não tem informações suficientes "
-                "e sugira entrar em contato com o RH ou a pessoa responsável. "
-                "Quando houver LINKS ÚTEIS ou DOCUMENTOS PARA DOWNLOAD disponíveis no contexto, "
-                "mencione-os na sua resposta quando forem relevantes para ajudar o usuário."
+                "Você é o Knight, assistente de RH da empresa. "
+                "Responda em português brasileiro de forma clara e direta. "
+                "Use as informações do contexto fornecido. "
+                "Quando tiver documentos ou links relevantes disponíveis, mencione-os na resposta. "
+                "Se tiver acesso a documentos para download, informe que estão disponíveis. "
+                "Seja consistente: se documentos estão sendo retornados, você TEM acesso a eles. "
+                "Seja natural e conversacional."
             )
             
             messages = [{"role": "system", "content": system_prompt}]
@@ -635,13 +634,13 @@ class OpenAIProvider(LLMProvider):
                 }
             
             system_prompt = (
-                "Você é o Knight, um assistente IA interno da empresa. "
-                "Responda sempre em português brasileiro de forma clara e útil. "
-                "Use apenas as informações fornecidas no contexto para responder. "
-                "Se não souber a resposta baseada no contexto fornecido, diga que não tem informações suficientes "
-                "e sugira entrar em contato com o RH ou a pessoa responsável. "
-                "Quando houver LINKS ÚTEIS ou DOCUMENTOS PARA DOWNLOAD disponíveis no contexto, "
-                "mencione-os na sua resposta quando forem relevantes para ajudar o usuário."
+                "Você é o Knight, assistente de RH da empresa. "
+                "Responda em português brasileiro de forma clara e direta. "
+                "Use as informações do contexto fornecido. "
+                "Quando tiver documentos ou links relevantes disponíveis, mencione-os na resposta. "
+                "Se tiver acesso a documentos para download, informe que estão disponíveis. "
+                "Seja consistente: se documentos estão sendo retornados, você TEM acesso a eles. "
+                "Seja natural e conversacional."
             )
             
             messages = [{"role": "system", "content": system_prompt}]
@@ -747,13 +746,13 @@ class GeminiProvider(LLMProvider):
                 }
             
             system_prompt = (
-                "Você é o Knight, um assistente IA interno da empresa. "
-                "Responda sempre em português brasileiro de forma clara e útil. "
-                "Use apenas as informações fornecidas no contexto para responder. "
-                "Se não souber a resposta baseada no contexto fornecido, diga que não tem informações suficientes "
-                "e sugira entrar em contato com o RH ou a pessoa responsável. "
-                "Quando houver LINKS ÚTEIS ou DOCUMENTOS PARA DOWNLOAD disponíveis no contexto, "
-                "mencione-os na sua resposta quando forem relevantes para ajudar o usuário."
+                "Você é o Knight, assistente de RH da empresa. "
+                "Responda em português brasileiro de forma clara e direta. "
+                "Use as informações do contexto fornecido. "
+                "Quando tiver documentos ou links relevantes disponíveis, mencione-os na resposta. "
+                "Se tiver acesso a documentos para download, informe que estão disponíveis. "
+                "Seja consistente: se documentos estão sendo retornados, você TEM acesso a eles. "
+                "Seja natural e conversacional."
             )
             
             if context:
@@ -999,6 +998,71 @@ class LLMManager:
         self.clear_cache()
         with self._lock:
             self._initialized = False
+    
+    def get_dynamic_parameters(self, query_analysis: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Determina parâmetros dinâmicos baseados na análise da query"""
+        
+        query_analysis = query_analysis or {}
+        complexity = query_analysis.get('complexity_score', 0.5)
+        urgency = query_analysis.get('urgency_level', 'normal')
+        creativity_needed = query_analysis.get('needs_creativity', False)
+        
+        # Temperatura baseada na complexidade e criatividade
+        if creativity_needed or 'analis' in str(query_analysis.get('query', '')).lower():
+            temperature = 0.8
+        elif urgency in ['high', 'critical']:
+            temperature = 0.4  # Mais determinístico para urgências
+        elif complexity > 0.7:
+            temperature = 0.7
+        else:
+            temperature = 0.6
+        
+        # Max tokens baseado na complexidade
+        if urgency in ['high', 'critical']:
+            max_tokens = 300
+        elif complexity > 0.7:
+            max_tokens = 800
+        elif complexity < 0.3:
+            max_tokens = 400
+        else:
+            max_tokens = 600
+            
+        # Top-p para controlar diversidade
+        top_p = 0.9 if creativity_needed else 0.8
+        
+        # Penalidades para evitar repetição
+        frequency_penalty = 0.3 if creativity_needed else 0.1
+        presence_penalty = 0.2 if creativity_needed else 0.1
+        
+        return {
+            'temperature': temperature,
+            'max_tokens': max_tokens,
+            'top_p': top_p,
+            'frequency_penalty': frequency_penalty,
+            'presence_penalty': presence_penalty
+        }
+    
+    def generate_natural_response(
+        self,
+        prompt: str,
+        context: List[str] = None,
+        query_analysis: Dict[str, Any] = None,
+        **override_params
+    ) -> Dict[str, Any]:
+        """Gera resposta com parâmetros dinâmicos naturais"""
+        
+        # Obter parâmetros dinâmicos
+        dynamic_params = self.get_dynamic_parameters(query_analysis)
+        
+        # Aplicar overrides se fornecidos
+        dynamic_params.update(override_params)
+        
+        # Usar método generate_response existente com parâmetros dinâmicos
+        return self.generate_response(
+            prompt=prompt,
+            context=context,
+            **dynamic_params
+        )
 
 
 # Função global para obter instância singleton do LLMManager

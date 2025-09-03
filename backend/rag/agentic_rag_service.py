@@ -77,40 +77,31 @@ class AgenticRAGService:
         self.graph = self._create_graph()
     
     def _create_graph(self) -> StateGraph:
-        """Cria o grafo de estados LangGraph"""
+        """Cria o grafo de estados LangGraph simplificado"""
         workflow = StateGraph(AgenticRAGState)
         
-        # Adicionar nós
-        workflow.add_node("planner", self._planning_node)
+        # Apenas nós essenciais
         workflow.add_node("searcher", self._search_node)
         workflow.add_node("quality_checker", self._quality_check_node)
         workflow.add_node("query_refiner", self._query_refinement_node)
-        workflow.add_node("resources_finder", self._resources_finder_node)
-        workflow.add_node("context_manager", self._context_management_node)
         workflow.add_node("generator", self._generation_node)
-        workflow.add_node("validator", self._validation_node)
-        workflow.add_node("finalizer", self._finalization_node)
         
-        # Fluxo principal
-        workflow.add_edge(START, "planner")
-        workflow.add_edge("planner", "searcher")
+        # Fluxo simplificado
+        workflow.add_edge(START, "searcher")
         workflow.add_edge("searcher", "quality_checker")
         
-        # Roteamento condicional após quality check (simplificado)
+        # Roteamento condicional simplificado
         workflow.add_conditional_edges(
             "quality_checker",
             self._quality_routing_logic,
             {
                 "refine": "query_refiner",
-                "generate": "resources_finder"  # Primeiro buscar recursos
+                "generate": "generator"
             }
         )
         
         workflow.add_edge("query_refiner", "searcher")
-        workflow.add_edge("resources_finder", "generator")  # Recursos -> Geração
-        workflow.add_edge("generator", "finalizer")  # Direto para finalizer, sem validação
-        
-        workflow.add_edge("finalizer", END)
+        workflow.add_edge("generator", END)
         
         return workflow.compile()
     
@@ -193,13 +184,11 @@ class AgenticRAGService:
         # Avaliar qualidade dos resultados
         quality_score = self._evaluate_search_quality(search_results, query)
         
-        # Simplificado: sempre gerar resposta se temos resultados
-        if len(search_results) > 0:
-            next_action = "generate"  # Gerar resposta diretamente
-        elif search_attempts < self.search_config['max_attempts']:
-            next_action = "refine"  # Refinar query apenas se não temos resultados
+        # Lógica simplificada: sempre gerar se temos resultados ou se já tentamos muito
+        if len(search_results) > 0 or search_attempts >= self.search_config['max_attempts']:
+            next_action = "generate"
         else:
-            next_action = "generate"  # Gerar resposta mesmo sem resultados perfeitos
+            next_action = "refine"
         
         return {
             "search_quality_score": quality_score,
@@ -296,49 +285,94 @@ class AgenticRAGService:
             }
     
     def _generation_node(self, state: AgenticRAGState) -> Dict[str, Any]:
-        """Nó de geração de resposta"""
+        """Nó de geração de resposta simplificado"""
         query = state["query"]
         search_results = state.get("search_results", [])
-        useful_links = state.get("useful_links", [])
-        downloadable_documents = state.get("downloadable_documents", [])
         
         # Extrair conteúdo dos resultados da busca
         retrieved_docs = [result.get("content", "") for result in search_results[:5]]
         
-        # Adicionar recursos ao contexto se disponíveis
-        resources_context = ""
-        if useful_links or downloadable_documents:
-            resources_dict = {
-                "useful_links": useful_links,
-                "downloadable_documents": downloadable_documents
-            }
-            resources_context = self.knowledge_resources.format_resources_for_llm(resources_dict)
-            
-            # Adicionar ao contexto
-            if resources_context:
-                retrieved_docs.append(resources_context)
+        # Buscar recursos de conhecimento se necessário
+        useful_links = []
+        downloadable_documents = []
+        try:
+            if search_results:  # Só buscar recursos se temos resultados da busca
+                context = " ".join([r.get("content", "")[:200] for r in search_results[:3]])
+                resources = self.knowledge_resources.find_relevant_resources(
+                    query=query,
+                    context=context
+                )
+                useful_links = resources.get("useful_links", [])
+                downloadable_documents = resources.get("downloadable_documents", [])
+                
+                # Adicionar recursos ao contexto se disponíveis
+                if useful_links or downloadable_documents:
+                    resources_context = self.knowledge_resources.format_resources_for_llm(resources)
+                    if resources_context:
+                        retrieved_docs.append(resources_context)
+        except Exception as e:
+            print(f"Erro ao buscar recursos: {e}")
         
-        # Gerar resposta usando LLM com contexto enriquecido
+        # Gerar resposta usando o LLM manager padrão
         llm_response = self.llm_manager.generate_response(
             prompt=query,
             context=retrieved_docs,
-            max_tokens=self.generation_config['max_tokens'],
-            temperature=self.generation_config['temperature']
+            max_tokens=800,
+            temperature=0.7
         )
         
         if llm_response["success"]:
             return {
                 "final_response": llm_response["response"],
                 "provider_used": llm_response["provider"],
-                "next_action": "validate"
-            }
-        else:
-            # Erro na geração
-            return {
-                "final_response": "Desculpe, não foi possível gerar uma resposta no momento. Tente novamente.",
-                "provider_used": "error",
+                "useful_links": useful_links,
+                "downloadable_documents": downloadable_documents,
                 "next_action": "finalize"
             }
+        else:
+            # Resposta de erro simples
+            return {
+                "final_response": "Desculpe, não consegui processar sua pergunta no momento. Tente novamente.",
+                "provider_used": "error",
+                "useful_links": [],
+                "downloadable_documents": [],
+                "next_action": "finalize"
+            }
+    
+    def _extract_actions_from_context(self, context: str) -> List[str]:
+        """Extrai ações sugeridas do contexto"""
+        if not context:
+            return []
+            
+        import re
+        action_patterns = [
+            r'deve[m]?\s+([^.!?]+)',
+            r'é\s+necessário\s+([^.!?]+)',
+            r'procure\s+([^.!?]+)',
+            r'contate\s+([^.!?]+)'
+        ]
+        
+        actions = []
+        for pattern in action_patterns:
+            matches = re.findall(pattern, context.lower())
+            actions.extend(matches[:2])
+            
+        return actions[:3]
+    
+    def _extract_contacts_from_context(self, context: str) -> List[str]:
+        """Extrai informações de contato do contexto"""
+        if not context:
+            return []
+            
+        import re
+        contact_patterns = ['RH', 'Recursos Humanos', 'gerente', 'supervisor']
+        
+        contacts = []
+        for pattern in contact_patterns:
+            if re.search(pattern, context, re.IGNORECASE):
+                contacts.append(pattern)
+                
+        return contacts[:2]
     
     def _validation_node(self, state: AgenticRAGState) -> Dict[str, Any]:
         """Nó de validação da resposta"""
@@ -513,7 +547,7 @@ class AgenticRAGService:
         start_time = time.time()
         
         try:
-            # Estado inicial
+            # Estado inicial simplificado
             initial_state = AgenticRAGState(
                 query=query,
                 messages=[HumanMessage(content=query)],
@@ -532,8 +566,7 @@ class AgenticRAGService:
                 search_duration_ms=0,
                 total_duration_ms=0,
                 provider_used="",
-                next_action="search",
-                start_time=int(start_time * 1000)
+                next_action="search"
             )
             
             # Executar grafo

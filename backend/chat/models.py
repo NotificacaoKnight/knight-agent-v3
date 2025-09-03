@@ -33,10 +33,20 @@ class ChatMessage(models.Model):
         ('audio', 'Áudio'),
     ]
     
+    AGENT_TYPES = [
+        ('knight', 'Knight'),
+        ('wizard', 'Wizard'),
+        ('bard', 'Bard'),
+    ]
+    
     session = models.ForeignKey(ChatSession, on_delete=models.CASCADE, related_name='messages')
     message_type = models.CharField(max_length=10, choices=MESSAGE_TYPES)
     content_type = models.CharField(max_length=10, choices=CONTENT_TYPES, default='text')
     content = models.TextField()
+    
+    # Novos campos para sistema multi-agente
+    agent_type = models.CharField(max_length=10, choices=AGENT_TYPES, default='knight')
+    is_handoff = models.BooleanField(default=False)  # True se for mensagem de transição
     
     # Campos para mensagens de áudio
     audio_file = models.FileField(upload_to='chat_audio/', null=True, blank=True)

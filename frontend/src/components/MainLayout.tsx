@@ -5,8 +5,9 @@ import { ThemeToggle } from './ThemeToggle';
 import { UserAvatar } from './UserAvatar';
 import { chatApi } from '../services/api';
 import { useChatContext } from '../context/ChatContext';
-import toast from 'react-hot-toast';
+import { toast as sonnerToast } from 'sonner';
 import { emitChatSessionDeleted } from '../utils/events';
+import { DeleteChatModal } from './DeleteChatModal';
 import { KnightIcon } from './KnightIcon';
 import { LLMStatusIndicator, LLMStatusIndicatorRef } from './LLMStatusIndicator';
 import {
@@ -59,6 +60,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, title, subtitl
   const [loading, setLoading] = useState(false);
   const llmStatusRef = useRef<LLMStatusIndicatorRef>(null);
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [sessionToDelete, setSessionToDelete] = useState<{id: string, title: string} | null>(null);
 
   // Auto expand/collapse sidebars based on route
   useEffect(() => {
@@ -88,13 +91,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, title, subtitl
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname, user]);
 
-  const handleDeleteSession = async (sessionId: string, event: React.MouseEvent) => {
-    event.stopPropagation(); // Prevent navigation when clicking delete button
-    
-    if (!window.confirm('Tem certeza que deseja excluir esta conversa?')) {
-      return;
-    }
-
+  const confirmDeleteSession = async (sessionId: string) => {
     setDeletingSessionId(sessionId);
     
     try {
@@ -110,13 +107,30 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, title, subtitl
         navigate('/chat');
       }
       
-      toast.success('Conversa excluída com sucesso');
+      sonnerToast.success('Conversa excluída com sucesso', {
+        description: 'A conversa foi removida permanentemente',
+        icon: '✅'
+      });
     } catch (error) {
       console.error('Erro ao excluir sessão:', error);
-      toast.error('Erro ao excluir conversa');
+      sonnerToast.error('Erro ao excluir conversa', {
+        description: 'Tente novamente em alguns momentos',
+        icon: '❌'
+      });
     } finally {
       setDeletingSessionId(null);
     }
+  };
+
+  const openDeleteModal = (sessionId: string, sessionTitle: string, event: React.MouseEvent) => {
+    event.stopPropagation(); // Prevent navigation when clicking delete button
+    setSessionToDelete({id: sessionId, title: sessionTitle});
+    setDeleteModalOpen(true);
+  };
+
+  const closeDeleteModal = () => {
+    setDeleteModalOpen(false);
+    setSessionToDelete(null);
   };
 
   // Menu items
@@ -367,7 +381,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, title, subtitl
                   
                   {/* Delete Button */}
                   <button
-                    onClick={(e) => handleDeleteSession(chat.id, e)}
+                    onClick={(e) => openDeleteModal(chat.id, chat.title, e)}
                     disabled={isProcessingMessage || deletingSessionId === chat.id}
                     className={`absolute bottom-2 right-2 p-1 rounded-md transition-all duration-200 ${
                       isProcessingMessage || deletingSessionId === chat.id
@@ -632,6 +646,20 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, title, subtitl
           </div>
         </div>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <DeleteChatModal
+        isOpen={deleteModalOpen}
+        chatTitle={sessionToDelete?.title || ''}
+        isDeleting={deletingSessionId === sessionToDelete?.id}
+        onConfirm={() => {
+          if (sessionToDelete) {
+            confirmDeleteSession(sessionToDelete.id);
+            closeDeleteModal();
+          }
+        }}
+        onCancel={closeDeleteModal}
+      />
     </div>
   );
 };

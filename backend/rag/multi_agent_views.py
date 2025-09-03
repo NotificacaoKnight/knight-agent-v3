@@ -12,7 +12,7 @@ import json
 from datetime import datetime
 
 from .consolidated_multi_agent import consolidated_multi_agent_service
-from .behavior_monitoring import behavior_monitor
+# behavior_monitoring removido - sistema simplificado
 from .llm_providers import LLMManager
 from documents.models import Document
 from authentication.models import User

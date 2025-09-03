@@ -46,6 +46,11 @@ def send_message(request):
         
         # Estruturar resposta no formato esperado pelo frontend
         if result.get('success'):
+            # Garantir que temos agent_type e agent_emoji
+            agent_type = result.get('agent_type', 'knight')
+            from .agent_detector import agent_detector
+            agent_emoji = agent_detector.get_agent_emoji(agent_type)
+            
             response_data = {
                 'session_id': session.id,
                 'session_title': session.title,
@@ -59,7 +64,11 @@ def send_message(request):
                 'context_used': result.get('context_used', 0) > 0,
                 'response_time': result.get('response_time_ms', 0),
                 'useful_links': result.get('useful_links', []),
-                'downloadable_documents': result.get('downloadable_documents', [])
+                'downloadable_documents': result.get('downloadable_documents', []),
+                'agent_type': agent_type,
+                'agent_emoji': agent_emoji,
+                'is_multi_agent': result.get('is_multi_agent', False),
+                'handoff_message': result.get('handoff_message')
             }
         else:
             # Em caso de erro, ainda fornecer estrutura básica

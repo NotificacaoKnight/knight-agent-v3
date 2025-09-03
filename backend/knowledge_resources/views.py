@@ -146,6 +146,38 @@ class DownloadableDocumentViewSet(viewsets.ModelViewSet):
         
         return Response({'success': True, 'download_count': document.download_count})
     
+    @action(detail=True, methods=['get'])
+    def download_file(self, request, pk=None):
+        """Download do arquivo do documento"""
+        from django.http import HttpResponse, Http404
+        import os
+        
+        document = self.get_object()
+        
+        # Verificar se o arquivo existe
+        if not document.file or not os.path.exists(document.file.path):
+            raise Http404("Arquivo não encontrado")
+        
+        # Incrementar contador de download
+        document.download_count += 1
+        document.save()
+        
+        # Registrar uso
+        ResourceUsage.objects.create(
+            user=request.user,
+            resource_type='document',
+            resource_id=document.id,
+            action='downloaded',
+            ip_address=request.META.get('REMOTE_ADDR'),
+            user_agent=request.META.get('HTTP_USER_AGENT', '')
+        )
+        
+        # Servir o arquivo
+        with open(document.file.path, 'rb') as file:
+            response = HttpResponse(file.read(), content_type='application/octet-stream')
+            response['Content-Disposition'] = f'attachment; filename="{document.file_name}"'
+            return response
+    
     @action(detail=True, methods=['post'])
     def increment_share_count(self, request, pk=None):
         """Incrementa contador quando IA compartilha o documento"""
