@@ -21,7 +21,7 @@ from langgraph.graph import StateGraph, START, END
 from .hybrid_vector_service import HybridVectorService
 from .services import BM25SearchService
 from .llm_providers import LLMManager
-from .agentic_config import get_config
+from .agentic_config import get_config, AgentPrompts
 # Imports removidos: intelligent_behavior, behavior_monitoring, intelligent_cache
 
 # Cache global para serviços singleton
@@ -404,29 +404,27 @@ class ConsolidatedMultiAgentService:
         # Preparar contexto para análise
         context = self._prepare_context(search_results)
         
-        # Prompt completo para Bard
-        bard_prompt = f"""
-        Você é o agente BARD, especialista em análises e relatórios corporativos.
+        # Usar prompt do agente Bard com controle de acesso
+        user_name = user_profile.get('name', 'Usuário')
+        user_role = user_profile.get('role', 'colaborador') 
+        is_admin = user_profile.get('is_admin', False)
         
+        query_with_context = f"""
         CONSULTA DO USUÁRIO: {query}
-        USUÁRIO: {user_profile.get('name', 'Usuário')}
         
         CONTEXTO DISPONÍVEL:
         {context}
-        
-        Como especialista em análise de dados, forneça:
-        1. Análise detalhada da consulta
-        2. Insights baseados nos dados disponíveis
-        3. Recomendações específicas
-        4. Sugestões de métricas adicionais se necessário
-        
-        Responda de forma completa e profissional, focando em análise de dados.
         """
         
         llm_response = self.llm_manager.generate_response(
-            prompt=bard_prompt,
+            prompt=query_with_context,
+            context=[context] if context else [],
             max_tokens=400,
-            temperature=0.7
+            temperature=0.7,
+            agent_type="bard",
+            user_name=user_name,
+            user_role=user_role,
+            is_admin=is_admin
         )
         
         if llm_response["success"]:
@@ -464,30 +462,27 @@ class ConsolidatedMultiAgentService:
         
         context = self._prepare_context(search_results)
         
-        # Prompt completo para Wizard
-        wizard_prompt = f"""
-        Você é o agente WIZARD, especialista em capacitações e desenvolvimento.
+        # Usar prompt do agente Wizard
+        user_name = user_profile.get('name', 'Usuário')
+        user_role = user_profile.get('role', 'colaborador')
+        is_admin = user_profile.get('is_admin', False)
         
+        query_with_context = f"""
         CONSULTA DO USUÁRIO: {query}
-        USUÁRIO: {user_profile.get('name', 'Usuário')}
         
         CONTEXTO DISPONÍVEL:
         {context}
-        
-        Como especialista em capacitações, forneça:
-        1. Análise das necessidades de desenvolvimento
-        2. Trilha de aprendizado personalizada
-        3. Recursos e materiais recomendados
-        4. Cronograma sugerido
-        5. Métodos de acompanhamento
-        
-        Responda com um plano completo de capacitação.
         """
         
         llm_response = self.llm_manager.generate_response(
-            prompt=wizard_prompt,
+            prompt=query_with_context,
+            context=[context] if context else [],
             max_tokens=400,
-            temperature=0.7
+            temperature=0.7,
+            agent_type="wizard",
+            user_name=user_name,
+            user_role=user_role,
+            is_admin=is_admin
         )
         
         if llm_response["success"]:
@@ -531,24 +526,27 @@ class ConsolidatedMultiAgentService:
         # Contexto completo
         context = self._prepare_context(search_results, max_length=2000)
         
-        # Prompt completo para Knight
-        knight_prompt = f"""
-        Você é o KNIGHT, assistente corporativo especialista em documentos internos.
+        # Usar prompt do agente Knight e contexto
+        user_name = getattr(user, 'name', 'Usuário') if user else 'Usuário'
+        user_role = getattr(user, 'role', 'colaborador') if user else 'colaborador'
+        is_admin = getattr(user, 'is_admin', False) if user else False
         
+        query_with_context = f"""
         PERGUNTA: {query}
         
         CONTEXTO DOS DOCUMENTOS:
         {context}
-        
-        Forneça uma resposta completa e precisa baseada nos documentos.
-        Seja detalhado, mas mantenha a clareza e objetividade.
-        Se necessário, cite os documentos relevantes.
         """
         
         llm_response = self.llm_manager.generate_response(
-            prompt=knight_prompt,
+            prompt=query_with_context,
+            context=[context] if context else [],
             max_tokens=500,
-            temperature=0.4
+            temperature=0.4,
+            agent_type="knight",
+            user_name=user_name,
+            user_role=user_role,
+            is_admin=is_admin
         )
         
         if llm_response["success"]:
@@ -693,29 +691,29 @@ class ConsolidatedMultiAgentService:
             'role': analysis.get('personalization', {}).get('role')
         }
         
-        # Prompt simplificado para Knight
+        # Usar prompt centralizado para Knight
         user_name = user_context.get('name', 'usuário')
-        prompt = f"""Você é o Knight ⚔️, assistente de RH especializado em políticas e processos corporativos.
-
-Query do usuário: {query}
+        user_role = user_context.get('role', 'colaborador')
+        is_admin = getattr(user, 'is_admin', False) if user else False
+        
+        query_with_context = f"""Query do usuário: {query}
 
 Contexto disponível:
-{context}
-
-Instruções:
-- Responda de forma clara e profissional para {user_name}
-- Use as informações do contexto quando relevantes
-- Se não tiver informações suficientes, seja direto sobre isso
-- Foque em ajudar com questões de RH e processos internos"""
+{context}"""
         
         # Parâmetros dinâmicos baseados no contexto
         temperature = 0.5 if analysis.get('complexity_score', 0.5) < 0.4 else 0.7
         max_tokens = 400 if analysis.get('urgency_level') == 'high' else 600
         
         llm_response = self.llm_manager.generate_response(
-            prompt=prompt,
+            prompt=query_with_context,
+            context=[context] if context else [],
             max_tokens=max_tokens,
-            temperature=temperature
+            temperature=temperature,
+            agent_type="knight",
+            user_name=user_name,
+            user_role=user_role,
+            is_admin=is_admin
         )
         
         response_text = llm_response.get("response", "Desculpe, tive um problema técnico. Pode tentar reformular sua pergunta?")
@@ -760,33 +758,25 @@ Instruções:
             # Contexto formatado com foco em análise
             context = self._prepare_context(search_results[:4]) if search_results else "Nenhum dado específico encontrado."
             
-            # Prompt analítico genérico
-            prompt = f"""Você é o Bard 🎭, Central de Relatórios e Análises de Performance.
-
-**Usuário**: {user_name} ({user_role})
-**Consulta**: {query}
+            # Usar prompt centralizado para Bard
+            query_with_context = f"""**Consulta**: {query}
 **Escopo de análise**: {scope}
 **Nível de acesso**: {access_level}
 
 **Contexto disponível**:
-{context}
-
-**Instruções**:
-- Como Central de Análises, forneça insights baseados nos dados disponíveis
-- Para administradores: análises organizacionais completas
-- Para colaboradores: foco em métricas pessoais e de equipe
-- Se não houver dados específicos, sugira métricas relevantes para coleta
-- Use visualizações quando apropriado (gráficos, tabelas, dashboards)
-- Seja analítico, objetivo e orientado a dados
-
-**Formato de resposta**: Análise estruturada com insights acionáveis"""
+{context}"""
             
             # Gerar resposta com tratamento de erro robusto
             try:
                 llm_response = self.llm_manager.generate_response(
-                    prompt=prompt,
+                    prompt=query_with_context,
+                    context=[context] if context else [],
                     max_tokens=600,
-                    temperature=0.7
+                    temperature=0.7,
+                    agent_type="bard",
+                    user_name=user_name,
+                    user_role=user_role,
+                    is_admin=(access_level == "completo")
                 )
                 
                 if llm_response.get("success", False):
@@ -835,25 +825,22 @@ Instruções:
         user_name = user_profile.get('name', 'Colaborador')
         user_role = user_profile.get('role', 'sua função')
         
-        # Prompt direto para capacitação
-        prompt = f"""Você é o Wizard 🧙, especialista em capacitação e desenvolvimento profissional.
-
-Query do usuário: {query}
+        # Usar prompt centralizado para Wizard
+        query_with_context = f"""Query do usuário: {query}
 
 Contexto disponível:
-{context}
-
-Instruções:
-- Ajude {user_name} com orientações práticas sobre treinamentos e desenvolvimento
-- Seja motivador e ofereça sugestões concretas
-- Foque em capacitação para {user_role}
-- Se não houver informações suficientes, sugira onde encontrar recursos"""
+{context}"""
         
         # Gerar resposta
         llm_response = self.llm_manager.generate_response(
-            prompt=prompt,
+            prompt=query_with_context,
+            context=[context] if context else [],
             max_tokens=400,
-            temperature=0.8
+            temperature=0.8,
+            agent_type="wizard",
+            user_name=user_name,
+            user_role=user_role,
+            is_admin=user_profile.get('is_admin', False)
         )
         
         response_text = llm_response.get("response", f"🧙 Olá {user_name}! Preciso de mais detalhes sobre o que você gostaria de aprender. Pode me dar mais contexto?")

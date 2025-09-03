@@ -15,6 +15,9 @@ from groq import Groq
 import openai
 import google.generativeai as genai
 
+# Import dos prompts centralizados
+from .agentic_config import AgentPrompts
+
 
 class ConfigManager:
     """Gerenciador centralizado e otimizado de configurações LLM"""
@@ -188,6 +191,10 @@ class LLMProvider(ABC):
         context: List[str] = None,
         max_tokens: int = 1000,
         temperature: float = 0.7,
+        agent_type: str = "knight",
+        user_name: str = "Usuário",
+        user_role: str = "colaborador",
+        is_admin: bool = False,
         **kwargs
     ) -> Dict[str, Any]:
         """Gera resposta usando o LLM"""
@@ -242,10 +249,22 @@ class CohereProvider(LLMProvider):
         context: List[str] = None,
         max_tokens: int = 1000,
         temperature: float = 0.7,
+        agent_type: str = "knight",
+        user_name: str = "Usuário",
+        user_role: str = "colaborador",
+        is_admin: bool = False,
         **kwargs
     ) -> Dict[str, Any]:
-        """Gera resposta usando Cohere"""
+        """Gera resposta usando Cohere com prompts centralizados"""
         try:
+            # Obter prompt do agente apropriado
+            system_prompt = AgentPrompts.get_agent_prompt(
+                agent_type=agent_type,
+                user_name=user_name,
+                user_role=user_role,
+                is_admin=is_admin
+            )
+            
             # Preparar documentos de contexto
             documents = []
             if context:
@@ -263,12 +282,7 @@ class CohereProvider(LLMProvider):
                     model=self.model,
                     max_tokens=max_tokens,
                     temperature=temperature,
-                    preamble="Você é o Knight, assistente de RH da empresa. "
-                            "Responda em português de forma clara e natural. "
-                            "Use as informações dos documentos fornecidos. "
-                            "Quando tiver documentos ou links relevantes disponíveis, mencione-os na resposta. "
-                            "Se tiver acesso a documentos para download, informe que estão disponíveis. "
-                            "Seja consistente: se documentos estão sendo retornados, você TEM acesso a eles."
+                    preamble=system_prompt
                 )
                 
                 return {
@@ -276,6 +290,7 @@ class CohereProvider(LLMProvider):
                     'response': response.text,
                     'model': self.model,
                     'provider': 'cohere',
+                    'agent_type': agent_type,
                     'documents_used': len(documents),
                     'citations': getattr(response, 'citations', [])
                 }
@@ -285,21 +300,24 @@ class CohereProvider(LLMProvider):
                     message=prompt,
                     model=self.model,
                     max_tokens=max_tokens,
-                    temperature=temperature
+                    temperature=temperature,
+                    preamble=system_prompt
                 )
                 
                 return {
                     'success': True,
                     'response': response.text,
                     'model': self.model,
-                    'provider': 'cohere'
+                    'provider': 'cohere',
+                    'agent_type': agent_type
                 }
                 
         except Exception as e:
             return {
                 'success': False,
                 'error': str(e),
-                'provider': 'cohere'
+                'provider': 'cohere',
+                'agent_type': agent_type
             }
     
     def is_available(self) -> bool:
@@ -334,19 +352,20 @@ class TogetherProvider(LLMProvider):
         context: List[str] = None,
         max_tokens: int = 1000,
         temperature: float = 0.7,
+        agent_type: str = "knight",
+        user_name: str = "Usuário",
+        user_role: str = "colaborador",
+        is_admin: bool = False,
         **kwargs
     ) -> Dict[str, Any]:
-        """Gera resposta usando Together AI"""
+        """Gera resposta usando Together AI com prompts centralizados"""
         try:
-            # Construir prompt com contexto
-            system_prompt = (
-                "Você é o Knight, um assistente IA interno da empresa. "
-                "Responda sempre em português brasileiro de forma clara e útil. "
-                "Use apenas as informações fornecidas no contexto para responder. "
-                "Se não souber a resposta, diga que não tem informações suficientes "
-                "e sugira entrar em contato com o RH. "
-                "Quando houver LINKS ÚTEIS ou DOCUMENTOS PARA DOWNLOAD disponíveis no contexto, "
-                "mencione-os na sua resposta quando forem relevantes para ajudar o usuário."
+            # Obter prompt do agente apropriado
+            system_prompt = AgentPrompts.get_agent_prompt(
+                agent_type=agent_type,
+                user_name=user_name,
+                user_role=user_role,
+                is_admin=is_admin
             )
             
             if context:
@@ -381,20 +400,23 @@ class TogetherProvider(LLMProvider):
                     'response': result['choices'][0]['message']['content'],
                     'model': self.model,
                     'provider': 'together',
+                    'agent_type': agent_type,
                     'documents_used': len(context) if context else 0
                 }
             else:
                 return {
                     'success': False,
                     'error': f"API Error: {response.status_code}",
-                    'provider': 'together'
+                    'provider': 'together',
+                    'agent_type': agent_type
                 }
                 
         except Exception as e:
             return {
                 'success': False,
                 'error': str(e),
-                'provider': 'together'
+                'provider': 'together',
+                'agent_type': agent_type
             }
     
     def is_available(self) -> bool:
@@ -427,18 +449,20 @@ class GroqProvider(LLMProvider):
         context: List[str] = None,
         max_tokens: int = 1000,
         temperature: float = 0.7,
+        agent_type: str = "knight",
+        user_name: str = "Usuário",
+        user_role: str = "colaborador",
+        is_admin: bool = False,
         **kwargs
     ) -> Dict[str, Any]:
-        """Gera resposta usando Groq"""
+        """Gera resposta usando Groq com prompts centralizados"""
         try:
-            system_prompt = (
-                "Você é o Knight, um assistente IA interno da empresa. "
-                "Responda sempre em português brasileiro de forma clara e útil. "
-                "Use apenas as informações fornecidas no contexto para responder. "
-                "Se não souber a resposta, diga que não tem informações suficientes "
-                "e sugira entrar em contato com o RH. "
-                "Quando houver LINKS ÚTEIS ou DOCUMENTOS PARA DOWNLOAD disponíveis no contexto, "
-                "mencione-os na sua resposta quando forem relevantes para ajudar o usuário."
+            # Obter prompt do agente apropriado
+            system_prompt = AgentPrompts.get_agent_prompt(
+                agent_type=agent_type,
+                user_name=user_name,
+                user_role=user_role,
+                is_admin=is_admin
             )
             
             messages = [{"role": "system", "content": system_prompt}]
@@ -461,6 +485,7 @@ class GroqProvider(LLMProvider):
                 'response': response.choices[0].message.content,
                 'model': self.model,
                 'provider': 'groq',
+                'agent_type': agent_type,
                 'documents_used': len(context) if context else 0
             }
             
@@ -468,7 +493,8 @@ class GroqProvider(LLMProvider):
             return {
                 'success': False,
                 'error': str(e),
-                'provider': 'groq'
+                'provider': 'groq',
+                'agent_type': agent_type
             }
     
     def is_available(self) -> bool:
@@ -504,25 +530,28 @@ class DeepSeekProvider(LLMProvider):
         context: List[str] = None,
         max_tokens: int = 1000,
         temperature: float = 0.7,
+        agent_type: str = "knight",
+        user_name: str = "Usuário",
+        user_role: str = "colaborador",
+        is_admin: bool = False,
         **kwargs
     ) -> Dict[str, Any]:
-        """Gera resposta usando DeepSeek"""
+        """Gera resposta usando DeepSeek com prompts centralizados"""
         try:
             if not self.api_key:
                 return {
                     'success': False,
                     'error': 'DeepSeek API key não configurada',
-                    'provider': 'deepseek'
+                    'provider': 'deepseek',
+                    'agent_type': agent_type
                 }
             
-            system_prompt = (
-                "Você é o Knight, assistente de RH da empresa. "
-                "Responda em português brasileiro de forma clara e direta. "
-                "Use as informações do contexto fornecido. "
-                "Quando tiver documentos ou links relevantes disponíveis, mencione-os na resposta. "
-                "Se tiver acesso a documentos para download, informe que estão disponíveis. "
-                "Seja consistente: se documentos estão sendo retornados, você TEM acesso a eles. "
-                "Seja natural e conversacional."
+            # Obter prompt do agente apropriado
+            system_prompt = AgentPrompts.get_agent_prompt(
+                agent_type=agent_type,
+                user_name=user_name,
+                user_role=user_role,
+                is_admin=is_admin
             )
             
             messages = [{"role": "system", "content": system_prompt}]
@@ -562,6 +591,7 @@ class DeepSeekProvider(LLMProvider):
                     'response': result['choices'][0]['message']['content'],
                     'model': self.model,
                     'provider': 'deepseek',
+                    'agent_type': agent_type,
                     'documents_used': len(context) if context else 0,
                     'usage': {
                         'input_tokens': usage.get('prompt_tokens', 0),
@@ -580,14 +610,16 @@ class DeepSeekProvider(LLMProvider):
                 return {
                     'success': False,
                     'error': f"DeepSeek API Error ({response.status_code}): {error_detail}",
-                    'provider': 'deepseek'
+                    'provider': 'deepseek',
+                    'agent_type': agent_type
                 }
                 
         except Exception as e:
             return {
                 'success': False,
                 'error': str(e),
-                'provider': 'deepseek'
+                'provider': 'deepseek',
+                'agent_type': agent_type
             }
     
     def is_available(self) -> bool:
@@ -622,25 +654,28 @@ class OpenAIProvider(LLMProvider):
         context: List[str] = None,
         max_tokens: int = 1000,
         temperature: float = 0.7,
+        agent_type: str = "knight",
+        user_name: str = "Usuário",
+        user_role: str = "colaborador",
+        is_admin: bool = False,
         **kwargs
     ) -> Dict[str, Any]:
-        """Gera resposta usando OpenAI"""
+        """Gera resposta usando OpenAI com prompts centralizados"""
         try:
             if not self.client:
                 return {
                     'success': False,
                     'error': 'OpenAI não está configurado ou API key inválida',
-                    'provider': 'openai'
+                    'provider': 'openai',
+                    'agent_type': agent_type
                 }
             
-            system_prompt = (
-                "Você é o Knight, assistente de RH da empresa. "
-                "Responda em português brasileiro de forma clara e direta. "
-                "Use as informações do contexto fornecido. "
-                "Quando tiver documentos ou links relevantes disponíveis, mencione-os na resposta. "
-                "Se tiver acesso a documentos para download, informe que estão disponíveis. "
-                "Seja consistente: se documentos estão sendo retornados, você TEM acesso a eles. "
-                "Seja natural e conversacional."
+            # Obter prompt do agente apropriado
+            system_prompt = AgentPrompts.get_agent_prompt(
+                agent_type=agent_type,
+                user_name=user_name,
+                user_role=user_role,
+                is_admin=is_admin
             )
             
             messages = [{"role": "system", "content": system_prompt}]
@@ -668,6 +703,7 @@ class OpenAIProvider(LLMProvider):
                 'response': response.choices[0].message.content,
                 'model': self.model,
                 'provider': 'openai',
+                'agent_type': agent_type,
                 'documents_used': len(context) if context else 0,
                 'usage': {
                     'input_tokens': usage.prompt_tokens,
@@ -688,7 +724,8 @@ class OpenAIProvider(LLMProvider):
             return {
                 'success': False,
                 'error': f"OpenAI Error: {error_msg}",
-                'provider': 'openai'
+                'provider': 'openai',
+                'agent_type': agent_type
             }
     
     def is_available(self) -> bool:
@@ -734,25 +771,28 @@ class GeminiProvider(LLMProvider):
         context: List[str] = None,
         max_tokens: int = 1000,
         temperature: float = 0.7,
+        agent_type: str = "knight",
+        user_name: str = "Usuário",
+        user_role: str = "colaborador",
+        is_admin: bool = False,
         **kwargs
     ) -> Dict[str, Any]:
-        """Gera resposta usando Google Gemini"""
+        """Gera resposta usando Google Gemini com prompts centralizados"""
         try:
             if not self.model:
                 return {
                     'success': False,
                     'error': 'Gemini não está configurado ou API key inválida',
-                    'provider': 'gemini'
+                    'provider': 'gemini',
+                    'agent_type': agent_type
                 }
             
-            system_prompt = (
-                "Você é o Knight, assistente de RH da empresa. "
-                "Responda em português brasileiro de forma clara e direta. "
-                "Use as informações do contexto fornecido. "
-                "Quando tiver documentos ou links relevantes disponíveis, mencione-os na resposta. "
-                "Se tiver acesso a documentos para download, informe que estão disponíveis. "
-                "Seja consistente: se documentos estão sendo retornados, você TEM acesso a eles. "
-                "Seja natural e conversacional."
+            # Obter prompt do agente apropriado
+            system_prompt = AgentPrompts.get_agent_prompt(
+                agent_type=agent_type,
+                user_name=user_name,
+                user_role=user_role,
+                is_admin=is_admin
             )
             
             if context:
@@ -799,6 +839,7 @@ class GeminiProvider(LLMProvider):
                     'response': response.text,
                     'model': self.model_name,
                     'provider': 'gemini',
+                    'agent_type': agent_type,
                     'documents_used': len(context) if context else 0,
                     'usage': {
                         'input_tokens': getattr(response.usage_metadata, 'prompt_token_count', 0),
@@ -812,6 +853,7 @@ class GeminiProvider(LLMProvider):
                     'success': False,
                     'error': 'Resposta bloqueada pelos filtros de segurança do Gemini',
                     'provider': 'gemini',
+                    'agent_type': agent_type,
                     'safety_ratings': getattr(response, 'candidates', [{}])[0].get('safety_ratings', []) if hasattr(response, 'candidates') else []
                 }
                 
@@ -819,7 +861,8 @@ class GeminiProvider(LLMProvider):
             return {
                 'success': False,
                 'error': str(e),
-                'provider': 'gemini'
+                'provider': 'gemini',
+                'agent_type': agent_type
             }
     
     def is_available(self) -> bool:
@@ -1099,9 +1142,13 @@ class MockProvider(LLMProvider):
         context: List[str] = None,
         max_tokens: int = 1000,
         temperature: float = 0.7,
+        agent_type: str = "knight",
+        user_name: str = "Usuário",
+        user_role: str = "colaborador",
+        is_admin: bool = False,
         **kwargs
     ) -> Dict[str, Any]:
-        """Gera resposta mock para desenvolvimento"""
+        """Gera resposta mock para desenvolvimento com agentes"""
         
         # Resposta baseada no contexto se disponível
         if context and len(context) > 0:
@@ -1135,6 +1182,7 @@ Para configurar um provedor real, consulte o arquivo .env do projeto."""
             'success': True,
             'response': response,
             'provider': 'mock',
+            'agent_type': agent_type,
             'model': 'mock-model',
             'usage': {
                 'input_tokens': len(prompt.split()),
