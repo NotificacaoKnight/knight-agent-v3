@@ -42,6 +42,7 @@ interface User {
   department?: string;
   job_title?: string;
   is_admin?: boolean;
+  preferred_language?: string;
 }
 
 interface AuthContextType {
@@ -86,6 +87,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         department: profileResponse.data.department,
         job_title: profileResponse.data.job_title,
         is_admin: profileResponse.data.is_admin || false,
+        preferred_language: profileResponse.data.preferred_language,
       });
       console.log('✅ Perfil carregado com sucesso');
     } catch (err) {
@@ -180,6 +182,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           department: backendResponse.data.user.department,
           job_title: backendResponse.data.user.job_title,
           is_admin: backendResponse.data.user.is_admin || false,
+          preferred_language: backendResponse.data.user.preferred_language,
         });
         
         console.log('✅ Login completo!');

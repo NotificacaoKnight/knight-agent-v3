@@ -2,13 +2,16 @@ import React, { useState } from 'react';
 import { MainLayout } from '../components/MainLayout';
 import { UserAvatar } from '../components/UserAvatar';
 import { LLMManagement } from '../components/LLMManagement';
+import { LanguageSelector } from '../components/LanguageSelector';
 import { useAuth } from '../context/AuthContext';
-import { User, Bell, Shield, Palette, Bot } from 'lucide-react';
+import { User, Bell, Shield, Palette, Bot, Globe } from 'lucide-react';
 import { Card } from '../components/ui/card';
 import { Checkbox } from '../components/ui/checkbox';
+import { useTranslation } from 'react-i18next';
 
 export const SettingsPage: React.FC = () => {
   const { user } = useAuth();
+  const { t } = useTranslation();
   
   // Estados para controlar as notificações
   const [newMessageNotifications, setNewMessageNotifications] = useState(true);
@@ -16,7 +19,7 @@ export const SettingsPage: React.FC = () => {
   const [emailNotifications, setEmailNotifications] = useState(false);
 
   return (
-    <MainLayout title="Configurações" subtitle="Preferências do sistema">
+    <MainLayout title={t('common.settings', 'Settings')} subtitle={t('settings.preferences', 'System Preferences')}>
       <div className="h-full overflow-y-auto custom-scrollbar">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-14 pb-8">
 
@@ -25,7 +28,7 @@ export const SettingsPage: React.FC = () => {
             <div className="flex items-center mb-4">
               <User className="h-5 w-5 text-accent mr-2" />
               <h3 className="text-lg font-semibold text-foreground">
-                Perfil do Usuário
+                {t('settings.user_profile', 'User Profile')}
               </h3>
             </div>
             <div className="space-y-3">
@@ -55,6 +58,24 @@ export const SettingsPage: React.FC = () => {
               <div>
                 <label className="text-sm font-medium text-muted-foreground">Cargo</label>
                 <p className="text-foreground">{user?.job_title || 'Não informado'}</p>
+              </div>
+            </div>
+          </Card>
+
+          {/* Language & Localization Section */}
+          <Card className="p-4 sm:p-6 bg-gradient-to-br from-card to-card/45 border border-border mb-6">
+            <div className="flex items-center mb-4">
+              <Globe className="h-5 w-5 text-accent mr-2" />
+              <h3 className="text-lg font-semibold text-foreground">
+                {t('settings.language_preferences', 'Language Preferences')}
+              </h3>
+            </div>
+            <div className="space-y-4">
+              <div className="max-w-md">
+                <LanguageSelector variant="default" />
+                <p className="text-sm text-muted-foreground mt-2">
+                  {t('settings.select_language', 'Select your preferred language for the interface')}
+                </p>
               </div>
             </div>
           </Card>

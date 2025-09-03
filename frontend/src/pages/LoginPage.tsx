@@ -6,11 +6,14 @@ import { Shield, Moon, Sun, Sparkles, Lock } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Alert, AlertDescription } from '../components/ui/alert';
 import { Badge } from '../components/ui/badge';
+import { LanguageSelector } from '../components/LanguageSelector';
 import { cn } from '../lib/utils';
+import { useTranslation } from 'react-i18next';
 
 export const LoginPage: React.FC = () => {
   const { login, isAuthenticated, isLoading, error } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const { t } = useTranslation();
   const buttonRef = useRef<HTMLButtonElement>(null);
   
   // State for gradient effect
@@ -79,14 +82,14 @@ export const LoginPage: React.FC = () => {
   const features = [
     {
       icon: Shield,
-      title: 'Seguro',
-      description: 'Autenticação Microsoft',
+      title: t('login.secure'),
+      description: t('login.secure_desc'),
       color: 'text-white'
     },
     {
       icon: Sparkles,
-      title: 'Inteligente',
-      description: 'Integração com IA',
+      title: t('login.intelligent'),
+      description: t('login.intelligent_desc'),
       color: 'text-white'
     }
   ];
@@ -94,6 +97,13 @@ export const LoginPage: React.FC = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4 py-8 bg-background relative overflow-hidden">
+      {/* Language Selector - Top Left */}
+      <div className="absolute top-4 left-4 sm:left-6 z-10">
+        <LanguageSelector 
+          variant="compact" 
+          className="bg-background/10 backdrop-blur-sm border-border/20 hover:bg-background/20 text-foreground hover:text-foreground transition-colors" 
+        />
+      </div>
       {/* Noise effect overlay */}
       <div 
         className="absolute inset-0 pointer-events-none"
@@ -125,7 +135,7 @@ export const LoginPage: React.FC = () => {
         }}
         variant="outline"
         size="icon"
-        aria-label={theme === 'light' ? 'Ativar modo escuro' : 'Ativar modo claro'}
+        aria-label={theme === 'light' ? t('login.activate_dark_mode') : t('login.activate_light_mode')}
       >
         {theme === 'light' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
       </Button>
@@ -206,10 +216,10 @@ export const LoginPage: React.FC = () => {
           <div className="relative z-10">
             <div className="text-center pb-6 mb-6">
               <h2 className="text-xl sm:text-2xl font-semibold text-card-foreground mb-2">
-                Bem-vindo
+                {t('login.welcome')}
               </h2>
               <p className="text-sm sm:text-base text-muted-foreground">
-                Entre com sua conta Microsoft
+                {t('login.enter_with_microsoft')}
               </p>
             </div>
 
@@ -218,10 +228,10 @@ export const LoginPage: React.FC = () => {
             {error && (
               <Alert variant="destructive" className="border-red-200 dark:border-red-800/50" role="alert" aria-live="polite">
                 <AlertDescription className="text-sm">
-                  <strong>Erro de autenticação:</strong> {error}
+                  <strong>{t('login.authentication_error')}</strong> {error}
                   {error.includes('network') && (
                     <div className="mt-2 text-xs">
-                      Verifique sua conexão com a internet e tente novamente.
+                      {t('login.check_connection')}
                     </div>
                   )}
                 </AlertDescription>
@@ -253,7 +263,7 @@ export const LoginPage: React.FC = () => {
                 WebkitBackdropFilter: 'blur(20px)',
                 border: '1px solid rgba(255, 255, 255, 0.3)'
               }}
-              aria-label={isLoading ? 'Conectando à conta Microsoft' : 'Entrar com conta Microsoft'}
+              aria-label={isLoading ? t('login.connecting_to_microsoft') : t('login.enter_with_microsoft')}
             >
               {/* Mouse-following gradient overlay */}
               <div 
@@ -265,7 +275,7 @@ export const LoginPage: React.FC = () => {
                 {isLoading ? (
                   <>
                     <div className="h-4 w-4 border-2 border-gray-600/30 border-t-gray-600 rounded-full animate-spin mr-3" />
-                    Conectando...
+                    {t('login.connecting')}
                   </>
                 ) : (
                   <>
@@ -275,7 +285,7 @@ export const LoginPage: React.FC = () => {
                       <rect x="0" y="11" width="10" height="10" fill="#7FBA00"/>
                       <rect x="11" y="11" width="10" height="10" fill="#FFB900"/>
                     </svg>
-                    Entrar
+                    {t('login.enter')}
                   </>
                 )}
               </div>
@@ -336,7 +346,7 @@ export const LoginPage: React.FC = () => {
               }}
             >
               <Lock className="h-3 w-3 mr-1" aria-hidden="true" />
-              Ambiente Seguro
+              {t('login.secure_environment')}
             </Badge>
             
             <Badge 

@@ -9,9 +9,12 @@ class UserSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'username', 'email', 'first_name', 'last_name',
             'preferred_name', 'profile_picture', 'theme_preference',
-            'department', 'job_title', 'is_admin', 'created_at', 'updated_at'
+            'department', 'job_title', 'is_admin', 'created_at', 'updated_at',
+            'preferred_language'
         ]
-        read_only_fields = ['id', 'username', 'email', 'is_admin', 'created_at', 'updated_at']
+        read_only_fields = [
+            'id', 'username', 'email', 'is_admin', 'created_at', 'updated_at'
+        ]
     
     def get_profile_picture(self, obj):
         """Safely handle profile_picture field with None values"""

@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     'chat',
     'downloads',
     'knowledge_resources',
+    'locales',  # i18n app
 ]
 
 MIDDLEWARE = [
@@ -51,6 +52,7 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'authentication.rate_limiting.AuthenticationRateLimitMiddleware',  # Rate limiting para auth
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.locale.LocaleMiddleware',  # i18n middleware
     'django.middleware.common.CommonMiddleware',
     # 'django.middleware.csrf.CsrfViewMiddleware',  # Desabilitado para API REST com Bearer tokens
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -115,10 +117,26 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-LANGUAGE_CODE = 'pt-br'
+# Internationalization Configuration
+LANGUAGE_CODE = 'en'  # Default language (English as fallback)
 TIME_ZONE = 'America/Sao_Paulo'
 USE_I18N = True
+USE_L10N = True
 USE_TZ = True
+
+# Supported languages
+LANGUAGES = [
+    ('pt-br', 'Português (Brasil)'),
+    ('en', 'English (United States)'),
+    ('es', 'Español (España)'),
+    ('sv', 'Svenska (Sverige)'),
+]
+
+# Locale paths
+LOCALE_PATHS = [
+    BASE_DIR / 'locale',
+    BASE_DIR / 'locales',
+]
 
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
