@@ -15,9 +15,7 @@ from django.core.cache import cache
 
 from documents.models import Document, DocumentChunk
 from .models import VectorStore, SearchQuery, SearchResult
-
-# Cache global do modelo para evitar recarregamento
-_GLOBAL_MODEL_CACHE = {}
+from .model_cache import get_cached_model
 
 class EmbeddingService:
     """Serviço para gerar embeddings otimizado para português"""
@@ -28,22 +26,17 @@ class EmbeddingService:
         self._load_model()
     
     def _load_model(self):
-        """Carrega modelo de embedding com cache global permanente"""
-        global _GLOBAL_MODEL_CACHE
-        
-        if self.model_name in _GLOBAL_MODEL_CACHE:
-            self.model = _GLOBAL_MODEL_CACHE[self.model_name]
-            return
-        
-        # Carregar modelo apenas uma vez por processo
-        print(f"Carregando modelo {self.model_name} (primeira vez)...")
-        self.model = SentenceTransformer(self.model_name, device='cpu')
-        _GLOBAL_MODEL_CACHE[self.model_name] = self.model
-        print(f"Modelo {self.model_name} carregado em cache global")
+        """Carrega modelo de embedding com cache global thread-safe"""
+        self.model = get_cached_model(self.model_name, device='cpu')
     
     def encode_texts(self, texts: List[str]) -> np.ndarray:
         """Gera embeddings para lista de textos com cache"""
         if not texts:
+            return np.array([])
+        
+        # Verificar se modelo foi carregado
+        if self.model is None:
+            print(f"⚠️  Modelo {self.model_name} não disponível, retornando embeddings vazios")
             return np.array([])
         
         # Cache para embeddings de consultas (não documentos)
@@ -57,20 +50,25 @@ class EmbeddingService:
         normalized_texts = [self._preprocess_text(text) for text in texts]
         
         # Gerar embeddings com configurações otimizadas
-        embeddings = self.model.encode(
-            normalized_texts,
-            batch_size=64,  # Aumentado para melhor performance
-            show_progress_bar=False,  # Desabilitado para velocidade
-            convert_to_numpy=True,
-            normalize_embeddings=True  # Importante para busca por similaridade
-        )
-        
-        # Cache para consultas simples
-        if len(texts) == 1:
-            cache_key = f"embedding_query_{hash(texts[0])}"
-            cache.set(cache_key, embeddings[0], 1800)  # Cache por 30 min
-        
-        return embeddings
+        try:
+            embeddings = self.model.encode(
+                normalized_texts,
+                batch_size=64,  # Aumentado para melhor performance
+                show_progress_bar=False,  # Desabilitado para velocidade
+                convert_to_numpy=True,
+                normalize_embeddings=True  # Importante para busca por similaridade
+            )
+            
+            # Cache para consultas simples
+            if len(texts) == 1:
+                cache_key = f"embedding_query_{hash(texts[0])}"
+                cache.set(cache_key, embeddings[0], 1800)  # Cache por 30 min
+            
+            return embeddings
+            
+        except Exception as e:
+            print(f"⚠️  Erro ao gerar embeddings: {e}")
+            return np.array([])
     
     def encode_single_text(self, text: str) -> np.ndarray:
         """Gera embedding para um único texto"""

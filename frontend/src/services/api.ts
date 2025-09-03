@@ -94,6 +94,8 @@ export interface SendMessageResponse {
   session_id: string;
   context_used: boolean;
   response_time: number;
+  agent_type?: string;
+  agent_emoji?: string;
   useful_links?: Array<{
     id: number;
     title: string;
@@ -177,6 +179,14 @@ export const chatApi = {
   getChatStats: async (): Promise<any> => {
     const response = await api.get('/chat/stats/');
     return response.data;
+  },
+
+  // Download de documentos
+  async downloadDocument(documentId: number) {
+    const response = await api.get(`/knowledge-resources/downloadable-documents/${documentId}/download_file/`, {
+      responseType: 'blob' // Importante para download de arquivos
+    });
+    return response;
   },
 };
 

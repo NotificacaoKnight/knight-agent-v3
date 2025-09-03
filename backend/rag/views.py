@@ -5,6 +5,7 @@ from rest_framework.permissions import AllowAny
 from django.http import JsonResponse
 from django.db.models import F
 import logging
+import re
 
 from .hybrid_vector_service import HybridVectorService
 from .llm_providers import LLMManager
@@ -12,6 +13,7 @@ from .agentic_rag_service import AgenticRAGServiceSync
 from documents.models import Document
 
 logger = logging.getLogger(__name__)
+
 
 def increment_document_access_count(search_results):
     """Incrementa o contador de acesso para documentos retornados na busca"""
@@ -76,6 +78,7 @@ class SearchView(APIView):
                     {'error': 'Query parameter is required'}, 
                     status=status.HTTP_400_BAD_REQUEST
                 )
+            
             
             # Usar serviço agentic (que já tem fallback interno)
             agentic_result = self.agentic_rag.search(

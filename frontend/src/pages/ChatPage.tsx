@@ -6,7 +6,6 @@ import { usePageTitle } from '../hooks/usePageTitle';
 import { onChatSessionDeleted } from '../utils/events';
 import { 
   ArrowUp, 
-  Bot, 
   User, 
   Loader2,
   Mic,
@@ -35,6 +34,8 @@ interface Message {
   messageType?: 'text' | 'audio';
   audioDuration?: number;
   isProcessingTranscription?: boolean;
+  agent_type?: string;
+  agent_emoji?: string;
   usefulLinks?: Array<{
     id: number;
     title: string;
@@ -232,6 +233,8 @@ export const ChatPage: React.FC = () => {
               transcription: msg.transcription,
               audioDuration: msg.audio_duration,
               audioUrl: msg.audio_file ? msg.audio_file : undefined,
+              agent_type: msg.agent_type,
+              agent_emoji: msg.agent_emoji,
             }));
             
             setMessages(convertedMessages);
@@ -348,6 +351,8 @@ export const ChatPage: React.FC = () => {
         type: 'assistant',
         content: response.message.content,
         timestamp: new Date(response.message.timestamp),
+        agent_type: response.agent_type,
+        agent_emoji: response.agent_emoji,
         usefulLinks: response.useful_links,
         downloadableDocuments: response.downloadable_documents,
       };
@@ -558,7 +563,9 @@ export const ChatPage: React.FC = () => {
                       {message.type === 'user' ? (
                         <User className="h-4 w-4" />
                       ) : (
-                        <Bot className="h-4 w-4" />
+                        <span className="text-sm">
+                          {message.agent_emoji || '🤖'}
+                        </span>
                       )}
                     </div>
                     <div
@@ -628,9 +635,28 @@ export const ChatPage: React.FC = () => {
                                 {message.downloadableDocuments.map((doc) => (
                                   <button
                                     key={doc.id}
-                                    onClick={() => {
-                                      // TODO: Implementar download
-                                      toast.success(`Download de ${doc.file_name} iniciado`);
+                                    onClick={async () => {
+                                      try {
+                                        toast.loading('Preparando download...', { id: `download-${doc.id}` });
+                                        
+                                        const response = await chatApi.downloadDocument(doc.id);
+                                        
+                                        // Criar blob URL e fazer download
+                                        const blob = new Blob([response.data]);
+                                        const url = window.URL.createObjectURL(blob);
+                                        const a = document.createElement('a');
+                                        a.href = url;
+                                        a.download = doc.file_name || doc.title;
+                                        document.body.appendChild(a);
+                                        a.click();
+                                        document.body.removeChild(a);
+                                        window.URL.revokeObjectURL(url);
+                                        
+                                        toast.success(`Download de ${doc.file_name} concluído!`, { id: `download-${doc.id}` });
+                                      } catch (error) {
+                                        console.error('Erro no download:', error);
+                                        toast.error('Erro ao baixar o arquivo', { id: `download-${doc.id}` });
+                                      }
                                     }}
                                     className="flex items-center gap-2 p-2 w-full text-xs rounded-lg bg-secondary/50 hover:bg-secondary transition-colors group text-left"
                                   >
@@ -664,7 +690,7 @@ export const ChatPage: React.FC = () => {
               <div className="flex justify-start">
                 <div className="flex flex-row">
                   <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-muted text-muted-foreground mr-2">
-                    <Bot className="h-4 w-4" />
+                    <span className="text-sm">🤖</span>
                   </div>
                   <div className="px-4 py-2 rounded-lg bg-card text-card-foreground border border-border">
                     <Loader2 className="h-4 w-4 animate-spin" />

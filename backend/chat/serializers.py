@@ -22,6 +22,7 @@ class ChatSessionSerializer(serializers.ModelSerializer):
 class ChatMessageSerializer(serializers.ModelSerializer):
     context_count = serializers.SerializerMethodField()
     audio_url = serializers.SerializerMethodField()
+    agent_emoji = serializers.SerializerMethodField()
     
     class Meta:
         model = ChatMessage
@@ -29,7 +30,7 @@ class ChatMessageSerializer(serializers.ModelSerializer):
             'id', 'message_type', 'content_type', 'content', 'created_at',
             'context_count', 'llm_provider', 'llm_model',
             'response_time_ms', 'is_helpful', 'audio_file', 'audio_url',
-            'audio_duration', 'transcription'
+            'audio_duration', 'transcription', 'agent_type', 'is_handoff', 'agent_emoji'
         ]
         read_only_fields = ['id', 'created_at']
     
@@ -42,6 +43,11 @@ class ChatMessageSerializer(serializers.ModelSerializer):
             if request:
                 return request.build_absolute_uri(obj.audio_file.url)
         return None
+    
+    def get_agent_emoji(self, obj):
+        """Retorna emoji identificador do agente"""
+        from .agent_detector import agent_detector
+        return agent_detector.get_agent_emoji(obj.agent_type)
 
 class DocumentRequestSerializer(serializers.ModelSerializer):
     class Meta:

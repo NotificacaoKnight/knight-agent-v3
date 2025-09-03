@@ -203,6 +203,11 @@ VECTOR_STORE_PATH = BASE_DIR / 'vector_store'
 BM25_WEIGHT = config('BM25_WEIGHT', default=0.3, cast=float)
 SEMANTIC_WEIGHT = config('SEMANTIC_WEIGHT', default=0.7, cast=float)
 
+# HuggingFace Configuration - Modo Offline
+import os
+os.environ['HF_HUB_OFFLINE'] = config('HF_HUB_OFFLINE', default='1')
+os.environ['TRANSFORMERS_OFFLINE'] = config('TRANSFORMERS_OFFLINE', default='1')
+
 # Document Processing
 DOCUMENTS_PATH = BASE_DIR / 'documents'
 PROCESSED_DOCS_PATH = BASE_DIR / 'processed_documents'
