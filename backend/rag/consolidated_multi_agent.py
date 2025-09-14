@@ -21,7 +21,7 @@ from langgraph.graph import StateGraph, START, END
 from .hybrid_vector_service import HybridVectorService
 from .services import BM25SearchService
 from .llm_providers import LLMManager
-from .agentic_config import get_config, AgentPrompts
+from .agentic_config import get_config
 # Imports removidos: intelligent_behavior, behavior_monitoring, intelligent_cache
 
 # Cache global para serviços singleton
@@ -39,6 +39,8 @@ class MultiAgentState(TypedDict):
     execution_path: List[str]
     quality_score: float
     processing_mode: str  # 'fast' ou 'complete'
+    chat_history: List[Dict[str, Any]]  # NEW for DynamicPromptV2
+    user_language: str  # NEW for DynamicPromptV2
 
 
 class ConsolidatedMultiAgentService:
@@ -88,6 +90,8 @@ class ConsolidatedMultiAgentService:
         user: Any = None,
         user_profile: Dict[str, Any] = None,
         force_mode: Optional[str] = None,
+        chat_history: List[Dict[str, Any]] = None,
+        user_language: str = "pt_BR",
         **kwargs
     ) -> Dict[str, Any]:
         """Ponto de entrada principal - decide automaticamente entre fast/complete"""
@@ -108,7 +112,7 @@ class ConsolidatedMultiAgentService:
             elif force_mode == 'fast':
                 result = self._process_fast_mode(query, user, user_profile)
             elif force_mode == 'complete':
-                result = self._process_complete_mode(query, user, user_profile)
+                result = self._process_complete_mode(query, user, user_profile, chat_history, user_language)
             else:
                 # 3. ANÁLISE DE COMPLEXIDADE AUTOMÁTICA
                 complexity_mode = self._analyze_query_complexity(query, user_profile)
@@ -116,7 +120,7 @@ class ConsolidatedMultiAgentService:
                 if complexity_mode == 'fast':
                     result = self._process_fast_mode(query, user, user_profile)
                 else:
-                    result = self._process_complete_mode(query, user, user_profile)
+                    result = self._process_complete_mode(query, user, user_profile, chat_history, user_language)
             
             # 3. METADATA FINAL
             total_time = int((time.time() - start_time) * 1000)
@@ -157,12 +161,12 @@ class ConsolidatedMultiAgentService:
         
         try:
             if agent_type == "wizard":
-                result = self._wizard_fast_response(query, user_profile, {"agent_forced": True})
+                result = self._wizard_fast_response(query, user_profile, {"agent_forced": True}, chat_history, user_language)
             elif agent_type == "bard":
-                result = self._bard_fast_response(query, user_profile, {"agent_forced": True})
+                result = self._bard_fast_response(query, user_profile, {"agent_forced": True}, chat_history, user_language)
             else:
                 # Fallback para knight
-                result = self._knight_fast_response(query, user, {"agent_forced": True})
+                result = self._knight_fast_response(query, user, {"agent_forced": True}, chat_history, user_language)
             
             # Garantir estrutura completa
             return {
@@ -248,11 +252,11 @@ class ConsolidatedMultiAgentService:
         
         # Processamento direto por agente com comportamento refinado
         if target_agent == "bard":
-            result = self._bard_fast_response(query, user_profile, analysis)
+            result = self._bard_fast_response(query, user_profile, analysis, chat_history, user_language)
         elif target_agent == "wizard":
-            result = self._wizard_fast_response(query, user_profile, analysis)
+            result = self._wizard_fast_response(query, user_profile, analysis, chat_history, user_language)
         else:
-            result = self._knight_fast_response(query, user, analysis)
+            result = self._knight_fast_response(query, user, analysis, chat_history, user_language)
         
         return {
             "query": query,
@@ -270,7 +274,7 @@ class ConsolidatedMultiAgentService:
             }
         }
     
-    def _process_complete_mode(self, query: str, user: Any, user_profile: Dict) -> Dict[str, Any]:
+    def _process_complete_mode(self, query: str, user: Any, user_profile: Dict, chat_history: List[Dict[str, Any]] = None, user_language: str = "pt_BR") -> Dict[str, Any]:
         """Modo completo - usa LangGraph para qualidade máxima"""
         
         # Estado inicial
@@ -284,7 +288,9 @@ class ConsolidatedMultiAgentService:
             metadata={},
             execution_path=[],
             quality_score=0.0,
-            processing_mode="complete"
+            processing_mode="complete",
+            chat_history=chat_history or [],
+            user_language=user_language
         )
         
         # Executar grafo LangGraph
@@ -370,6 +376,8 @@ class ConsolidatedMultiAgentService:
         
         llm_response = self.llm_manager.generate_response(
             prompt=analysis_prompt,
+            chat_history=chat_history or [],
+            user_language=user_language,
             max_tokens=10,
             temperature=0.0
         )
@@ -419,6 +427,8 @@ class ConsolidatedMultiAgentService:
         llm_response = self.llm_manager.generate_response(
             prompt=query_with_context,
             context=[context] if context else [],
+            chat_history=state.get("chat_history", []),
+            user_language=state.get("user_language", "pt_BR"),
             max_tokens=400,
             temperature=0.7,
             agent_type="bard",
@@ -477,6 +487,8 @@ class ConsolidatedMultiAgentService:
         llm_response = self.llm_manager.generate_response(
             prompt=query_with_context,
             context=[context] if context else [],
+            chat_history=state.get("chat_history", []),
+            user_language=state.get("user_language", "pt_BR"),
             max_tokens=400,
             temperature=0.7,
             agent_type="wizard",
@@ -541,6 +553,8 @@ class ConsolidatedMultiAgentService:
         llm_response = self.llm_manager.generate_response(
             prompt=query_with_context,
             context=[context] if context else [],
+            chat_history=state.get("chat_history", []),
+            user_language=state.get("user_language", "pt_BR"),
             max_tokens=500,
             temperature=0.4,
             agent_type="knight",
@@ -644,8 +658,8 @@ class ConsolidatedMultiAgentService:
         cache.set(cache_key, intent, 3600)
         return intent
     
-    def _knight_fast_response(self, query: str, user: Any, analysis: Dict[str, Any]) -> Dict[str, Any]:
-        """Knight RAG natural e dinâmico com personalidade adaptativa"""
+    def _knight_fast_response(self, query: str, user: Any, analysis: Dict[str, Any], chat_history: List[Dict[str, Any]] = None, user_language: str = "pt_BR") -> Dict[str, Any]:
+        """Knight RAG natural e dinâmico com retry inteligente"""
         
         # Usar cache inteligente
         user_context = {
@@ -661,35 +675,98 @@ class ConsolidatedMultiAgentService:
         if cached_response:
             return cached_response
         
-        # Busca semântica rápida
-        search_results = self.vector_search.search(query, k=3)
+        # Sistema de retry inteligente
+        return self._knight_response_with_retry(query, user, analysis, user_context)
+    
+    def _knight_response_with_retry(self, query: str, user: Any, analysis: Dict[str, Any], user_context: Dict[str, Any]) -> Dict[str, Any]:
+        """Sistema de retry inteligente para Knight"""
+        max_retries = 3
         
-        if not search_results:
-            # Respostas naturais quando não há contexto
-            no_context_responses = [
-                f"Não encontrei informações específicas sobre '{query}' nos nossos documentos. Que tal me dar mais detalhes sobre o que você precisa?",
-                f"Hmm, sobre '{query}' não tenho informações documentadas aqui. Pode me explicar melhor sua situação?",
-                f"Não vejo nada específico sobre '{query}' na nossa base. Como posso te ajudar de outra forma?"
-            ]
-            
-            result = {
-                "response": random.choice(no_context_responses),
-                "search_results": [],
-                "provider_used": "no_results_natural",
-                "task_type": "general"
-            }
-            cache.set(cache_key, result, 1800)
-            return result
+        for attempt in range(max_retries):
+            # Estratégia de busca adaptativa por tentativa
+            if attempt == 0:
+                # Tentativa 1: Busca normal
+                search_results = self.vector_search.search(query, k=3)
+            elif attempt == 1:
+                # Tentativa 2: Busca expandida com mais resultados
+                search_results = self.vector_search.search(query, k=6)
+                if len(search_results) < 2:
+                    # Tentar busca com termos-chave se não encontrou muito
+                    expanded_query = self._expand_query_for_retry(query)
+                    search_results = self.vector_search.search(expanded_query, k=5)
+            else:
+                # Tentativa 3: Busca mais agressiva com normalizações
+                normalized_query = self._normalize_query_for_search(query)
+                search_results = self.vector_search.search(normalized_query, k=8)
+                
+            # Se não encontrou nada em nenhuma tentativa
+            if not search_results and attempt == max_retries - 1:
+                return self._generate_helpful_no_results_response(query, user_context)
+                
+            # Se encontrou resultados, tentar gerar resposta
+            if search_results:
+                result = self._generate_knight_response(query, search_results, user, analysis, user_context, attempt)
+                
+                # Validar qualidade da resposta
+                if self._is_response_adequate(result['response'], query, search_results):
+                    # Resposta adequada, retornar
+                    cache_key = f"knight_{hashlib.md5(query.encode()).hexdigest()}"
+                    cache.set(cache_key, result, 1800)
+                    return result
+                    
+                # Se resposta inadequada e ainda tem tentativas, continuar
+                if attempt < max_retries - 1:
+                    self.logger.info(f"Resposta inadequada na tentativa {attempt + 1}, tentando novamente...")
+                    continue
+                else:
+                    # Última tentativa - retornar mesmo se não ideal
+                    return result
+        
+        # Fallback final (não deve chegar aqui)
+        return self._generate_helpful_no_results_response(query, user_context)
+    
+    def _expand_query_for_retry(self, query: str) -> str:
+        """Expande query para retry usando sinônimos conhecidos"""
+        expansions = {
+            'auxilio': 'auxílio benefício ajuda',
+            'creche': 'creche berçário educação infantil',
+            'ferias': 'férias descanso licença',
+            'licenca': 'licença afastamento permissão',
+            'salario': 'salário remuneração pagamento',
+            'formulario': 'formulário documento ficha',
+            'vale': 'vale voucher benefício'
+        }
+        
+        words = query.lower().split()
+        expanded_words = []
+        
+        for word in words:
+            expanded_words.append(word)
+            if word in expansions:
+                expanded_words.extend(expansions[word].split())
+        
+        return ' '.join(expanded_words[:10])  # Limitar tamanho
+    
+    def _normalize_query_for_search(self, query: str) -> str:
+        """Normaliza query removendo acentos e usando termos-chave"""
+        import unicodedata
+        import re
+        
+        # Remover acentos
+        normalized = unicodedata.normalize('NFD', query)
+        normalized = ''.join(char for char in normalized if unicodedata.category(char) != 'Mn')
+        
+        # Extrair termos importantes
+        important_terms = re.findall(r'\b\w{3,}\b', normalized.lower())
+        
+        return ' '.join(important_terms[:5])  # Top 5 termos mais importantes
+        
+    def _generate_knight_response(self, query: str, search_results: List[Dict], user: Any, analysis: Dict[str, Any], user_context: Dict[str, Any], attempt: int) -> Dict[str, Any]:
+        """Gera resposta do Knight com contexto"""
         
         # Contexto formatado
-        context = self._prepare_context(search_results, max_length=800)
-        
-        # Contexto do usuário para personalização
-        user_context = {
-            'name': getattr(user, 'name', 'Colaborador') if user else 'Colaborador',
-            'department': analysis.get('personalization', {}).get('department'),
-            'role': analysis.get('personalization', {}).get('role')
-        }
+        max_context_length = 600 if attempt == 0 else 1000 if attempt == 1 else 1200
+        context = self._prepare_context(search_results, max_length=max_context_length)
         
         # Usar prompt centralizado para Knight
         user_name = user_context.get('name', 'usuário')
@@ -701,13 +778,15 @@ class ConsolidatedMultiAgentService:
 Contexto disponível:
 {context}"""
         
-        # Parâmetros dinâmicos baseados no contexto
-        temperature = 0.5 if analysis.get('complexity_score', 0.5) < 0.4 else 0.7
-        max_tokens = 400 if analysis.get('urgency_level') == 'high' else 600
+        # Parâmetros dinâmicos baseados na tentativa
+        temperature = 0.4 + (attempt * 0.1)  # Aumentar criatividade a cada tentativa
+        max_tokens = 400 + (attempt * 100)  # Mais tokens em tentativas posteriores
         
         llm_response = self.llm_manager.generate_response(
             prompt=query_with_context,
             context=[context] if context else [],
+            chat_history=chat_history or [],
+            user_language=user_language,
             max_tokens=max_tokens,
             temperature=temperature,
             agent_type="knight",
@@ -718,24 +797,90 @@ Contexto disponível:
         
         response_text = llm_response.get("response", "Desculpe, tive um problema técnico. Pode tentar reformular sua pergunta?")
         
-        # Resposta final simplificada  
-        result = {
+        # Buscar recursos de conhecimento
+        useful_links = []
+        downloadable_documents = []
+        try:
+            resources = self.knowledge_resources.find_relevant_resources(
+                query=query,
+                context=" ".join([r.get('content', '')[:200] for r in search_results[:3]])
+            )
+            useful_links = resources.get("useful_links", [])
+            downloadable_documents = resources.get("downloadable_documents", [])
+        except Exception as e:
+            self.logger.error(f"Erro ao buscar recursos: {e}")
+        
+        return {
             "response": response_text,
             "search_results": search_results,
             "agent_used": "knight",
+            "useful_links": useful_links,
+            "downloadable_documents": downloadable_documents,
             "metadata": {
                 "provider_used": llm_response.get("provider", "unknown"),
                 "agent_used": "knight",
-                "task_type": "general_hr"
+                "task_type": "general_hr",
+                "retry_attempt": attempt + 1,
+                "context_length": len(context)
             }
         }
         
-        # Cache simples
-        cache.set(cache_key, result, 1800)
+    def _is_response_adequate(self, response: str, query: str, search_results: List[Dict]) -> bool:
+        """Avalia se uma resposta é adequada"""
+        if not response or len(response.strip()) < 20:
+            return False
+            
+        # Respostas muito genéricas ou de erro
+        error_indicators = [
+            "desculpe, tive um problema",
+            "não consegui processar",
+            "erro ao gerar",
+            "tente novamente",
+            "reformular sua pergunta"
+        ]
         
-        return result
+        response_lower = response.lower()
+        if any(indicator in response_lower for indicator in error_indicators):
+            return False
+        
+        # Se tem contexto mas resposta não menciona nada específico
+        if search_results and len(search_results) > 0:
+            if len(response) < 100:  # Resposta muito curta com contexto disponível
+                return False
+                
+        return True
+        
+    def _generate_helpful_no_results_response(self, query: str, user_context: Dict[str, Any]) -> Dict[str, Any]:
+        """Gera resposta útil quando não encontra documentos"""
+        
+        user_name = user_context.get('name', 'Colaborador')
+        
+        # Respostas mais naturais e úteis
+        helpful_responses = [
+            f"Olha, {user_name}, não encontrei informações específicas sobre '{query}' nos nossos documentos aqui. Mas deixa eu te ajudar de outra forma - você pode me dar mais detalhes sobre sua situação? Ou se for algo urgente, pode contatar o RH diretamente que eles vão conseguir te orientar melhor.",
+            
+            f"Hmm, sobre '{query}' não tenho nada documentado no sistema no momento. Isso pode ser algo novo ou específico da sua área. Que tal você me explicar melhor o contexto? Assim posso tentar te direcionar para quem pode resolver.",
+            
+            f"{user_name}, não achei documentos específicos sobre '{query}' aqui. Mas não desiste não! Me conta mais sobre o que você precisa fazer ou qual situação você está enfrentando. Às vezes posso ajudar com informações relacionadas ou te indicar o melhor caminho."
+        ]
+        
+        import random
+        response = random.choice(helpful_responses)
+        
+        return {
+            "response": response,
+            "search_results": [],
+            "useful_links": [],
+            "downloadable_documents": [],
+            "metadata": {
+                "provider_used": "no_results_intelligent",
+                "agent_used": "knight", 
+                "task_type": "general",
+                "helpful_fallback": True
+            }
+        }
     
-    def _bard_fast_response(self, query: str, user_profile: Dict, analysis: Dict[str, Any]) -> Dict[str, Any]:
+    def _bard_fast_response(self, query: str, user_profile: Dict, analysis: Dict[str, Any], chat_history: List[Dict[str, Any]] = None, user_language: str = "pt_BR") -> Dict[str, Any]:
         """Bard - Central de Relatórios e Análises de Performance"""
         import logging
         
@@ -771,6 +916,8 @@ Contexto disponível:
                 llm_response = self.llm_manager.generate_response(
                     prompt=query_with_context,
                     context=[context] if context else [],
+                    chat_history=chat_history or [],
+                    user_language=user_language or "pt_BR",
                     max_tokens=600,
                     temperature=0.7,
                     agent_type="bard",
@@ -814,7 +961,7 @@ Contexto disponível:
                 "agent_used": "bard"
             }
     
-    def _wizard_fast_response(self, query: str, user_profile: Dict, analysis: Dict[str, Any]) -> Dict[str, Any]:
+    def _wizard_fast_response(self, query: str, user_profile: Dict, analysis: Dict[str, Any], chat_history: List[Dict[str, Any]] = None, user_language: str = "pt_BR") -> Dict[str, Any]:
         """Wizard - Especialista em capacitação e desenvolvimento (versão simplificada)"""
         
         # Busca por conteúdos de capacitação
@@ -835,6 +982,8 @@ Contexto disponível:
         llm_response = self.llm_manager.generate_response(
             prompt=query_with_context,
             context=[context] if context else [],
+            chat_history=chat_history or [],
+            user_language=user_language or "pt_BR",
             max_tokens=400,
             temperature=0.8,
             agent_type="wizard",

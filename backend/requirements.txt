@@ -11,8 +11,9 @@ cryptography
 PyJWT
 
 # Sistema RAG e LLM - Migração para LangGraph
-langgraph
+langgraph>=0.6.7
 langchain
+langchain-core
 langchain-community
 langchain-openai
 langchain-cohere
@@ -51,3 +52,6 @@ pytest
 pytest-django
 black
 flake8
+fuzzywuzzy==0.18.0
+Levenshtein==0.27.1
+python-Levenshtein==0.27.1

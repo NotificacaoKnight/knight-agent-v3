@@ -30,7 +30,8 @@ class ChatMessageSerializer(serializers.ModelSerializer):
             'id', 'message_type', 'content_type', 'content', 'created_at',
             'context_count', 'llm_provider', 'llm_model',
             'response_time_ms', 'is_helpful', 'audio_file', 'audio_url',
-            'audio_duration', 'transcription', 'agent_type', 'is_handoff', 'agent_emoji'
+            'audio_duration', 'transcription', 'agent_type', 'is_handoff', 'agent_emoji',
+            'useful_links', 'downloadable_documents'
         ]
         read_only_fields = ['id', 'created_at']
     

@@ -59,6 +59,10 @@ class ChatMessage(models.Model):
     llm_provider = models.CharField(max_length=20, blank=True)
     llm_model = models.CharField(max_length=50, blank=True)
     
+    # Recursos úteis sugeridos
+    useful_links = models.JSONField(default=list, blank=True)  # Links úteis incluídos na resposta
+    downloadable_documents = models.JSONField(default=list, blank=True)  # Documentos para download
+    
     # Performance
     response_time_ms = models.IntegerField(null=True, blank=True)
     

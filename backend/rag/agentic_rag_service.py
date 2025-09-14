@@ -15,7 +15,7 @@ from django.conf import settings
 from django.core.cache import cache
 
 from .hybrid_vector_service import HybridVectorService
-from .services import BM25SearchService, EmbeddingService
+from .services import BM25SearchService, EmbeddingService, VectorSearchService
 from .llm_providers import LLMManager
 from .models import SearchQuery, SearchResult
 from .agentic_config import get_config
@@ -49,6 +49,11 @@ class AgenticRAGState(TypedDict):
     # Quality control
     response_quality: float
     needs_refinement: bool
+    
+    # Chat context and language (NEW for DynamicPromptV2)
+    chat_history: List[Dict[str, Any]]
+    user_language: str
+    user: Any
     
     # Metadata
     search_duration_ms: int
@@ -120,31 +125,41 @@ class AgenticRAGService:
         }
     
     def _search_node(self, state: AgenticRAGState) -> Dict[str, Any]:
-        """Nó de busca - executa busca híbrida"""
+        """Nó de busca - executa busca híbrida com query expansion"""
         query = state["query"]
         search_attempts = state.get("search_attempts", 0)
         
         start_time = time.time()
         
         try:
+            # Usar query original - DynamicPromptV2 já lida com tolerância a erros
+            search_query = query
+            if search_attempts > 0:
+                print(f"Tentativa {search_attempts + 1} de busca para: '{query}'")
+            
             # Verificar se índices precisam ser reconstruídos
             if cache.get('indices_need_rebuild'):
                 # Forçar reconstrução dos serviços
                 self.vector_search = VectorSearchService()
                 self.bm25_search = BM25SearchService()
             
-            # Usar HybridSearchService existente para otimização
-            from .services import HybridSearchService
-            hybrid_service = HybridSearchService()
-            
-            # Busca otimizada sem logging (busca intermediária)
+            # Busca com múltiplas estratégias
             combined_results = []
             
-            # Busca semântica
-            semantic_results = self.vector_search.search(query, k=10)
+            # 1. Busca semântica (principal)
+            semantic_results = self.vector_search.search(search_query, k=10)
             
-            # Busca BM25  
-            bm25_results = self.bm25_search.search(query, k=10)
+            # 2. Busca BM25 (complementar)  
+            bm25_results = self.bm25_search.search(search_query, k=10)
+            
+            # 3. Se poucos resultados, tentar variações da query
+            if len(semantic_results) < 3 and search_attempts == 0:
+                query_variations = self._generate_query_variations(query)
+                for variation in query_variations[:2]:  # Máximo 2 variações
+                    var_semantic = self.vector_search.search(variation, k=5)
+                    var_bm25 = self.bm25_search.search(variation, k=5)
+                    semantic_results.extend(var_semantic)
+                    bm25_results.extend(var_bm25)
             
             # Combinar resultados usando lógica otimizada
             combined_results = self._combine_search_results(
@@ -160,6 +175,7 @@ class AgenticRAGService:
                 "search_results": combined_results,
                 "search_attempts": search_attempts + 1,
                 "search_duration_ms": search_duration,
+                "expanded_query": search_query if search_query != query else None,
                 "next_action": "quality_check"
             }
             
@@ -313,10 +329,16 @@ class AgenticRAGService:
         except Exception as e:
             print(f"Erro ao buscar recursos: {e}")
         
-        # Gerar resposta usando o LLM manager padrão
+        # Gerar resposta usando DynamicPromptV2 com todos os parâmetros necessários
         llm_response = self.llm_manager.generate_response(
             prompt=query,
             context=retrieved_docs,
+            chat_history=state.get("chat_history", []),
+            knowledge_resources={
+                'useful_links': useful_links,
+                'downloadable_documents': downloadable_documents
+            },
+            user_language=state.get("user_language", "pt_BR"),
             max_tokens=800,
             temperature=0.7
         )
@@ -536,10 +558,78 @@ class AgenticRAGService:
         # Para simplificar, retornar informação básica
         return f"Contexto baseado em {len(documents)} documentos relacionados à consulta."
     
+    # Método _expand_query removido - DynamicPromptV2 lida com tolerância a erros de forma mais inteligente
+    
+    def _generate_query_variations(self, query: str) -> List[str]:
+        """Gera variações da query para melhorar recall"""
+        variations = []
+        
+        # Variação 1: Query mais genérica (remover palavras específicas)
+        generic_query = self._make_query_generic(query)
+        if generic_query != query:
+            variations.append(generic_query)
+        
+        # Variação 2: Termos-chave extraídos
+        keywords = self._extract_key_terms(query)
+        if len(keywords) > 1:
+            variations.append(' '.join(keywords[:3]))  # Top 3 keywords
+        
+        # Variação 3: Query focada no domínio
+        domain_query = self._add_domain_context(query)
+        if domain_query != query:
+            variations.append(domain_query)
+        
+        return variations[:2]  # Máximo 2 variações
+    
+    def _make_query_generic(self, query: str) -> str:
+        """Torna query mais genérica removendo termos muito específicos"""
+        # Remover artigos, preposições e conectivos
+        stopwords = ['o', 'a', 'os', 'as', 'de', 'da', 'do', 'para', 'com', 'em', 'na', 'no']
+        words = [w for w in query.lower().split() if w not in stopwords and len(w) > 2]
+        return ' '.join(words)
+    
+    def _extract_key_terms(self, query: str) -> List[str]:
+        """Extrai termos-chave mais importantes da query"""
+        import re
+        
+        # Termos importantes no contexto corporativo
+        important_terms = [
+            'auxílio', 'auxilio', 'creche', 'férias', 'ferias', 'licença', 'salário', 'salario',
+            'vale', 'benefício', 'beneficio', 'processo', 'formulário', 'formulario',
+            'solicitação', 'solicitacao', 'manual', 'política', 'politica', 'procedimento'
+        ]
+        
+        words = re.findall(r'\b\w+\b', query.lower())
+        key_terms = []
+        
+        # Primeiro, termos importantes
+        for word in words:
+            if word in important_terms:
+                key_terms.append(word)
+        
+        # Depois, palavras não-stopwords
+        stopwords = ['o', 'a', 'de', 'para', 'com', 'em', 'que', 'se', 'por']
+        for word in words:
+            if len(word) > 3 and word not in stopwords and word not in key_terms:
+                key_terms.append(word)
+        
+        return key_terms[:5]
+    
+    def _add_domain_context(self, query: str) -> str:
+        """Adiciona contexto corporativo à query se relevante"""
+        corporate_indicators = ['política', 'processo', 'manual', 'procedimento', 'norma']
+        
+        if any(indicator in query.lower() for indicator in corporate_indicators):
+            return f"{query} corporativo empresa"
+        
+        return query
+    
     def process_query(
         self, 
         query: str, 
         user: Any = None,
+        chat_history: List[Dict[str, Any]] = None,
+        user_language: str = "pt_BR",
         **kwargs
     ) -> Dict[str, Any]:
         """Processa query usando o grafo agentic"""
@@ -547,7 +637,7 @@ class AgenticRAGService:
         start_time = time.time()
         
         try:
-            # Estado inicial simplificado
+            # Estado inicial com suporte a DynamicPromptV2
             initial_state = AgenticRAGState(
                 query=query,
                 messages=[HumanMessage(content=query)],
@@ -563,6 +653,9 @@ class AgenticRAGService:
                 downloadable_documents=[],
                 response_quality=0.0,
                 needs_refinement=False,
+                chat_history=chat_history or [],
+                user_language=user_language,
+                user=user,
                 search_duration_ms=0,
                 total_duration_ms=0,
                 provider_used="",
@@ -660,6 +753,8 @@ class AgenticRAGServiceSync:
         query: str, 
         k: int = 5,
         user: Any = None,
+        chat_history: List[Dict[str, Any]] = None,
+        user_language: str = "pt_BR",
         **kwargs
     ) -> Dict[str, Any]:
         """Interface síncrona compatível com HybridSearchService"""
@@ -677,7 +772,10 @@ class AgenticRAGServiceSync:
                 return self._sync_fallback_search(query, k, user, **kwargs)
             else:
                 return loop.run_until_complete(
-                    self.async_service.process_query(query, user, **kwargs)
+                    self.async_service.process_query(
+                        query, user, chat_history=chat_history, 
+                        user_language=user_language, **kwargs
+                    )
                 )
         except:
             # Fallback para versão síncrona simplificada

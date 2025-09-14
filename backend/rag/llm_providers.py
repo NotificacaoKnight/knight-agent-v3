@@ -15,8 +15,8 @@ from groq import Groq
 import openai
 import google.generativeai as genai
 
-# Import dos prompts centralizados
-from .agentic_config import AgentPrompts
+# Import do novo sistema de prompts simplificado
+from .dynamic_prompt_v2 import DynamicPromptV2, get_prompt_builder
 
 
 class ConfigManager:
@@ -227,6 +227,7 @@ class CohereProvider(LLMProvider):
     
     def __init__(self):
         super().__init__()
+        self.prompt_builder = None  # Will be initialized with user's language
     
     def _get_api_key(self) -> Optional[str]:
         """Busca API key com fallback chain"""
@@ -253,36 +254,62 @@ class CohereProvider(LLMProvider):
         user_name: str = "Usuário",
         user_role: str = "colaborador",
         is_admin: bool = False,
+        chat_history: List[Dict] = None,
+        knowledge_resources: Dict = None,
+        user_language: str = None,
         **kwargs
     ) -> Dict[str, Any]:
-        """Gera resposta usando Cohere com prompts centralizados"""
+        """Gera resposta usando Cohere com DynamicPromptV2 simplificado"""
         try:
-            # Obter prompt do agente apropriado
-            system_prompt = AgentPrompts.get_agent_prompt(
-                agent_type=agent_type,
-                user_name=user_name,
-                user_role=user_role,
-                is_admin=is_admin
+            # Initialize prompt builder with user's language
+            language = user_language or kwargs.get('language', 'pt_BR')
+            self.prompt_builder = get_prompt_builder(language)
+            
+            # Build context using DynamicPromptV2
+            user_context = {
+                'name': user_name,
+                'role': user_role,
+                'is_admin': is_admin
+            }
+            
+            # Convert context list to document format
+            documents = None
+            if context:
+                documents = [{'content': doc} for doc in context]
+            
+            # Build unified context (includes system prompt)
+            full_context = self.prompt_builder.build_context(
+                query=prompt,
+                documents=documents,
+                resources=knowledge_resources,
+                chat_history=chat_history,
+                user_context=user_context
             )
             
-            # Preparar documentos de contexto
-            documents = []
+            # For Cohere, the full context becomes the message
+            # No separate system prompt needed (it's in the context)
+            message = full_context
+            
+            # Preparar documentos de contexto para Cohere RAG (se ainda houver contexto)
+            cohere_documents = []
             if context:
                 for i, doc in enumerate(context):
-                    documents.append({
+                    cohere_documents.append({
                         "id": str(i),
                         "text": doc
                     })
             
-            # Usar RAG nativo do Cohere se houver contexto
-            if documents:
+            # Usar Cohere com o contexto unificado
+            # Note: No preamble needed as system prompt is in the message
+            if cohere_documents:
+                # Use Cohere's native RAG with documents
                 response = self.client.chat(
-                    message=prompt,
-                    documents=documents,
+                    message=message,
+                    documents=cohere_documents,
                     model=self.model,
                     max_tokens=max_tokens,
-                    temperature=temperature,
-                    preamble=system_prompt
+                    temperature=temperature
+                    # No preamble - system prompt is already in message
                 )
                 
                 return {
@@ -291,17 +318,19 @@ class CohereProvider(LLMProvider):
                     'model': self.model,
                     'provider': 'cohere',
                     'agent_type': agent_type,
-                    'documents_used': len(documents),
-                    'citations': getattr(response, 'citations', [])
+                    'documents_used': len(cohere_documents),
+                    'citations': getattr(response, 'citations', []),
+                    'language': language,
+                    'prompt_version': 'v2-simplified'
                 }
             else:
-                # Chat simples sem RAG
+                # Simple chat without additional documents
                 response = self.client.chat(
-                    message=prompt,
+                    message=message,
                     model=self.model,
                     max_tokens=max_tokens,
-                    temperature=temperature,
-                    preamble=system_prompt
+                    temperature=temperature
+                    # No preamble - system prompt is already in message
                 )
                 
                 return {
@@ -309,7 +338,9 @@ class CohereProvider(LLMProvider):
                     'response': response.text,
                     'model': self.model,
                     'provider': 'cohere',
-                    'agent_type': agent_type
+                    'agent_type': agent_type,
+                    'language': language,
+                    'prompt_version': 'v2-simplified'
                 }
                 
         except Exception as e:
@@ -356,23 +387,37 @@ class TogetherProvider(LLMProvider):
         user_name: str = "Usuário",
         user_role: str = "colaborador",
         is_admin: bool = False,
+        chat_history: List[Dict] = None,
+        knowledge_resources: Dict = None,
+        user_language: str = None,
         **kwargs
     ) -> Dict[str, Any]:
-        """Gera resposta usando Together AI com prompts centralizados"""
+        """Gera resposta usando Together AI com DynamicPromptV2"""
         try:
-            # Obter prompt do agente apropriado
-            system_prompt = AgentPrompts.get_agent_prompt(
-                agent_type=agent_type,
-                user_name=user_name,
-                user_role=user_role,
-                is_admin=is_admin
-            )
+            # Initialize prompt builder with user's language
+            language = user_language or kwargs.get('language', 'pt_BR')
+            prompt_builder = get_prompt_builder(language)
             
+            # Build user context
+            user_context = {
+                'name': user_name,
+                'role': user_role,
+                'is_admin': is_admin
+            }
+            
+            # Convert context to document format
+            documents = None
             if context:
-                context_text = "\n\n".join([f"Documento {i+1}:\n{doc}" for i, doc in enumerate(context)])
-                full_prompt = f"{system_prompt}\n\nContexto:\n{context_text}\n\nPergunta: {prompt}\n\nResposta:"
-            else:
-                full_prompt = f"{system_prompt}\n\nPergunta: {prompt}\n\nResposta:"
+                documents = [{'content': doc} for doc in context]
+            
+            # Build unified context
+            full_prompt = prompt_builder.build_context(
+                query=prompt,
+                documents=documents,
+                resources=knowledge_resources,
+                chat_history=chat_history,
+                user_context=user_context
+            )
             
             headers = {
                 "Authorization": f"Bearer {self.api_key}",
@@ -390,7 +435,7 @@ class TogetherProvider(LLMProvider):
                 f"{self.base_url}/chat/completions",
                 headers=headers,
                 json=data,
-                timeout=15  # Reduzido para velocidade
+                timeout=15
             )
             
             if response.status_code == 200:
@@ -401,7 +446,9 @@ class TogetherProvider(LLMProvider):
                     'model': self.model,
                     'provider': 'together',
                     'agent_type': agent_type,
-                    'documents_used': len(context) if context else 0
+                    'documents_used': len(context) if context else 0,
+                    'language': language,
+                    'prompt_version': 'v2-simplified'
                 }
             else:
                 return {
@@ -453,25 +500,40 @@ class GroqProvider(LLMProvider):
         user_name: str = "Usuário",
         user_role: str = "colaborador",
         is_admin: bool = False,
+        chat_history: List[Dict] = None,
+        knowledge_resources: Dict = None,
+        user_language: str = None,
         **kwargs
     ) -> Dict[str, Any]:
-        """Gera resposta usando Groq com prompts centralizados"""
+        """Gera resposta usando Groq com DynamicPromptV2"""
         try:
-            # Obter prompt do agente apropriado
-            system_prompt = AgentPrompts.get_agent_prompt(
-                agent_type=agent_type,
-                user_name=user_name,
-                user_role=user_role,
-                is_admin=is_admin
+            # Initialize prompt builder with user's language
+            language = user_language or kwargs.get('language', 'pt_BR')
+            prompt_builder = get_prompt_builder(language)
+            
+            # Build user context
+            user_context = {
+                'name': user_name,
+                'role': user_role,
+                'is_admin': is_admin
+            }
+            
+            # Convert context to document format
+            documents = None
+            if context:
+                documents = [{'content': doc} for doc in context]
+            
+            # Build unified context
+            full_context = prompt_builder.build_context(
+                query=prompt,
+                documents=documents,
+                resources=knowledge_resources,
+                chat_history=chat_history,
+                user_context=user_context
             )
             
-            messages = [{"role": "system", "content": system_prompt}]
-            
-            if context:
-                context_text = "\n\n".join([f"Documento {i+1}:\n{doc}" for i, doc in enumerate(context)])
-                messages.append({"role": "user", "content": f"Contexto:\n{context_text}"})
-            
-            messages.append({"role": "user", "content": prompt})
+            # For Groq, use the full context as a single user message
+            messages = [{"role": "user", "content": full_context}]
             
             response = self.client.chat.completions.create(
                 model=self.model,
@@ -486,7 +548,9 @@ class GroqProvider(LLMProvider):
                 'model': self.model,
                 'provider': 'groq',
                 'agent_type': agent_type,
-                'documents_used': len(context) if context else 0
+                'documents_used': len(context) if context else 0,
+                'language': language,
+                'prompt_version': 'v2-simplified'
             }
             
         except Exception as e:
@@ -534,9 +598,12 @@ class DeepSeekProvider(LLMProvider):
         user_name: str = "Usuário",
         user_role: str = "colaborador",
         is_admin: bool = False,
+        chat_history: List[Dict] = None,
+        knowledge_resources: Dict = None,
+        user_language: str = None,
         **kwargs
     ) -> Dict[str, Any]:
-        """Gera resposta usando DeepSeek com prompts centralizados"""
+        """Gera resposta usando DeepSeek com DynamicPromptV2"""
         try:
             if not self.api_key:
                 return {
@@ -546,21 +613,33 @@ class DeepSeekProvider(LLMProvider):
                     'agent_type': agent_type
                 }
             
-            # Obter prompt do agente apropriado
-            system_prompt = AgentPrompts.get_agent_prompt(
-                agent_type=agent_type,
-                user_name=user_name,
-                user_role=user_role,
-                is_admin=is_admin
+            # Initialize prompt builder with user's language
+            language = user_language or kwargs.get('language', 'pt_BR')
+            prompt_builder = get_prompt_builder(language)
+            
+            # Build user context
+            user_context = {
+                'name': user_name,
+                'role': user_role,
+                'is_admin': is_admin
+            }
+            
+            # Convert context to document format
+            documents = None
+            if context:
+                documents = [{'content': doc} for doc in context]
+            
+            # Build unified context
+            full_context = prompt_builder.build_context(
+                query=prompt,
+                documents=documents,
+                resources=knowledge_resources,
+                chat_history=chat_history,
+                user_context=user_context
             )
             
-            messages = [{"role": "system", "content": system_prompt}]
-            
-            if context:
-                context_text = "\n\n".join([f"Documento {i+1}:\n{doc}" for i, doc in enumerate(context)])
-                messages.append({"role": "user", "content": f"Contexto:\n{context_text}"})
-            
-            messages.append({"role": "user", "content": prompt})
+            # For DeepSeek, use as a single user message
+            messages = [{"role": "user", "content": full_context}]
             
             headers = {
                 "Authorization": f"Bearer {self.api_key}",
@@ -593,6 +672,8 @@ class DeepSeekProvider(LLMProvider):
                     'provider': 'deepseek',
                     'agent_type': agent_type,
                     'documents_used': len(context) if context else 0,
+                    'language': language,
+                    'prompt_version': 'v2-simplified',
                     'usage': {
                         'input_tokens': usage.get('prompt_tokens', 0),
                         'output_tokens': usage.get('completion_tokens', 0),
@@ -658,9 +739,12 @@ class OpenAIProvider(LLMProvider):
         user_name: str = "Usuário",
         user_role: str = "colaborador",
         is_admin: bool = False,
+        chat_history: List[Dict] = None,
+        knowledge_resources: Dict = None,
+        user_language: str = None,
         **kwargs
     ) -> Dict[str, Any]:
-        """Gera resposta usando OpenAI com prompts centralizados"""
+        """Gera resposta usando OpenAI com DynamicPromptV2"""
         try:
             if not self.client:
                 return {
@@ -670,23 +754,33 @@ class OpenAIProvider(LLMProvider):
                     'agent_type': agent_type
                 }
             
-            # Obter prompt do agente apropriado
-            system_prompt = AgentPrompts.get_agent_prompt(
-                agent_type=agent_type,
-                user_name=user_name,
-                user_role=user_role,
-                is_admin=is_admin
+            # Initialize prompt builder with user's language
+            language = user_language or kwargs.get('language', 'pt_BR')
+            prompt_builder = get_prompt_builder(language)
+            
+            # Build user context
+            user_context = {
+                'name': user_name,
+                'role': user_role,
+                'is_admin': is_admin
+            }
+            
+            # Convert context to document format
+            documents = None
+            if context:
+                documents = [{'content': doc} for doc in context]
+            
+            # Build unified context
+            full_context = prompt_builder.build_context(
+                query=prompt,
+                documents=documents,
+                resources=knowledge_resources,
+                chat_history=chat_history,
+                user_context=user_context
             )
             
-            messages = [{"role": "system", "content": system_prompt}]
-            
-            if context:
-                context_text = "\n\n".join([f"Documento {i+1}:\n{doc}" for i, doc in enumerate(context)])
-                user_message = f"Contexto:\n{context_text}\n\nPergunta: {prompt}"
-            else:
-                user_message = prompt
-            
-            messages.append({"role": "user", "content": user_message})
+            # For OpenAI, use as a single user message
+            messages = [{"role": "user", "content": full_context}]
             
             response = self.client.chat.completions.create(
                 model=self.model,
@@ -705,6 +799,8 @@ class OpenAIProvider(LLMProvider):
                 'provider': 'openai',
                 'agent_type': agent_type,
                 'documents_used': len(context) if context else 0,
+                'language': language,
+                'prompt_version': 'v2-simplified',
                 'usage': {
                     'input_tokens': usage.prompt_tokens,
                     'output_tokens': usage.completion_tokens,
@@ -775,9 +871,12 @@ class GeminiProvider(LLMProvider):
         user_name: str = "Usuário",
         user_role: str = "colaborador",
         is_admin: bool = False,
+        chat_history: List[Dict] = None,
+        knowledge_resources: Dict = None,
+        user_language: str = None,
         **kwargs
     ) -> Dict[str, Any]:
-        """Gera resposta usando Google Gemini com prompts centralizados"""
+        """Gera resposta usando Google Gemini com DynamicPromptV2"""
         try:
             if not self.model:
                 return {
@@ -787,19 +886,30 @@ class GeminiProvider(LLMProvider):
                     'agent_type': agent_type
                 }
             
-            # Obter prompt do agente apropriado
-            system_prompt = AgentPrompts.get_agent_prompt(
-                agent_type=agent_type,
-                user_name=user_name,
-                user_role=user_role,
-                is_admin=is_admin
-            )
+            # Initialize prompt builder with user's language
+            language = user_language or kwargs.get('language', 'pt_BR')
+            prompt_builder = get_prompt_builder(language)
             
+            # Build user context
+            user_context = {
+                'name': user_name,
+                'role': user_role,
+                'is_admin': is_admin
+            }
+            
+            # Convert context to document format
+            documents = None
             if context:
-                context_text = "\n\n".join([f"Documento {i+1}:\n{doc}" for i, doc in enumerate(context)])
-                full_prompt = f"{system_prompt}\n\nContexto:\n{context_text}\n\nPergunta do usuário: {prompt}\n\nResposta:"
-            else:
-                full_prompt = f"{system_prompt}\n\nPergunta do usuário: {prompt}\n\nResposta:"
+                documents = [{'content': doc} for doc in context]
+            
+            # Build unified context
+            full_prompt = prompt_builder.build_context(
+                query=prompt,
+                documents=documents,
+                resources=knowledge_resources,
+                chat_history=chat_history,
+                user_context=user_context
+            )
             
             # Configurar parâmetros de geração
             generation_config = genai.types.GenerationConfig(
@@ -841,6 +951,8 @@ class GeminiProvider(LLMProvider):
                     'provider': 'gemini',
                     'agent_type': agent_type,
                     'documents_used': len(context) if context else 0,
+                    'language': language,
+                    'prompt_version': 'v2-simplified',
                     'usage': {
                         'input_tokens': getattr(response.usage_metadata, 'prompt_token_count', 0),
                         'output_tokens': getattr(response.usage_metadata, 'candidates_token_count', 0),
@@ -1146,9 +1258,15 @@ class MockProvider(LLMProvider):
         user_name: str = "Usuário",
         user_role: str = "colaborador",
         is_admin: bool = False,
+        chat_history: List[Dict] = None,
+        knowledge_resources: Dict = None,
+        user_language: str = None,
         **kwargs
     ) -> Dict[str, Any]:
-        """Gera resposta mock para desenvolvimento com agentes"""
+        """Gera resposta mock para desenvolvimento com DynamicPromptV2"""
+        
+        # Get language for mock response
+        language = user_language or kwargs.get('language', 'pt_BR')
         
         # Resposta baseada no contexto se disponível
         if context and len(context) > 0:
@@ -1184,6 +1302,8 @@ Para configurar um provedor real, consulte o arquivo .env do projeto."""
             'provider': 'mock',
             'agent_type': agent_type,
             'model': 'mock-model',
+            'language': language,
+            'prompt_version': 'v2-simplified',
             'usage': {
                 'input_tokens': len(prompt.split()),
                 'output_tokens': len(response.split()),

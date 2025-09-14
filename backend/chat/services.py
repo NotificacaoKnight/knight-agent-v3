@@ -14,6 +14,7 @@ from .models import ChatSession, ChatMessage, DocumentRequest
 from .audio_transcription import GeminiAudioTranscriptionService
 from .access_count_config import AccessCountConfig
 from .agent_detector import agent_detector
+from .context_manager import ChatContextManager
 
 class KnightChatService:
     """Serviço principal do agente Knight"""
@@ -23,6 +24,10 @@ class KnightChatService:
         self.agentic_service = AgenticRAGServiceSync()
         self.llm_manager = get_llm_manager()
         self.transcription_service = GeminiAudioTranscriptionService()
+        
+        # Novo sistema de contexto
+        self.context_manager = ChatContextManager()
+        
         self.max_context_chunks = 5
         self.max_context_length = 4000
 
@@ -211,7 +216,18 @@ class KnightChatService:
                 transcription=transcription if content_type == 'audio' else ''
             )
             
-            
+            # 📚 OBTER CONTEXTO DA CONVERSA (NOVO)
+            chat_history = []
+            try:
+                # Verificar se deve incluir histórico baseado na query
+                if self.context_manager.should_include_history(user_message, session):
+                    chat_history = self.context_manager.get_relevant_context(session, max_messages=8)
+                    print(f"🔄 CONTEXTO: Incluindo {len(chat_history)} mensagens do histórico")
+                else:
+                    print("🔄 CONTEXTO: Não incluindo histórico (query não indica necessidade)")
+            except Exception as e:
+                print(f"⚠️ CONTEXTO: Erro ao obter histórico: {e}")
+                chat_history = []  # Fallback sem histórico
             
             # 🎯 SISTEMA MULTI-AGENTE
             target_agent, transition_reason = agent_detector.detect_appropriate_agent(user_message)
@@ -231,7 +247,7 @@ class KnightChatService:
                 )
                 
                 # Processar com agente específico
-                agent_result = self._process_with_agent(user_message, target_agent, session.user)
+                agent_result = self._process_with_agent(user_message, target_agent, session.user, chat_history)
                 
                 # Salvar resposta do agente específico
                 agent_msg = ChatMessage.objects.create(
@@ -241,7 +257,9 @@ class KnightChatService:
                     agent_type=target_agent,
                     llm_provider=agent_result.get('metadata', {}).get('provider_used', 'unknown'),
                     response_time_ms=agent_result.get('metadata', {}).get('total_duration_ms', 0),
-                    context_used=agent_result.get('search_results', [])[:5]  # Top 5 contextos
+                    context_used=agent_result.get('search_results', [])[:5],  # Top 5 contextos
+                    useful_links=agent_result.get('useful_links', []),
+                    downloadable_documents=agent_result.get('downloadable_documents', [])
                 )
                 
                 # Incrementar contador para documentos usados
@@ -273,7 +291,7 @@ class KnightChatService:
                 }
             
             # 🛡️ PROCESSAMENTO TRADICIONAL COM KNIGHT
-            knight_result = self._process_with_agent(user_message, 'knight', session.user)
+            knight_result = self._process_with_agent(user_message, 'knight', session.user, chat_history)
             final_result = knight_result
             
             # Incrementar contador de acesso dos documentos consultados
@@ -317,7 +335,9 @@ class KnightChatService:
                 search_query_id=search_query.id if search_query else None,
                 llm_provider=llm_response['provider'],
                 llm_model=llm_response.get('model', ''),
-                response_time_ms=response_time
+                response_time_ms=response_time,
+                useful_links=final_result.get('useful_links', []),
+                downloadable_documents=final_result.get('downloadable_documents', [])
             )
             
             # Atualizar metadados da sessão
@@ -357,12 +377,16 @@ class KnightChatService:
                 'response_time_ms': int((time.time() - start_time) * 1000)
             }
     
-    def _process_with_agent(self, query: str, agent_type: str, user: Any) -> Dict[str, Any]:
+    def _process_with_agent(self, query: str, agent_type: str, user: Any, chat_history: List[Dict] = None) -> Dict[str, Any]:
         """Processa query com agente específico"""
         import logging
         import traceback
         
         logger = logging.getLogger(__name__)
+        
+        # Detectar idioma do usuário (pode expandir para base em perfil/configuração)
+        user_language = "pt_BR"  # Default para português brasileiro
+        # TODO: Adicionar detecção de idioma baseada em perfil do usuário ou preferências
         
         try:
             if agent_type == 'knight':
@@ -371,7 +395,9 @@ class KnightChatService:
                 return self.agentic_service.search(
                     query=query,
                     k=self.max_context_chunks,
-                    user=user
+                    user=user,
+                    chat_history=chat_history or [],  # NOVO: incluir histórico
+                    user_language=user_language  # NOVO: idioma para DynamicPromptV2
                 )
             else:
                 # Usar consolidated multi-agent para Wizard e Bard
@@ -384,7 +410,9 @@ class KnightChatService:
                         'name': getattr(user, 'username', 'Usuário') if user else 'Usuário',
                         'preferred_agent': agent_type
                     },
-                    force_mode=agent_type  # Forçar agente específico
+                    force_mode=agent_type,  # Forçar agente específico
+                    chat_history=chat_history or [],  # NOVO: incluir histórico
+                    user_language=user_language  # NOVO: idioma para DynamicPromptV2
                 )
                 
                 # Garantir estrutura de resposta completa

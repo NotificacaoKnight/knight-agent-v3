@@ -3,11 +3,14 @@ Serviço para integrar links úteis e documentos baixáveis ao sistema RAG
 """
 import os
 import re
+import unicodedata
 from typing import List, Dict, Any, Optional
 from django.db.models import Q, F
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 import logging
+from difflib import SequenceMatcher
+from fuzzywuzzy import fuzz, process
 
 from knowledge_resources.models import UsefulLink, DownloadableDocument, ResourceUsage
 from .model_cache import get_cached_model
@@ -23,7 +26,7 @@ class KnowledgeResourcesService:
         self._load_embedding_model()
         
         # Configurações
-        self.similarity_threshold = 0.6  # Limite mínimo para considerar relevante
+        self.similarity_threshold = 0.8  # Limite mínimo para considerar relevante (mais restritivo)
         self.max_links_per_response = 3
         self.max_documents_per_response = 2
     
@@ -66,9 +69,14 @@ class KnowledgeResourcesService:
             
             logger.info(f"Buscando recursos para query: '{query[:50]}...'")
             
-            # Buscar recursos relevantes
+            # Buscar links úteis (sempre sugestivo/contextual)
             relevant_links = self._find_relevant_links(search_text)
-            relevant_documents = self._find_relevant_documents(search_text)
+            
+            # Documentos baixáveis: apenas quando explicitamente solicitados
+            relevant_documents = []
+            if self._is_document_request(query):
+                relevant_documents = self._find_requested_documents(search_text)
+                logger.info(f"Solicitação de documento detectada, buscando documentos...")
             
             logger.info(f"Encontrados: {len(relevant_links)} links, {len(relevant_documents)} documentos")
             
@@ -176,36 +184,86 @@ class KnowledgeResourcesService:
         queryset, 
         resource_type: str
     ) -> List[Dict[str, Any]]:
-        """Busca baseada em palavras-chave nos campos de texto"""
+        """Busca baseada em palavras-chave com fuzzy matching nos campos de texto"""
         try:
             # Extrair palavras-chave relevantes
             keywords = self._extract_keywords(search_text)
             if not keywords:
                 return []
             
-            # Construir query Q para busca em múltiplos campos
-            q_objects = Q()
+            logger.info(f"Palavras-chave extraídas: {keywords}")
             
+            # Primeiro tentar busca exata (mais rápida)
+            q_objects = Q()
             for keyword in keywords:
-                # Buscar em campos relevantes
                 q_objects |= Q(title__icontains=keyword)
                 q_objects |= Q(description__icontains=keyword)
                 q_objects |= Q(ai_guidance__icontains=keyword)
                 q_objects |= Q(category__icontains=keyword)
             
-            # Executar busca
-            matches = queryset.filter(q_objects).distinct()[:5]
-            
+            exact_matches = queryset.filter(q_objects).distinct()[:5]
             results = []
-            for item in matches:
-                result = self._format_resource(item, resource_type, 0.8)  # Score alto para keyword match
+            
+            # Processar matches exatos
+            for item in exact_matches:
+                result = self._format_resource(item, resource_type, 0.9)  # Score alto para match exato
                 if result:
                     results.append(result)
             
-            return results
+            # Se não encontrou suficientes resultados, tentar fuzzy matching
+            if len(results) < 3:
+                fuzzy_results = self._find_fuzzy_matches(keywords, queryset, resource_type, exclude_ids=[r['id'] for r in results])
+                results.extend(fuzzy_results)
+            
+            return results[:5]  # Limitar a 5 resultados
             
         except Exception as e:
             logger.error(f"Erro na busca por palavras-chave: {e}")
+            return []
+    
+    def _find_fuzzy_matches(
+        self, 
+        keywords: List[str], 
+        queryset, 
+        resource_type: str, 
+        exclude_ids: List[int] = None
+    ) -> List[Dict[str, Any]]:
+        """Realiza busca fuzzy quando busca exata não encontra resultados suficientes"""
+        try:
+            exclude_ids = exclude_ids or []
+            fuzzy_results = []
+            
+            # Iterar sobre todos os itens restantes
+            remaining_items = queryset.exclude(id__in=exclude_ids)[:20]  # Limitar para performance
+            
+            for item in remaining_items:
+                # Calcular fuzzy score para cada campo
+                title_score = self._fuzzy_match_keywords(keywords, getattr(item, 'title', '') or '', threshold=80)
+                desc_score = self._fuzzy_match_keywords(keywords, getattr(item, 'description', '') or '', threshold=80)
+                guidance_score = self._fuzzy_match_keywords(keywords, getattr(item, 'ai_guidance', '') or '', threshold=80)
+                category_score = self._fuzzy_match_keywords(keywords, getattr(item, 'category', '') or '', threshold=80)
+                
+                # Calcular score combinado (dar mais peso ao título e guidance)
+                combined_score = max(
+                    title_score * 0.4,
+                    desc_score * 0.2,
+                    guidance_score * 0.3,
+                    category_score * 0.1
+                )
+                
+                # Só incluir se score for suficientemente alto
+                if combined_score >= 0.75:  # 75% de similaridade mínima (mais restritivo)
+                    result = self._format_resource(item, resource_type, combined_score)
+                    if result:
+                        fuzzy_results.append(result)
+                        logger.info(f"Fuzzy match encontrado: {item.title} (score: {combined_score:.2f})")
+            
+            # Ordenar por relevância
+            fuzzy_results.sort(key=lambda x: x['relevance_score'], reverse=True)
+            return fuzzy_results[:3]  # Top 3 fuzzy matches
+            
+        except Exception as e:
+            logger.error(f"Erro na busca fuzzy: {e}")
             return []
     
     def _find_semantic_matches(
@@ -249,10 +307,25 @@ class KnowledgeResourcesService:
             logger.error(f"Erro na busca semântica: {e}")
             return []
     
+    def _normalize_text(self, text: str) -> str:
+        """Normaliza texto removendo acentos e convertendo para minúsculas"""
+        if not text:
+            return ""
+        
+        # Remover acentos usando unicode normalization
+        text = unicodedata.normalize('NFD', text)
+        text = ''.join(char for char in text if unicodedata.category(char) != 'Mn')
+        
+        # Converter para minúsculas e remover espaços extras
+        return text.lower().strip()
+    
     def _extract_keywords(self, text: str) -> List[str]:
-        """Extrai palavras-chave relevantes do texto"""
-        # Remover pontuação e converter para minúsculas
-        clean_text = re.sub(r'[^\w\s]', ' ', text.lower())
+        """Extrai palavras-chave relevantes do texto com normalização"""
+        # Normalizar texto primeiro
+        normalized_text = self._normalize_text(text)
+        
+        # Remover pontuação
+        clean_text = re.sub(r'[^\w\s]', ' ', normalized_text)
         
         # Dividir em palavras
         words = clean_text.split()
@@ -260,14 +333,39 @@ class KnowledgeResourcesService:
         # Filtrar palavras muito curtas e stopwords básicas
         stopwords = {
             'a', 'o', 'e', 'de', 'do', 'da', 'em', 'um', 'uma', 'para', 'com', 'por', 'no', 'na',
-            'os', 'as', 'dos', 'das', 'nos', 'nas', 'que', 'se', 'ao', 'até', 'pelo', 'pela',
-            'este', 'esta', 'esse', 'essa', 'aquele', 'aquela', 'me', 'te', 'lhe', 'nos', 'vos'
+            'os', 'as', 'dos', 'das', 'nos', 'nas', 'que', 'se', 'ao', 'ate', 'pelo', 'pela',
+            'este', 'esta', 'esse', 'essa', 'aquele', 'aquela', 'me', 'te', 'lhe', 'nos', 'vos',
+            'ser', 'estar', 'ter', 'haver', 'fazer', 'ir', 'vir', 'dar', 'ver', 'saber'
         }
         
         keywords = [word for word in words if len(word) > 2 and word not in stopwords]
         
         # Retornar até 10 palavras-chave mais relevantes
         return keywords[:10]
+    
+    def _fuzzy_match_keywords(self, search_keywords: List[str], target_text: str, threshold: int = 70) -> float:
+        """Realiza fuzzy matching entre keywords e texto alvo"""
+        if not search_keywords or not target_text:
+            return 0.0
+        
+        normalized_target = self._normalize_text(target_text)
+        max_score = 0.0
+        
+        for keyword in search_keywords:
+            # Verificar se a keyword existe exatamente no texto (score máximo)
+            if keyword in normalized_target:
+                max_score = max(max_score, 100.0)
+                continue
+            
+            # Usar fuzzy matching para palavras similares
+            words_in_target = normalized_target.split()
+            for word in words_in_target:
+                if len(word) > 2:  # Só comparar palavras significativas
+                    score = fuzz.ratio(keyword, word)
+                    if score >= threshold:
+                        max_score = max(max_score, score)
+        
+        return max_score / 100.0  # Normalizar para 0-1
     
     def _create_combined_text(self, resource) -> str:
         """Cria texto combinado do recurso para comparação semântica"""
@@ -414,3 +512,149 @@ class KnowledgeResourcesService:
         except Exception as e:
             logger.error(f"Erro ao formatar recursos para LLM: {e}")
             return ""
+    
+    def _is_document_request(self, query: str) -> bool:
+        """
+        Detecta se a query é uma solicitação explícita de documento
+        """
+        query_lower = query.lower().strip()
+        
+        # Palavras que indicam solicitação de documento
+        request_indicators = [
+            'preciso', 'quero', 'onde está', 'cadê', 'tem o', 'tem um',
+            'formulário', 'documento', 'arquivo', 'baixar', 'download',
+            'como solicitar', 'onde encontro', 'onde pego', 'como pegar',
+            'me ajuda com', 'me envia', 'pode enviar', 'disponível'
+        ]
+        
+        # Verificar se contém indicadores de solicitação
+        for indicator in request_indicators:
+            if indicator in query_lower:
+                return True
+        
+        # Padrões específicos
+        patterns = [
+            'formulário de', 'formulário para', 'documento de', 'documento para',
+            'como faço para', 'onde consigo', 'preciso de um'
+        ]
+        
+        for pattern in patterns:
+            if pattern in query_lower:
+                return True
+                
+        return False
+    
+    def _find_requested_documents(self, search_text: str) -> List[Dict[str, Any]]:
+        """
+        Busca documentos usando matching inteligente quando explicitamente solicitados
+        """
+        try:
+            # Usar busca semântica primeiro (mais precisa)
+            semantic_results = self._find_semantic_matches(
+                search_text, 
+                DownloadableDocument.objects.filter(is_active=True),
+                'document',
+                limit=5
+            )
+            
+            if semantic_results:
+                logger.info(f"Encontrados {len(semantic_results)} documentos por busca semântica")
+                return semantic_results
+            
+            # Fallback: busca por palavras-chave com matching inteligente
+            keywords = self._extract_keywords(search_text)
+            keyword_results = self._find_by_smart_keywords(
+                keywords,
+                DownloadableDocument.objects.filter(is_active=True),
+                'document'
+            )
+            
+            if keyword_results:
+                logger.info(f"Encontrados {len(keyword_results)} documentos por palavras-chave inteligentes")
+                return keyword_results
+                
+            logger.info("Nenhum documento encontrado para a solicitação")
+            return []
+            
+        except Exception as e:
+            logger.error(f"Erro ao buscar documentos solicitados: {e}")
+            return []
+    
+    def _find_by_smart_keywords(
+        self, 
+        keywords: List[str], 
+        queryset, 
+        resource_type: str
+    ) -> List[Dict[str, Any]]:
+        """
+        Busca inteligente considerando sinônimos e variações
+        """
+        try:
+            # Mapeamento de sinônimos comuns
+            synonyms_map = {
+                'creche': ['infantil', 'criança', 'berçário', 'maternal', 'pré-escola'],
+                'auxilio': ['auxílio', 'ajuda', 'benefício', 'assistência', 'apoio'],
+                'ferias': ['férias', 'descanso', 'recesso', 'folga'],
+                'saude': ['saúde', 'médico', 'consulta', 'exame', 'tratamento'],
+                'vale': ['voucher', 'benefício', 'cartão', 'crédito'],
+                'transporte': ['condução', 'passagem', 'ônibus', 'metro', 'trem'],
+                'alimentacao': ['alimentação', 'refeição', 'comida', 'restaurante', 'lanche']
+            }
+            
+            # Expandir keywords com sinônimos
+            expanded_keywords = keywords.copy()
+            for keyword in keywords:
+                keyword_clean = self._normalize_text(keyword.lower())
+                for base_word, synonyms in synonyms_map.items():
+                    if base_word in keyword_clean or keyword_clean in synonyms:
+                        expanded_keywords.extend([base_word] + synonyms)
+                        break
+            
+            # Remover duplicatas e manter apenas palavras significativas
+            expanded_keywords = list(set([
+                kw for kw in expanded_keywords 
+                if len(kw) > 2 and kw.lower() not in ['para', 'com', 'por', 'em', 'de', 'do', 'da']
+            ]))
+            
+            logger.info(f"Keywords expandidas: {expanded_keywords[:10]}")  # Log apenas as primeiras 10
+            
+            results = []
+            for item in queryset[:30]:  # Limitar para performance
+                # Buscar em todos os campos relevantes
+                searchable_text = ' '.join([
+                    getattr(item, 'title', '') or '',
+                    getattr(item, 'description', '') or '', 
+                    getattr(item, 'ai_guidance', '') or '',
+                    getattr(item, 'category', '') or ''
+                ]).lower()
+                
+                # Calcular score baseado em matches
+                match_count = 0
+                total_keywords = len(expanded_keywords)
+                
+                for keyword in expanded_keywords:
+                    if keyword.lower() in searchable_text:
+                        match_count += 1
+                
+                # Score baseado na porcentagem de matches
+                if match_count > 0:
+                    relevance_score = match_count / total_keywords
+                    if relevance_score >= 0.2:  # Pelo menos 20% das keywords devem fazer match
+                        result = self._format_resource(item, resource_type, relevance_score)
+                        if result:
+                            results.append(result)
+                            logger.info(f"Match inteligente: {item.title} (score: {relevance_score:.2f})")
+            
+            # Ordenar por relevância
+            results.sort(key=lambda x: x['relevance_score'], reverse=True)
+            return results[:3]  # Retornar top 3
+            
+        except Exception as e:
+            logger.error(f"Erro na busca inteligente por keywords: {e}")
+            return []
+    
+    def _normalize_text(self, text: str) -> str:
+        """Normaliza texto removendo acentos e caracteres especiais"""
+        import unicodedata
+        normalized = unicodedata.normalize('NFD', text)
+        return ''.join(c for c in normalized if unicodedata.category(c) != 'Mn')
