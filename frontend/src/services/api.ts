@@ -30,12 +30,27 @@ const api = axios.create({
   // withCredentials removido para evitar problemas com CORS
 });
 
+// Helper function to validate JWT token format
+const isValidJWT = (token: string): boolean => {
+  if (!token || typeof token !== 'string') return false;
+  const parts = token.split('.');
+  return parts.length === 3 && parts.every(part => part.length > 0);
+};
+
 // Interceptor para adicionar token em todas as requisições
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('sessionToken');
     if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+      // Validate token format before sending
+      if (!isValidJWT(token)) {
+        console.log('🚨 Token inválido detectado no interceptor, removendo...');
+        localStorage.removeItem('sessionToken');
+        localStorage.removeItem('justLoggedOut');
+        // Don't add invalid token to headers
+      } else {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
     }
     return config;
   },
@@ -50,8 +65,14 @@ api.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       // Token expirado ou inválido
+      console.log('🚨 Erro 401 - Token inválido ou expirado, limpando dados...');
       localStorage.removeItem('sessionToken');
-      window.location.href = '/login';
+      localStorage.removeItem('justLoggedOut');
+
+      // Only redirect if not already on login page
+      if (window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }
@@ -128,7 +149,7 @@ export const chatApi = {
         formData.append('session_id', data.session_id);
       }
       
-      const response = await api.post('/chat/send/', formData, {
+      const response = await api.post('/chat/query', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -136,54 +157,54 @@ export const chatApi = {
       return response.data;
     } else {
       // Para mensagens de texto, usar JSON normal
-      const response = await api.post('/chat/send/', data);
+      const response = await api.post('/chat/query', data);
       return response.data;
     }
   },
 
   // Criar nova sessão
   newSession: async (): Promise<ChatSession> => {
-    const response = await api.post('/chat/sessions/new/');
+    const response = await api.post('/chat/sessions');
     return response.data;
   },
 
   // Listar sessões
   getSessions: async (): Promise<{sessions: ChatSession[]}> => {
-    const response = await api.get('/chat/sessions/');
+    const response = await api.get('/chat/sessions');
     return response.data;
   },
 
   // Obter histórico de uma sessão
   getSessionHistory: async (sessionId: string): Promise<{messages: ChatMessage[]}> => {
-    const response = await api.get(`/chat/sessions/${sessionId}/history/`);
+    const response = await api.get(`/chat/sessions/${sessionId}`);
     return response.data;
   },
 
   // Deletar sessão
   deleteSession: async (sessionId: string): Promise<void> => {
-    await api.delete(`/chat/sessions/${sessionId}/delete/`);
+    await api.delete(`/chat/sessions/${sessionId}`);
   },
 
   // Atualizar título da sessão
   updateSessionTitle: async (sessionId: string, title: string): Promise<ChatSession> => {
-    const response = await api.patch(`/chat/sessions/${sessionId}/`, { title });
+    const response = await api.put(`/chat/sessions/${sessionId}/title`, { title });
     return response.data;
   },
 
   // Submeter feedback
   submitFeedback: async (messageId: string, rating: number, feedback?: string): Promise<void> => {
-    await api.post('/chat/feedback/', { message_id: messageId, rating, feedback });
+    await api.post('/chat/feedback', { message_id: messageId, rating, feedback });
   },
 
   // Obter estatísticas do chat
   getChatStats: async (): Promise<any> => {
-    const response = await api.get('/chat/stats/');
+    const response = await api.get('/chat/stats');
     return response.data;
   },
 
   // Download de documentos
   async downloadDocument(documentId: number) {
-    const response = await api.get(`/knowledge-resources/downloadable-documents/${documentId}/download_file/`, {
+    const response = await api.get(`/knowledge/documents/${documentId}/download`, {
       responseType: 'blob' // Importante para download de arquivos
     });
     return response;

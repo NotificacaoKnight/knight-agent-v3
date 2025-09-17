@@ -1,0 +1,91 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: knight_fastapi_db
+      POSTGRES_USER: knight_user
+      POSTGRES_PASSWORD: knight_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - knight-fastapi-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U knight_user -d knight_fastapi_db"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis for caching and task queue
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - knight-fastapi-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # FastAPI Backend
+  fastapi:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - DEBUG=False
+      - DATABASE_URL=postgresql+asyncpg://knight_user:knight_password@postgres:5432/knight_fastapi_db
+      - REDIS_URL=redis://redis:6379/0
+      - LLM_PROVIDER=ollama
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - EMBEDDING_MODEL=BAAI/bge-m3
+      - USE_PGVECTOR=True
+    volumes:
+      - ./app:/app/app
+      - media_files:/app/media
+    ports:
+      - "8000:8000"
+    networks:
+      - knight-fastapi-network
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+  # Ollama (Self-hosted LLM)
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - knight-fastapi-network
+    # Uncomment for GPU support
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+volumes:
+  postgres_data:
+  redis_data:
+  media_files:
+  ollama_data:
+
+networks:
+  knight-fastapi-network:
+    driver: bridge

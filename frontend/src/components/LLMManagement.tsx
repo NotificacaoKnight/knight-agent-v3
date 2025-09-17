@@ -152,8 +152,8 @@ export const LLMManagement: React.FC = () => {
       // Adicionar timestamp para evitar cache
       const timestamp = Date.now();
       const [availableRes, currentRes] = await Promise.all([
-        api.get(`/rag/llm/available/?t=${timestamp}`),
-        api.get(`/rag/llm/current/?t=${timestamp}`)
+        api.get(`/rag/llm/available?t=${timestamp}`),
+        api.get(`/rag/llm/current?t=${timestamp}`)
       ]);
       
       setProviders(availableRes.data.providers);
@@ -165,7 +165,7 @@ export const LLMManagement: React.FC = () => {
 
   const loadMetrics = async () => {
     try {
-      const response = await api.get(`/rag/llm/metrics/?period=${selectedPeriod}`);
+      const response = await api.get(`/rag/llm/metrics?period=${selectedPeriod}`);
       setMetrics(response.data);
     } catch (error) {
       console.error('Erro ao carregar métricas:', error);
@@ -174,7 +174,7 @@ export const LLMManagement: React.FC = () => {
 
   const loadCosts = async () => {
     try {
-      const response = await api.get('/rag/llm/costs/');
+      const response = await api.get('/rag/llm/costs');
       setCosts(response.data);
     } catch (error) {
       console.error('Erro ao carregar custos:', error);
@@ -183,7 +183,7 @@ export const LLMManagement: React.FC = () => {
 
   const loadHistory = async () => {
     try {
-      const response = await api.get('/rag/llm/history/');
+      const response = await api.get('/rag/llm/history');
       setHistory(response.data.history || []);
     } catch (error) {
       console.error('Erro ao carregar histórico:', error);
@@ -196,7 +196,7 @@ export const LLMManagement: React.FC = () => {
     try {
       setSwitching(true);
 
-      const response = await api.post('/rag/llm/switch/', {
+      const response = await api.post('/rag/llm/switch', {
         provider: newProvider,
         test_connection: true,
         reason: 'Switch via admin interface'
@@ -231,7 +231,7 @@ export const LLMManagement: React.FC = () => {
   const handleTestProvider = async (providerKey: string) => {
     try {
       setTesting(providerKey);
-      const response = await api.post('/rag/llm/test/', { provider: providerKey });
+      const response = await api.post('/rag/llm/test', { provider: providerKey });
       
       if (response.data.success) {
         console.log(`${providerKey} testado com sucesso (${response.data.response_time_ms}ms)`);

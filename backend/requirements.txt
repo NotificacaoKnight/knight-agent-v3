@@ -1,57 +1,85 @@
-# Django e REST Framework
-Django
-djangorestframework
-django-cors-headers
-python-decouple
+# Core FastAPI
+fastapi
+uvicorn[standard]
+python-multipart
+aiofiles
+
+# Database
+sqlalchemy[asyncio]
+alembic
+asyncpg
 psycopg2-binary
 
-# Autenticação Microsoft
-msal
-cryptography
-PyJWT
+# Settings & Environment
+pydantic[email]
+pydantic-settings
+python-decouple
 
-# Sistema RAG e LLM - Migração para LangGraph
-langgraph>=0.6.7
+# Authentication & Security
+msal
+python-jose[cryptography]
+passlib[bcrypt]
+cryptography
+
+# Rate Limiting
+slowapi
+
+# LangGraph e AI
+langgraph
 langchain
 langchain-core
 langchain-community
 langchain-openai
-langchain-cohere
 sentence-transformers
-faiss-cpu
 tiktoken
+transformers
 
-# Processamento de documentos
-docling>=2.0.0,<3.0.0
+# Document Processing
+docling
 pymupdf
 pypdf
 python-docx
 openpyxl
 python-pptx
 
-# Busca híbrida
+# Vector Search
+faiss-cpu
 rank-bm25
 pgvector
 
-# Provedores LLM
-cohere
-together
-groq
+# LLM Providers
 openai
+cohere
+groq
 google-generativeai
+together
 
-# Utilidades
-celery
+# Background Tasks (using FastAPI native BackgroundTasks)
 redis
-requests
-python-multipart
-Pillow
 
-# Desenvolvimento
+# Utilities
+httpx
+requests
+Pillow
+python-dateutil
+numpy
+scipy
+
+# Email validation
+email-validator
+
+# Development & Testing
 pytest
-pytest-django
+pytest-asyncio
 black
 flake8
-fuzzywuzzy==0.18.0
-Levenshtein==0.27.1
-python-Levenshtein==0.27.1
+
+# Logging
+loguru
+
+# i18n
+babel
+
+# Additional FastAPI dependencies
+jinja2
+python-json-logger

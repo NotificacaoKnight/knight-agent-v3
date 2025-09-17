@@ -1,0 +1,57 @@
+# Django e REST Framework
+Django
+djangorestframework
+django-cors-headers
+python-decouple
+psycopg2-binary
+
+# Autenticação Microsoft
+msal
+cryptography
+PyJWT
+
+# Sistema RAG e LLM - Migração para LangGraph
+langgraph>=0.6.7
+langchain
+langchain-core
+langchain-community
+langchain-openai
+langchain-cohere
+sentence-transformers
+faiss-cpu
+tiktoken
+
+# Processamento de documentos
+docling>=2.0.0,<3.0.0
+pymupdf
+pypdf
+python-docx
+openpyxl
+python-pptx
+
+# Busca híbrida
+rank-bm25
+pgvector
+
+# Provedores LLM
+cohere
+together
+groq
+openai
+google-generativeai
+
+# Utilidades
+celery
+redis
+requests
+python-multipart
+Pillow
+
+# Desenvolvimento
+pytest
+pytest-django
+black
+flake8
+fuzzywuzzy==0.18.0
+Levenshtein==0.27.1
+python-Levenshtein==0.27.1

@@ -68,6 +68,20 @@ interface AuthProviderProps {
   children: React.ReactNode;
 }
 
+// Helper function to validate JWT token format
+const isValidJWT = (token: string): boolean => {
+  if (!token || typeof token !== 'string') return false;
+
+  // JWT should have exactly 3 parts separated by dots
+  const parts = token.split('.');
+  if (parts.length !== 3) return false;
+
+  // Check if any part is empty
+  if (parts.some(part => !part)) return false;
+
+  return true;
+};
+
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -77,7 +91,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const fetchUserProfile = useCallback(async () => {
     console.log('🔍 Buscando perfil do usuário...');
     try {
-      const profileResponse = await api.get('/auth/profile/');
+      const profileResponse = await api.get('/auth/profile');
       setUser({
         id: profileResponse.data.id,
         email: profileResponse.data.email,
@@ -121,8 +135,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // Check for existing session
         const sessionToken = localStorage.getItem('sessionToken');
         if (sessionToken) {
-          console.log('🔑 Token encontrado, carregando perfil...');
-          await fetchUserProfile();
+          // Validate JWT format before trying to use it
+          if (!isValidJWT(sessionToken)) {
+            console.log('🚨 Token inválido encontrado, removendo...');
+            localStorage.removeItem('sessionToken');
+            localStorage.removeItem('justLoggedOut');
+          } else {
+            console.log('🔑 Token válido encontrado, carregando perfil...');
+            await fetchUserProfile();
+          }
         } else {
           console.log('🔒 Nenhum token encontrado');
         }
@@ -166,7 +187,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         console.log('✅ Login MSAL bem-sucedido, enviando para backend...');
         
         // Enviar token ao backend para criar sessão
-        const backendResponse = await api.post('/auth/microsoft/token/', {
+        const backendResponse = await api.post('/auth/microsoft/token', {
           access_token: response.accessToken
         });
         

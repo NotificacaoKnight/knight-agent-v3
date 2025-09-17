@@ -50,7 +50,7 @@ export function BardPage() {
 
   const fetchReports = async () => {
     try {
-      const response = await api.get('/api/bard/reports/');
+      const response = await api.get('/api/bard/reports');
       setReports(response.data.reports || []);
     } catch (error) {
       console.error('Erro ao buscar relatórios:', error);

@@ -1,0 +1,92 @@
+# Docker Compose para desenvolvimento com hot reload
+services:
+  # PostgreSQL Database with pgvector
+  postgres:
+    image: pgvector/pgvector:pg15
+    container_name: knight_postgres_dev
+    environment:
+      POSTGRES_DB: knight_fastapi_db
+      POSTGRES_USER: knight_user
+      POSTGRES_PASSWORD: knight_pass
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U knight_user -d knight_fastapi_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # FastAPI Application with hot reload
+  fastapi:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: knight_fastapi_dev
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mount source code for hot reload
+      - .:/app
+      # Keep node_modules in container
+      - /app/.venv
+    environment:
+      # Database
+      - DATABASE_URL=postgresql+asyncpg://knight_user:knight_pass@postgres:5432/knight_fastapi_db
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=knight_fastapi_db
+      - DB_USER=knight_user
+      - DB_PASSWORD=knight_pass
+
+      # Development settings
+      - DEBUG=True
+      - SECRET_KEY=dev-secret-key-for-docker
+      - JWT_SECRET_KEY=dev-jwt-secret-for-docker
+
+      # LLM Configuration (usar suas próprias chaves)
+      - LLM_PROVIDER=deepseek
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+
+      # Azure AD (usar suas próprias configurações)
+      - AZURE_AD_CLIENT_ID=${AZURE_AD_CLIENT_ID:-}
+      - AZURE_AD_CLIENT_SECRET=${AZURE_AD_CLIENT_SECRET:-}
+      - AZURE_AD_TENANT_ID=${AZURE_AD_TENANT_ID:-}
+      - AZURE_AD_REDIRECT_URI=http://localhost:8000/auth/microsoft/callback/
+
+      # RAG Configuration
+      - EMBEDDING_MODEL=BAAI/bge-m3
+      - USE_PGVECTOR=True
+      - ENABLE_VECTOR_FALLBACK=True
+
+      # i18n
+      - DEFAULT_LANGUAGE=pt
+      - SUPPORTED_LANGUAGES=["pt","en","es"]
+
+      # File paths
+      - MEDIA_ROOT=/tmp/knight_media
+      - STATIC_ROOT=/tmp/knight_static
+      - BASE_DIR=/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: >
+      sh -c "
+        echo 'Waiting for database...' &&
+        sleep 5 &&
+        echo 'Starting FastAPI with hot reload...' &&
+        uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+      "
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  postgres_data:

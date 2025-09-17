@@ -41,7 +41,7 @@ interface UploadDocumentData {
 export const documentsApi = {
   // Listar documentos
   list: async (): Promise<Document[]> => {
-    const response = await api.get('/documents/');
+    const response = await api.get('/documents');
     // Se a resposta tem paginação (DRF), retornar apenas os results
     if (response.data && response.data.results) {
       return response.data.results;
@@ -52,7 +52,7 @@ export const documentsApi = {
 
   // Estatísticas dos documentos
   getStats: async (): Promise<DocumentStats> => {
-    const response = await api.get('/documents/stats/');
+    const response = await api.get('/documents/stats');
     return response.data;
   },
 
@@ -63,7 +63,7 @@ export const documentsApi = {
     formData.append('title', data.title);
     formData.append('is_downloadable', data.is_downloadable.toString());
 
-    const response = await api.post('/documents/upload/', formData, {
+    const response = await api.post('/documents/upload', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
@@ -73,35 +73,35 @@ export const documentsApi = {
 
   // Obter conteúdo do documento
   getContent: async (documentId: number): Promise<DocumentContent> => {
-    const response = await api.get(`/documents/${documentId}/content/`);
+    const response = await api.get(`/documents/${documentId}/content`);
     return response.data;
   },
 
   // Excluir documento
   delete: async (documentId: number): Promise<void> => {
-    await api.delete(`/documents/${documentId}/`);
+    await api.delete(`/documents/${documentId}`);
   },
 
   // Reprocessar documento
   reprocess: async (documentId: number): Promise<void> => {
-    await api.post(`/documents/${documentId}/reprocess/`);
+    await api.post(`/documents/${documentId}/reprocess`);
   },
 
   // Download do documento (retorna URL)
   getDownloadUrl: (documentId: number): string => {
     const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:8000';
-    return `${apiUrl}/api/documents/${documentId}/download/`;
+    return `${apiUrl}/api/documents/${documentId}/download`;
   },
 
   // Buscar chunks do documento
   getChunks: async (documentId: number) => {
-    const response = await api.get(`/documents/${documentId}/chunks/`);
+    const response = await api.get(`/documents/${documentId}/chunks`);
     return response.data;
   },
 
   // Status dos processamentos em andamento
   getProcessingStatus: async () => {
-    const response = await api.get('/documents/processing/');
+    const response = await api.get('/documents/processing');
     return response.data;
   },
 };

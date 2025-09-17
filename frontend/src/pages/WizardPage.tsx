@@ -107,7 +107,7 @@ export function WizardPage() {
 
   const fetchLearningPath = async () => {
     try {
-      const response = await api.get('/api/wizard/learning-path/');
+      const response = await api.get('/api/wizard/learning-path');
       if (response.data.learning_path) {
         setLearningPath(response.data.learning_path);
       }
@@ -118,7 +118,7 @@ export function WizardPage() {
 
   const fetchOnboardingProgress = async () => {
     try {
-      const response = await api.get('/api/wizard/onboarding-progress/');
+      const response = await api.get('/api/wizard/onboarding-progress');
       setOnboardingProgress(response.data);
     } catch (error) {
       console.error('Erro ao buscar progresso do onboarding:', error);

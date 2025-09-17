@@ -28,7 +28,7 @@ export const LLMStatusIndicator = forwardRef<LLMStatusIndicatorRef>((props, ref)
     }
 
     try {
-      const response = await api.get('/rag/llm-status/');
+      const response = await api.get('/rag/llm/status');
       setLlmStatus(response.data);
     } catch (error) {
       console.error('Erro ao buscar status do LLM:', error);
