@@ -1,6 +1,5 @@
 """
-Authentication service using Microsoft Azure AD with MSAL
-Migrated from Django authentication system
+Authentication service using Microsoft Azure AD with MSAL for FastAPI
 """
 import msal
 import logging
@@ -10,6 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, update
 import uuid
 import httpx
+import jwt
+from cryptography.hazmat.primitives import serialization
+import base64
 
 from app.core.config import settings
 from app.core.security import (
@@ -19,7 +21,10 @@ from app.core.security import (
     get_password_hash,
     verify_password
 )
+from app.core.admin_config import admin_service
 from app.models.user import User, UserSession
+from app.services.microsoft_token_validator import microsoft_token_validator
+from app.services.msal_token_validator import msal_token_validator
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +45,7 @@ class AuthService:
 
         self.redirect_uri = settings.AZURE_AD_REDIRECT_URI
         self.scopes = ["User.Read", "openid", "profile", "email"]
+        self._jwks_cache = {}  # Cache for Microsoft public keys
 
     def get_auth_url(self, state: Optional[str] = None) -> str:
         """
@@ -89,8 +95,15 @@ class AuthService:
             access_token = result["access_token"]
             user_info = await self._get_user_info(access_token)
 
-            # Create or update user in database
-            user = await self._create_or_update_user(db, user_info, result)
+            # Create or update user in database first (without photo)
+            user = await self._create_or_update_user(db, user_info, result, None)
+
+            # Now get and save user profile picture with user ID
+            profile_picture_path = await self._get_user_photo(access_token, user.id)
+            if profile_picture_path:
+                user.profile_picture = profile_picture_path
+                await db.commit()
+                await db.refresh(user)
 
             # Create session
             session = await self._create_session(db, user, result)
@@ -112,8 +125,16 @@ class AuthService:
                     "email": user.email,
                     "username": user.username,
                     "display_name": user.display_name,
+                    "first_name": user.first_name,
+                    "last_name": user.last_name,
+                    "preferred_name": user.preferred_name,
+                    "profile_picture": user.profile_picture,
                     "is_admin": user.is_admin,
-                    "preferred_language": user.preferred_language
+                    "is_active": user.is_active,
+                    "preferred_language": user.preferred_language,
+                    "department": user.department,
+                    "job_title": user.job_title,
+                    "created_at": user.created_at
                 }
             }
 
@@ -139,11 +160,85 @@ class AuthService:
             response.raise_for_status()
             return response.json()
 
+    async def _get_user_photo(self, access_token: str, user_id: Optional[int] = None) -> Optional[str]:
+        """
+        Get user profile picture from Microsoft Graph API and save to disk
+
+        Args:
+            access_token: Microsoft access token
+            user_id: User ID for naming the file (optional, will be set after user creation)
+
+        Returns:
+            Profile picture path or None if not available
+        """
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    "https://graph.microsoft.com/v1.0/me/photo/$value",
+                    headers={"Authorization": f"Bearer {access_token}"}
+                )
+                if response.status_code == 200 and user_id:
+                    # Save image to disk
+                    import os
+                    from pathlib import Path
+
+                    # Determine file extension from content-type
+                    content_type = response.headers.get('content-type', 'image/jpeg')
+                    extension = 'jpg'
+                    if 'png' in content_type:
+                        extension = 'png'
+                    elif 'gif' in content_type:
+                        extension = 'gif'
+                    elif 'webp' in content_type:
+                        extension = 'webp'
+
+                    # Create file path
+                    media_dir = Path("media/profile_pictures")
+                    media_dir.mkdir(parents=True, exist_ok=True)
+
+                    file_name = f"{user_id}.{extension}"
+                    file_path = media_dir / file_name
+
+                    # Save the image with better error handling
+                    try:
+                        with open(file_path, 'wb') as f:
+                            f.write(response.content)
+                        logger.info(f"Profile picture saved successfully: {file_path}")
+                        # Return the relative path for storage in database
+                        return f"/media/profile_pictures/{file_name}"
+                    except PermissionError:
+                        # Try with a timestamp suffix if permission denied
+                        import time
+                        timestamp = int(time.time())
+                        file_name_alt = f"{user_id}_{timestamp}.{extension}"
+                        file_path_alt = media_dir / file_name_alt
+                        try:
+                            with open(file_path_alt, 'wb') as f:
+                                f.write(response.content)
+                            logger.info(f"Profile picture saved with alternate name: {file_path_alt}")
+                            return f"/media/profile_pictures/{file_name_alt}"
+                        except Exception as alt_error:
+                            logger.error(f"Failed to save profile picture even with alternate name: {alt_error}")
+                            return None
+                    except Exception as save_error:
+                        logger.error(f"Failed to save profile picture: {save_error}")
+                        return None
+                elif response.status_code == 200:
+                    # If no user_id yet, store temporarily (will be saved after user creation)
+                    return response.content
+                else:
+                    logger.info("Profile picture not found for user")
+                    return None
+        except Exception as e:
+            logger.warning(f"Failed to fetch user profile picture: {e}")
+            return None
+
     async def _create_or_update_user(
         self,
         db: AsyncSession,
         user_info: Dict[str, Any],
-        auth_result: Dict[str, Any]
+        auth_result: Dict[str, Any],
+        profile_picture: Optional[str] = None
     ) -> User:
         """
         Create a new user or update existing user
@@ -158,6 +253,9 @@ class AuthService:
         """
         microsoft_id = user_info.get("id")
         email = user_info.get("mail") or user_info.get("userPrincipalName", "")
+
+        # Check if email should have admin privileges
+        should_be_admin = await admin_service.is_admin_email(email, db)
 
         # Check if user exists
         stmt = select(User).where(
@@ -175,6 +273,13 @@ class AuthService:
             user.job_title = user_info.get("jobTitle", "")
             user.department = user_info.get("department", "")
             user.last_login = datetime.now(timezone.utc)
+            if profile_picture:
+                user.profile_picture = profile_picture
+
+            # Update admin status if changed
+            if user.is_admin != should_be_admin:
+                logger.info(f"Updating admin status for {email}: {user.is_admin} -> {should_be_admin}")
+                user.is_admin = should_be_admin
         else:
             # Create new user
             username = email.split("@")[0] if email else f"user_{microsoft_id[:8]}"
@@ -188,10 +293,13 @@ class AuthService:
                 preferred_name=user_info.get("displayName", ""),
                 job_title=user_info.get("jobTitle", ""),
                 department=user_info.get("department", ""),
+                profile_picture=profile_picture,
                 is_active=True,
+                is_admin=should_be_admin,  # Set admin status for new user
                 last_login=datetime.now(timezone.utc)
             )
             db.add(user)
+            logger.info(f"Created new user {email} with admin={should_be_admin}")
 
         await db.commit()
         await db.refresh(user)
@@ -303,6 +411,31 @@ class AuthService:
 
         return result.rowcount > 0
 
+    async def logout_user(
+        self,
+        user_id: int,
+        db: AsyncSession
+    ) -> bool:
+        """
+        Logout user by deactivating all their sessions
+
+        Args:
+            user_id: User ID to logout
+            db: Database session
+
+        Returns:
+            Success status
+        """
+        stmt = update(UserSession).where(
+            UserSession.user_id == user_id,
+            UserSession.is_active == True
+        ).values(is_active=False)
+
+        result = await db.execute(stmt)
+        await db.commit()
+
+        return True  # Always return True for JWT-based logout
+
     async def get_current_user(
         self,
         token: str,
@@ -318,7 +451,7 @@ class AuthService:
         Returns:
             User model instance or None
         """
-        payload = verify_token(token, token_type="access")
+        payload = await verify_token(token, token_type="access")
         if not payload:
             return None
 
@@ -330,38 +463,133 @@ class AuthService:
 
         return user if user and user.is_active else None
 
-    async def process_microsoft_token(
+    async def _validate_microsoft_token(self, access_token: str) -> Dict[str, Any]:
+        """
+        Validate Microsoft access token with full signature verification
+
+        Args:
+            access_token: Microsoft access token to validate
+
+        Returns:
+            Decoded token payload if valid, empty dict otherwise
+        """
+        try:
+            # Strategy 1: Try full signature validation
+            decoded_token = await microsoft_token_validator.validate_token(access_token)
+
+            if decoded_token:
+                logger.info("✅ Token validated with signature verification")
+                return decoded_token
+
+            logger.warning("⚠️ Signature validation failed, trying Graph API validation")
+
+            # Strategy 2: Use MSAL validation (recommended and secure)
+            if settings.USE_MSAL_VALIDATION:
+                logger.info("🔐 Trying MSAL-based validation as fallback")
+                decoded_token = await msal_token_validator.validate_access_token(access_token)
+
+                if decoded_token:
+                    logger.info("✅ Token validated with MSAL (secure)")
+                    return decoded_token
+
+            # Strategy 3: Unsafe fallback (only if explicitly enabled)
+            if settings.ALLOW_FALLBACK_VALIDATION:
+                logger.warning("⚠️ Using unsafe fallback validation - NOT RECOMMENDED FOR PRODUCTION")
+
+                try:
+                    async with httpx.AsyncClient() as client:
+                        response = await client.get(
+                            "https://graph.microsoft.com/v1.0/me",
+                            headers={"Authorization": f"Bearer {access_token}"},
+                            timeout=10.0
+                        )
+
+                        if response.status_code == 200:
+                            logger.warning("⚠️ Token validated via Microsoft Graph API (fallback)")
+
+                            # Decode without verification to get claims
+                            import jwt
+                            decoded_token = jwt.decode(
+                                access_token,
+                                options={"verify_signature": False}
+                            )
+
+                            # Validate basic claims manually
+                            if decoded_token.get('tid') != settings.AZURE_AD_TENANT_ID:
+                                logger.error("Invalid tenant in fallback validation")
+                                return {}
+
+                            # Add user info from Graph API
+                            graph_data = response.json()
+                            decoded_token["graph_validated"] = True
+                            decoded_token["preferred_username"] = graph_data.get("userPrincipalName", "")
+                            decoded_token["name"] = graph_data.get("displayName", "")
+
+                            return decoded_token
+                        else:
+                            logger.error(f"Graph API validation failed: {response.status_code}")
+
+                except Exception as graph_error:
+                    logger.error(f"Graph API validation error: {graph_error}")
+
+            logger.error("🚫 All validation methods failed - token rejected")
+            return {}
+
+        except Exception as e:
+            logger.error(f"Error validating Microsoft token: {e}")
+            return {}
+
+    async def process_microsoft_id_token(
         self,
+        id_token: str,
         access_token: str,
         db: AsyncSession
     ) -> Dict[str, Any]:
         """
-        Process Microsoft access token from frontend (MSAL)
+        Process Microsoft ID token + Access token (RECOMMENDED method)
 
-        This method is used when the frontend sends the Microsoft access token
-        directly (as opposed to the authorization code flow).
+        This method uses ID token for authentication and Access token for API calls.
+        This is the secure and recommended approach for Microsoft authentication.
 
         Args:
-            access_token: Microsoft access token from MSAL frontend
+            id_token: Microsoft ID token for authentication
+            access_token: Microsoft access token for Graph API calls
             db: Database session
 
         Returns:
             Dictionary with access_token, refresh_token, user info and session_token
         """
         try:
-            # Get user information from Microsoft Graph API
+            logger.info("🔐 Processing Microsoft ID token + Access token (SECURE)")
+
+            # Validate ID token (this is what we use for authentication)
+            id_token_payload = await msal_token_validator.validate_id_token(id_token)
+            if not id_token_payload:
+                raise ValueError("Invalid Microsoft ID token")
+
+            logger.info("✅ ID token validated successfully")
+
+            # Get user information from Microsoft Graph API using access token
             user_info = await self._get_user_info(access_token)
             logger.info(f"Retrieved user info for: {user_info.get('mail', user_info.get('userPrincipalName'))}")
 
             # Create a mock auth_result for token exchange flow
-            # Since we received the token directly, we don't have refresh_token from MSAL
             auth_result = {
                 "access_token": access_token,
-                "refresh_token": None  # Will be generated by our JWT system
+                "refresh_token": None,  # Will be generated by our JWT system
+                "id_token": id_token,
+                "id_token_claims": id_token_payload
             }
 
-            # Create or update user in database
-            user = await self._create_or_update_user(db, user_info, auth_result)
+            # Create or update user in database first (without photo)
+            user = await self._create_or_update_user(db, user_info, auth_result, None)
+
+            # Now get and save user profile picture with user ID
+            profile_picture_path = await self._get_user_photo(access_token, user.id)
+            if profile_picture_path:
+                user.profile_picture = profile_picture_path
+                await db.commit()
+                await db.refresh(user)
 
             # Create new session for the user
             session = await self._create_session(db, user, auth_result)
@@ -384,14 +612,101 @@ class AuthService:
                     "email": user.email,
                     "username": user.username,
                     "display_name": user.display_name or user.preferred_name or f"{user.first_name} {user.last_name}".strip(),
+                    "first_name": user.first_name,
+                    "last_name": user.last_name,
+                    "preferred_name": user.preferred_name,
+                    "profile_picture": user.profile_picture,
+                    "is_admin": user.is_admin,
+                    "is_active": user.is_active,
+                    "preferred_language": user.preferred_language,
+                    "department": user.department,
+                    "job_title": user.job_title
+                },
+                "validation_method": "id_token",  # Indicate which method was used
+                "authenticated_with": "microsoft_id_token"
+            }
+
+        except Exception as e:
+            logger.error(f"Microsoft ID token processing error: {e}")
+            raise
+
+    async def process_microsoft_token(
+        self,
+        access_token: str,
+        db: AsyncSession
+    ) -> Dict[str, Any]:
+        """
+        Process Microsoft access token from frontend (MSAL)
+
+        This method is used when the frontend sends the Microsoft access token
+        directly (as opposed to the authorization code flow).
+
+        Args:
+            access_token: Microsoft access token from MSAL frontend
+            db: Database session
+
+        Returns:
+            Dictionary with access_token, refresh_token, user info and session_token
+        """
+        try:
+            # First validate the Microsoft token with signature verification
+            token_payload = await self._validate_microsoft_token(access_token)
+            if not token_payload:
+                raise ValueError("Invalid Microsoft access token")
+
+            # Get user information from Microsoft Graph API
+            user_info = await self._get_user_info(access_token)
+            logger.info(f"Retrieved user info for: {user_info.get('mail', user_info.get('userPrincipalName'))}")
+
+            # Create a mock auth_result for token exchange flow
+            # Since we received the token directly, we don't have refresh_token from MSAL
+            auth_result = {
+                "access_token": access_token,
+                "refresh_token": None  # Will be generated by our JWT system
+            }
+
+            # Create or update user in database first (without photo)
+            user = await self._create_or_update_user(db, user_info, auth_result, None)
+
+            # Now get and save user profile picture with user ID
+            profile_picture_path = await self._get_user_photo(access_token, user.id)
+            if profile_picture_path:
+                user.profile_picture = profile_picture_path
+                await db.commit()
+                await db.refresh(user)
+
+            # Create new session for the user
+            session = await self._create_session(db, user, auth_result)
+
+            # Create JWT tokens
+            jwt_access = create_access_token(
+                data={"sub": str(user.id), "email": user.email}
+            )
+            jwt_refresh = create_refresh_token(
+                data={"sub": str(user.id)}
+            )
+
+            return {
+                "access_token": jwt_access,
+                "refresh_token": jwt_refresh,
+                "token_type": "bearer",
+                "expires_in": 3600,
+                "user": {
+                    "id": user.id,
+                    "email": user.email,
+                    "username": user.username,
+                    "display_name": user.display_name or user.preferred_name or f"{user.first_name} {user.last_name}".strip(),
+                    "first_name": user.first_name,
+                    "last_name": user.last_name,
+                    "preferred_name": user.preferred_name,
+                    "profile_picture": user.profile_picture,
                     "is_admin": user.is_admin,
                     "is_active": user.is_active,
                     "preferred_language": user.preferred_language,
                     "department": user.department,
                     "job_title": user.job_title,
                     "created_at": user.created_at
-                },
-                "session_token": jwt_access  # Frontend expects this field
+                }
             }
 
         except httpx.HTTPStatusError as e:

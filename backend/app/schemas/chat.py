@@ -68,17 +68,19 @@ class ChatQueryRequest(BaseModel):
 
 
 class ChatQueryResponse(BaseModel):
-    """Chat query response"""
-    success: bool
+    """Chat query response - compatible with frontend expectations"""
     session_id: int
-    message_id: int
-    query: str
-    response: str
-    sources: List[Dict[str, Any]] = []
-    agent_used: Optional[str] = None
-    llm_provider: str
-    response_time_ms: int
-    metadata: Dict[str, Any] = {}
+    session_title: Optional[str] = None
+    message: Dict[str, Any]  # {id, type, content, timestamp}
+    user_message: Optional[Dict[str, Any]] = None  # Data from user message
+    context_used: bool = False
+    response_time: int = 0
+    useful_links: List[Dict[str, Any]] = []
+    downloadable_documents: List[Dict[str, Any]] = []
+    agent_type: str = "knight"
+    agent_emoji: str = "⚔️"
+    is_multi_agent: bool = False
+    handoff_message: Optional[str] = None
 
 
 class ChatFeedbackRequest(BaseModel):

@@ -7,9 +7,10 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_
+from sqlalchemy.orm import selectinload
 
 from app.core.database import get_async_db
-from app.api.deps import get_current_user, get_optional_current_user
+from app.api.deps import get_current_user, get_optional_current_user, CurrentUser, OptionalUser
 from app.models.user import User
 from app.models.chat import ChatSession, ChatMessage, ChatFeedback, DocumentRequest, LinkRequest
 from app.schemas.chat import (
@@ -33,14 +34,14 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/chat", tags=["chat"])
+router = APIRouter(prefix="/api/chat", tags=["chat"])
 
 
 @router.post("/sessions", response_model=ChatSessionResponse)
 async def create_chat_session(
     session_data: ChatSessionCreate,
-    db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user)
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_async_db)
 ):
     """Create a new chat session"""
     try:
@@ -79,14 +80,23 @@ async def create_chat_session(
 
 @router.get("/sessions", response_model=ChatSessionListResponse)
 async def list_chat_sessions(
+    current_user: CurrentUser,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     active_only: bool = Query(True),
-    db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user)
+    db: AsyncSession = Depends(get_async_db)
 ):
     """List user's chat sessions"""
     try:
+        # If no user authenticated, return empty list
+        if not current_user:
+            return ChatSessionListResponse(
+                sessions=[],
+                total=0,
+                page=page,
+                page_size=page_size,
+                total_pages=0
+            )
         # Build query
         query = select(ChatSession).where(ChatSession.user_id == current_user.id)
 
@@ -140,13 +150,16 @@ async def list_chat_sessions(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# Duplicate endpoint removed - using create_chat_session above
+
+
 @router.get("/sessions/{session_id}", response_model=ChatHistoryResponse)
 async def get_chat_history(
     session_id: int,
+    current_user: CurrentUser,
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
-    db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user)
+    db: AsyncSession = Depends(get_async_db)
 ):
     """Get chat history for a session"""
     try:
@@ -169,9 +182,10 @@ async def get_chat_history(
         )
         total_messages = count_result.scalar()
 
-        # Get messages
+        # Get messages with feedback eager loading
         messages_result = await db.execute(
             select(ChatMessage)
+            .options(selectinload(ChatMessage.feedback))
             .where(ChatMessage.session_id == session_id)
             .order_by(ChatMessage.created_at.desc())
             .offset(offset)
@@ -182,15 +196,23 @@ async def get_chat_history(
         # Format response
         message_list = []
         for msg in reversed(messages):  # Reverse to get chronological order
+            # Get feedback data from relationship if it exists
+            feedback_score = None
+            feedback_text = None
+            if msg.feedback:
+                # Convert rating to score (positive=5, negative=1, or based on rating)
+                feedback_score = 5 if msg.feedback.rating == 'positive' else 1
+                feedback_text = msg.feedback.comment
+
             message_list.append(ChatMessageResponse(
                 id=msg.id,
                 session_id=msg.session_id,
                 content=msg.content,
                 message_type=msg.message_type,
                 created_at=msg.created_at,
-                metadata=msg.metadata,
-                feedback_score=msg.feedback_score,
-                feedback_text=msg.feedback_text
+                metadata=msg.message_metadata,
+                feedback_score=feedback_score,
+                feedback_text=feedback_text
             ))
 
         return ChatHistoryResponse(
@@ -221,8 +243,8 @@ async def get_chat_history(
 @router.post("/query", response_model=ChatQueryResponse)
 async def chat_query(
     query: ChatQueryRequest,
-    db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user)
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_async_db)
 ):
     """
     Send a chat query and get response
@@ -259,7 +281,7 @@ async def chat_query(
             session_id=session.id,
             content=query.query,
             message_type='user',
-            metadata={'language': query.language}
+            message_metadata={'language': query.language}
         )
         db.add(user_message)
         await db.commit()
@@ -312,7 +334,7 @@ async def chat_query(
             session_id=session.id,
             content=result.get('answer', result.get('response', '')),
             message_type='assistant',
-            metadata={
+            message_metadata={
                 'llm_provider': result.get('llm_provider', 'unknown'),
                 'agent_used': result.get('agent_used'),
                 'response_time_ms': result.get('response_time_ms')
@@ -328,17 +350,37 @@ async def chat_query(
 
         logger.info(f"Chat query processed: session={session.id}, message={assistant_message.id}")
 
+        # Get agent emoji
+        agent_type = result.get('agent_used', 'knight')
+        agent_emojis = {
+            'knight': '⚔️',
+            'wizard': '🧙‍♂️',
+            'bard': '🎭'
+        }
+
         return ChatQueryResponse(
-            success=result.get('success', True),
             session_id=session.id,
-            message_id=assistant_message.id,
-            query=query.query,
-            response=assistant_message.content,
-            sources=result.get('sources', [])[:3],
-            agent_used=result.get('agent_used'),
-            llm_provider=result.get('llm_provider', 'unknown'),
-            response_time_ms=result.get('response_time_ms', 0),
-            metadata=result.get('metadata', {})
+            session_title=session.title,
+            message={
+                "id": str(assistant_message.id),
+                "type": "assistant",
+                "content": assistant_message.content,
+                "timestamp": datetime.utcnow().isoformat()
+            },
+            user_message={
+                "id": str(user_message.id),
+                "type": "user",
+                "content": user_message.content,
+                "timestamp": user_message.created_at.isoformat()
+            },
+            context_used=len(result.get('sources', [])) > 0,
+            response_time=result.get('response_time_ms', 0),
+            useful_links=result.get('useful_links', []),
+            downloadable_documents=result.get('downloadable_documents', []),
+            agent_type=agent_type,
+            agent_emoji=agent_emojis.get(agent_type, '🤖'),
+            is_multi_agent=result.get('is_multi_agent', False),
+            handoff_message=result.get('handoff_message')
         )
 
     except HTTPException:
@@ -351,8 +393,8 @@ async def chat_query(
 @router.post("/feedback", response_model=ChatFeedbackResponse)
 async def provide_feedback(
     feedback: ChatFeedbackRequest,
-    db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user)
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_async_db)
 ):
     """Provide feedback for a chat message"""
     try:
@@ -370,16 +412,15 @@ async def provide_feedback(
         if not message:
             raise HTTPException(status_code=404, detail="Message not found")
 
-        # Update message feedback
-        message.feedback_score = feedback.score
-        message.feedback_text = feedback.text
+        # Create feedback record (no need to update message directly)
+        # Convert score to rating (1-2 = negative, 3-5 = positive)
+        rating = ChatFeedback.RATING_POSITIVE if feedback.score >= 3 else ChatFeedback.RATING_NEGATIVE
 
-        # Create feedback record
         feedback_record = ChatFeedback(
             message_id=feedback.message_id,
             user_id=current_user.id,
-            score=feedback.score,
-            feedback_text=feedback.text
+            rating=rating,
+            comment=feedback.text or ""
         )
         db.add(feedback_record)
 
@@ -404,8 +445,8 @@ async def provide_feedback(
 @router.delete("/sessions/{session_id}")
 async def delete_chat_session(
     session_id: int,
-    db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user)
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_async_db)
 ):
     """Delete a chat session"""
     try:
@@ -481,8 +522,8 @@ async def chat_websocket(
 @router.post("/sessions/{session_id}/clear")
 async def clear_chat_history(
     session_id: int,
-    db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user)
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_async_db)
 ):
     """Clear chat history for a session"""
     try:
@@ -522,8 +563,8 @@ async def clear_chat_history(
 @router.post("/messages")
 async def send_message(
     message_data: ChatMessageCreate,
-    db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user)
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_async_db)
 ):
     """
     Send a message and get AI response
@@ -548,8 +589,8 @@ async def send_message(
 async def update_session_title(
     session_id: int,
     title_data: Dict[str, str],
-    db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user)
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_async_db)
 ):
     """Update chat session title"""
     try:
@@ -589,8 +630,8 @@ async def update_session_title(
 
 @router.get("/stats")
 async def get_chat_stats(
-    db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user)
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_async_db)
 ):
     """Get chat usage statistics"""
     try:
@@ -659,9 +700,9 @@ async def get_chat_stats(
 
 @router.get("/activity")
 async def get_activity_chart_data(
+    current_user: CurrentUser,
     days: int = Query(7, ge=1, le=30),
-    db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user)
+    db: AsyncSession = Depends(get_async_db)
 ):
     """Get chat activity data for charts"""
     try:

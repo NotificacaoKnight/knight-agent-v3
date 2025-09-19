@@ -134,12 +134,21 @@ async def check_database_connection() -> bool:
     Check if database is accessible
     Used for health checks
     """
+    import asyncio
     try:
-        async with AsyncSessionLocal() as session:
-            # Simple query to test connection
-            from sqlalchemy import text
-            result = await session.execute(text("SELECT 1"))
-            return result.scalar() == 1
+        # Add timeout to prevent hanging
+        async def db_check():
+            async with AsyncSessionLocal() as session:
+                # Simple query to test connection
+                from sqlalchemy import text
+                result = await session.execute(text("SELECT 1"))
+                return result.scalar() == 1
+
+        # 2 second timeout for health check
+        return await asyncio.wait_for(db_check(), timeout=2.0)
+    except asyncio.TimeoutError:
+        logger.warning("Database health check timed out")
+        return False
     except Exception as e:
         logger.error(f"Database health check failed: {e}")
         return False

@@ -7,6 +7,8 @@ import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { ChatProvider } from './context/ChatContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { AuthCallback } from './components/AuthCallback';
+import { RootRedirect } from './components/RootRedirect';
 import { LanguageInitializer } from './components/LanguageInitializer';
 import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
@@ -43,8 +45,12 @@ function App() {
             <Router>
             <div className="min-h-screen bg-background">
               <Routes>
+                {/* Authentication routes */}
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/logout" element={<Navigate to="/login" replace />} />
+                <Route path="/callback" element={<AuthCallback />} />
+
+                {/* Protected routes */}
                 <Route
                   path="/dashboard"
                   element={
@@ -101,7 +107,10 @@ function App() {
                     </ProtectedRoute>
                   }
                 />
-                <Route path="/" element={<Navigate to="/chat" replace />} />
+                {/* Root route - handles both normal navigation and Azure AD callbacks */}
+                <Route path="/" element={<RootRedirect />} />
+
+                {/* Catch-all route */}
                 <Route path="*" element={<Navigate to="/chat" replace />} />
               </Routes>
               <Toaster

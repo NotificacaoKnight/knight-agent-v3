@@ -8,7 +8,7 @@ import logging
 from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime, timedelta
 
-from sqlalchemy import text, select, func
+from sqlalchemy import text, select, func, Float
 from sqlalchemy.ext.asyncio import AsyncSession
 # Session import removed - using only AsyncSession for FastAPI compatibility
 
@@ -158,12 +158,20 @@ class PgVectorSearchService:
             # Convert embedding to proper format for pgvector
             query_vector = f"[{','.join(map(str, query_embedding.tolist()))}]"
 
+            # Use pgvector's <-> operator for L2 distance or <=> for cosine distance
+            # The embedding column should already be a vector type
+            from sqlalchemy import literal, cast
+            from pgvector.sqlalchemy import Vector
+
+            # Cast the query vector to pgvector type
+            # BGE-m3 uses 1024 dimensions
+            embedding_dim = getattr(settings, 'EMBEDDING_DIM', 1024)
+            query_vec = cast(literal(query_vector), Vector(embedding_dim))
+
+            # Use the <=> operator for cosine distance
             query = select(
                 DocumentChunk,
-                func.cosine_distance(
-                    DocumentChunk.embedding,
-                    query_vector
-                ).label('distance')
+                DocumentChunk.embedding.op('<=>', return_type=Float)(query_vec).label('distance')
             )
 
             # Apply filters if provided
@@ -180,10 +188,7 @@ class PgVectorSearchService:
             # Apply similarity threshold if provided
             if threshold:
                 query = query.filter(
-                    func.cosine_distance(
-                        DocumentChunk.embedding,
-                        query_vector
-                    ) <= (1 - threshold)  # Convert similarity to distance
+                    DocumentChunk.embedding.op('<=>', return_type=Float)(query_vec) <= (1 - threshold)  # Convert similarity to distance
                 )
 
             # Order by distance and limit results

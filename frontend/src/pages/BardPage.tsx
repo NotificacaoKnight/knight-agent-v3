@@ -50,7 +50,7 @@ export function BardPage() {
 
   const fetchReports = async () => {
     try {
-      const response = await api.get('/api/bard/reports');
+      const response = await api.get('/bard/reports');
       setReports(response.data.reports || []);
     } catch (error) {
       console.error('Erro ao buscar relatórios:', error);
@@ -60,7 +60,7 @@ export function BardPage() {
   const generateReport = async (reportType: string) => {
     setLoading(true);
     try {
-      const response = await api.post('/api/bard/generate-report/', {
+      const response = await api.post('/bard/generate-report/', {
         report_type: reportType
       });
       

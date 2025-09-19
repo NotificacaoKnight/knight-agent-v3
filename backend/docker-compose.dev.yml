@@ -43,8 +43,10 @@ services:
 
       # Development settings
       - DEBUG=True
-      - SECRET_KEY=dev-secret-key-for-docker
-      - JWT_SECRET_KEY=dev-jwt-secret-for-docker
+      # IMPORTANT: These keys must match your local .env file for authentication to work!
+      # If tokens are failing, ensure these match exactly with backend/.env
+      - SECRET_KEY=dev-secret-key-change-in-production
+      - JWT_SECRET_KEY=dev-jwt-secret-key-change-in-production
 
       # LLM Configuration (usar suas próprias chaves)
       - LLM_PROVIDER=deepseek
@@ -57,7 +59,7 @@ services:
       - AZURE_AD_CLIENT_ID=${AZURE_AD_CLIENT_ID:-}
       - AZURE_AD_CLIENT_SECRET=${AZURE_AD_CLIENT_SECRET:-}
       - AZURE_AD_TENANT_ID=${AZURE_AD_TENANT_ID:-}
-      - AZURE_AD_REDIRECT_URI=http://localhost:8000/auth/microsoft/callback/
+      - AZURE_AD_REDIRECT_URI=${AZURE_AD_REDIRECT_URI:-http://localhost:3000}
 
       # RAG Configuration
       - EMBEDDING_MODEL=BAAI/bge-m3

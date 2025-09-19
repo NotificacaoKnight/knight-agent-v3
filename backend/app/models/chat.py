@@ -1,6 +1,5 @@
 """
-Chat models for FastAPI
-Migrated from Django chat app
+Chat models for conversation management and AI interactions
 """
 from datetime import datetime
 from typing import Optional, List, Dict, Any
@@ -19,6 +18,11 @@ class ChatSession(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     title = Column(String(255), default="")
+
+    # Session configuration fields
+    context = Column(Text, default="")  # Initial context for the session
+    language = Column(String(10), default="pt")  # Session language (pt, en, es)
+    agent_type = Column(String(20), nullable=True)  # Preferred agent (knight, wizard, bard)
 
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
@@ -93,6 +97,9 @@ class ChatMessage(Base):
     is_helpful = Column(Boolean, nullable=True)  # User feedback
 
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    # Generic metadata (for additional information like language, provider details, etc.)
+    message_metadata = Column(JSON, nullable=True)
 
     # Relationships
     session = relationship("ChatSession", back_populates="messages")

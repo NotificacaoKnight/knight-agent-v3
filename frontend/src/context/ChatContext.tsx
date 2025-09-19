@@ -27,6 +27,11 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
       setChatSessions(limitedSessions);
     } catch (error) {
       console.error('Erro ao atualizar sessões de chat:', error);
+      // Set empty array as fallback
+      setChatSessions([]);
+
+      // Don't show error to user for chat sessions - just fail silently
+      // This prevents UI disruption when authentication is in progress
     }
   }, []);
 

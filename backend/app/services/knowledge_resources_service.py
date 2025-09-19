@@ -1,6 +1,6 @@
 """
 Serviço para integrar links úteis e documentos baixáveis ao sistema RAG
-Adaptado do Django para FastAPI com SQLAlchemy
+Implementação FastAPI com SQLAlchemy
 """
 import os
 import re

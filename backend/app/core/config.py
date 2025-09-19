@@ -1,11 +1,10 @@
 """
-Configuration management using Pydantic Settings
-Migrated from Django settings.py
+Configuration management using Pydantic Settings for FastAPI
 """
 from typing import List, Optional, Literal
 from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import Field, validator
+from pydantic import Field, field_validator
 import os
 
 class Settings(BaseSettings):
@@ -46,7 +45,7 @@ class Settings(BaseSettings):
             "https://knight-frontend-dev.loca.lt"
         ]
     )
-    CORS_ALLOW_CREDENTIALS: bool = Field(default=False)
+    CORS_ALLOW_CREDENTIALS: bool = Field(default=True)  # MUST be True for httpOnly cookies
 
     # Database Configuration
     DB_ENGINE: str = Field(default="postgresql")
@@ -81,6 +80,54 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = Field(default="HS256")
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=60)
     JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = Field(default=7)
+
+    # Security Configuration
+    REQUIRE_JWT_SIGNATURE_VERIFICATION: bool = Field(default=True)
+    USE_MSAL_VALIDATION: bool = Field(default=True)
+    ALLOW_FALLBACK_VALIDATION: bool = Field(default=False)  # Should be False in production
+
+    @field_validator('SECRET_KEY', 'JWT_SECRET_KEY')
+    @classmethod
+    def validate_secret_keys(cls, v, info):
+        """Validate that secret keys are not using default values in production"""
+        default_keys = [
+            'dev-secret-key-change-in-production',
+            'dev-jwt-secret-key-change-in-production',
+            'fastapi-insecure-change-me-in-production',
+            'your-secret-key-here',
+            'your-jwt-secret-key-here',
+            'change-me',
+            'changeme',
+            'default'
+        ]
+
+        # Check for insecure default values
+        if v and any(default in v.lower() for default in default_keys):
+            import logging
+            logger = logging.getLogger(__name__)
+
+            # In production, raise an error instead of just warning
+            if not cls.model_fields.get('DEBUG', True):
+                raise ValueError(
+                    f"SECURITY ERROR: {info.field_name} is using an insecure default value. "
+                    "Generate a secure key using: python -c \"import secrets; print(secrets.token_urlsafe(64))\""
+                )
+
+            logger.warning(
+                f"⚠️  SECURITY WARNING: {info.field_name} is using a default development value. "
+                "Please generate a secure key for production!"
+            )
+
+        # Check minimum key length (32 characters for security)
+        if v and len(v) < 32:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(
+                f"⚠️  SECURITY WARNING: {info.field_name} is too short ({len(v)} chars). "
+                "Recommended minimum: 32 characters for security."
+            )
+
+        return v
 
     # LLM Configuration
     LLM_PROVIDER: Literal["deepseek", "cohere", "together", "groq", "ollama", "gemini", "openai"] = Field(default="deepseek")
@@ -141,17 +188,42 @@ class Settings(BaseSettings):
     # Session Configuration
     SESSION_EXPIRE_HOURS: int = Field(default=1)
 
-    @validator("MEDIA_DIR", "STATIC_DIR", "DOCUMENTS_PATH", "PROCESSED_DOCS_PATH", "VECTOR_STORE_PATH")
+    # Cookie Configuration
+    COOKIE_SECURE: bool = Field(default=False)  # Set to True in production (HTTPS)
+    COOKIE_SAMESITE: str = Field(default="lax")  # 'lax' for OAuth flow, 'strict' for better security
+    COOKIE_DOMAIN: Optional[str] = Field(default=None)
+    USE_HTTPONLY_COOKIES: bool = Field(default=True)
+
+    # Security Configuration
+    CSRF_ENABLED: bool = Field(default=True)
+    SECURE_HEADERS_ENABLED: bool = Field(default=True)
+    MAX_REQUEST_SIZE: int = Field(default=16 * 1024 * 1024)  # 16MB
+
+    # Content Security Policy
+    CSP_DEFAULT_SRC: str = Field(default="'self'")
+    CSP_SCRIPT_SRC: str = Field(default="'self' 'unsafe-inline'")
+    CSP_STYLE_SRC: str = Field(default="'self' 'unsafe-inline'")
+    CSP_IMG_SRC: str = Field(default="'self' data: blob:")
+    CSP_CONNECT_SRC: str = Field(default="'self'")
+
+    # Token Security
+    TOKEN_BLACKLIST_CLEANUP_INTERVAL: int = Field(default=3600)  # 1 hour
+    MAX_LOGIN_ATTEMPTS: int = Field(default=5)
+    LOGIN_ATTEMPT_TIMEOUT: int = Field(default=900)  # 15 minutes
+
+    @field_validator("MEDIA_DIR", "STATIC_DIR", "DOCUMENTS_PATH", "PROCESSED_DOCS_PATH", "VECTOR_STORE_PATH")
+    @classmethod
     def create_directories(cls, v: Path) -> Path:
         """Ensure directories exist"""
         v.mkdir(parents=True, exist_ok=True)
         return v
 
-    @validator("JWT_SECRET_KEY", pre=True)
-    def set_jwt_secret(cls, v: str, values: dict) -> str:
+    @field_validator("JWT_SECRET_KEY", mode='before')
+    @classmethod
+    def set_jwt_secret(cls, v: str, info) -> str:
         """Use SECRET_KEY for JWT if not specified"""
-        if not v and "SECRET_KEY" in values:
-            return values["SECRET_KEY"]
+        if not v and info.data.get("SECRET_KEY"):
+            return info.data["SECRET_KEY"]
         return v or "default-jwt-secret-change-me"
 
 

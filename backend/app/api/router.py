@@ -4,7 +4,7 @@ Consolidates all API routes
 """
 from fastapi import APIRouter
 
-from app.api import auth, rag, documents, chat, downloads, knowledge, locales, agents
+from app.api import auth, rag, documents, chat, downloads, knowledge, locales, agents, admin, llm_management
 
 # Create main API router
 api_router = APIRouter()
@@ -18,3 +18,5 @@ api_router.include_router(agents.router)
 api_router.include_router(downloads.router)
 api_router.include_router(knowledge.router)
 api_router.include_router(locales.router)
+api_router.include_router(admin.router)
+api_router.include_router(llm_management.router)

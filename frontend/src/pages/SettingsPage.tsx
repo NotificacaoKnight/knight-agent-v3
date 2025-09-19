@@ -3,6 +3,7 @@ import { MainLayout } from '../components/MainLayout';
 import { UserAvatar } from '../components/UserAvatar';
 import { LLMManagement } from '../components/LLMManagement';
 import { LanguageSelector } from '../components/LanguageSelector';
+import AdminManagement from '../components/AdminManagement';
 import { useAuth } from '../context/AuthContext';
 import { User, Bell, Shield, Palette, Bot, Globe } from 'lucide-react';
 import { Card } from '../components/ui/card';
@@ -160,6 +161,13 @@ export const SettingsPage: React.FC = () => {
               </div>
               <LLMManagement />
             </Card>
+          )}
+
+          {/* Admin Management Section - Admin only */}
+          {user?.is_admin && (
+            <div className="mb-6">
+              <AdminManagement />
+            </div>
           )}
 
           {/* Privacy Section */}

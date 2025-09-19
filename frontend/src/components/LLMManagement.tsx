@@ -119,6 +119,51 @@ export const LLMManagement: React.FC = () => {
   const [selectedPeriod, setSelectedPeriod] = useState('month');
   const { refreshLLMStatus } = useLLMStatusRefresh();
 
+  // Definir todas as funções ANTES de loadData para evitar erros de "used before declaration"
+  const loadProviders = useCallback(async () => {
+    try {
+      // Adicionar timestamp para evitar cache
+      const timestamp = Date.now();
+      const [availableRes, currentRes] = await Promise.all([
+        api.get(`/rag/llm/available?t=${timestamp}`),
+        api.get(`/rag/llm/current?t=${timestamp}`)
+      ]);
+      
+      setProviders(availableRes.data.providers);
+      setCurrentProvider(availableRes.data.providers.find((p: LLMProvider) => p.is_current) || null);
+    } catch (error) {
+      console.error('Erro ao carregar providers:', error);
+    }
+  }, []);
+
+  const loadMetrics = useCallback(async () => {
+    try {
+      const response = await api.get(`/rag/llm/metrics?period=${selectedPeriod}`);
+      setMetrics(response.data);
+    } catch (error) {
+      console.error('Erro ao carregar métricas:', error);
+    }
+  }, [selectedPeriod]);
+
+  const loadCosts = useCallback(async () => {
+    try {
+      const response = await api.get('/rag/llm/costs');
+      setCosts(response.data);
+    } catch (error) {
+      console.error('Erro ao carregar custos:', error);
+    }
+  }, []);
+
+  const loadHistory = useCallback(async () => {
+    try {
+      const response = await api.get('/rag/llm/history');
+      setHistory(response.data.history || []);
+    } catch (error) {
+      console.error('Erro ao carregar histórico:', error);
+    }
+  }, []);
+
+  // Agora definir loadData que usa as funções acima
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
@@ -133,62 +178,15 @@ export const LLMManagement: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [selectedPeriod]);
+  }, [loadProviders, loadMetrics, loadCosts, loadHistory]);
 
+  // useEffect deve vir após todas as definições de hooks
   useEffect(() => {
     // Só carrega dados se for admin
     if (user?.is_admin) {
       loadData();
     }
   }, [user?.is_admin, loadData]);
-
-  // Só renderiza para administradores
-  if (!user?.is_admin) {
-    return null;
-  }
-
-  const loadProviders = async () => {
-    try {
-      // Adicionar timestamp para evitar cache
-      const timestamp = Date.now();
-      const [availableRes, currentRes] = await Promise.all([
-        api.get(`/rag/llm/available?t=${timestamp}`),
-        api.get(`/rag/llm/current?t=${timestamp}`)
-      ]);
-      
-      setProviders(availableRes.data.providers);
-      setCurrentProvider(availableRes.data.providers.find((p: LLMProvider) => p.is_current) || null);
-    } catch (error) {
-      console.error('Erro ao carregar providers:', error);
-    }
-  };
-
-  const loadMetrics = async () => {
-    try {
-      const response = await api.get(`/rag/llm/metrics?period=${selectedPeriod}`);
-      setMetrics(response.data);
-    } catch (error) {
-      console.error('Erro ao carregar métricas:', error);
-    }
-  };
-
-  const loadCosts = async () => {
-    try {
-      const response = await api.get('/rag/llm/costs');
-      setCosts(response.data);
-    } catch (error) {
-      console.error('Erro ao carregar custos:', error);
-    }
-  };
-
-  const loadHistory = async () => {
-    try {
-      const response = await api.get('/rag/llm/history');
-      setHistory(response.data.history || []);
-    } catch (error) {
-      console.error('Erro ao carregar histórico:', error);
-    }
-  };
 
   const handleSwitchProvider = async (newProvider: string) => {
     if (!newProvider || newProvider === currentProvider?.key) return;
@@ -274,6 +272,11 @@ export const LLMManagement: React.FC = () => {
     value: provider.monthly_cost_usd,
     fill: COLORS[index % COLORS.length]
   })) || [];
+
+  // Verificação de admin após todos os hooks
+  if (!user?.is_admin) {
+    return null;
+  }
 
   if (loading) {
     return (

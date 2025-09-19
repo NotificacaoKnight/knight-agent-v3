@@ -130,9 +130,9 @@ def decode_token(token: str) -> Optional[Dict[str, Any]]:
         logger.warning(f"JWT decode error: {e}")
         return None
 
-def verify_token(token: str, token_type: str = "access") -> Optional[Dict[str, Any]]:
+async def verify_token(token: str, token_type: str = "access") -> Optional[Dict[str, Any]]:
     """
-    Verify a token and check its type
+    Verify a token and check its type (async)
 
     Args:
         token: The JWT token to verify
@@ -141,6 +141,11 @@ def verify_token(token: str, token_type: str = "access") -> Optional[Dict[str, A
     Returns:
         Decoded token payload or None if invalid
     """
+    # Check if token is blacklisted (async)
+    if await is_token_blacklisted(token):
+        logger.warning("Token is blacklisted")
+        return None
+
     payload = decode_token(token)
 
     if not payload:
@@ -152,6 +157,35 @@ def verify_token(token: str, token_type: str = "access") -> Optional[Dict[str, A
         return None
 
     # Check expiration (jose already checks this, but being explicit)
+    exp = payload.get("exp")
+    if exp:
+        exp_datetime = datetime.fromtimestamp(exp, tz=timezone.utc)
+        if datetime.now(timezone.utc) > exp_datetime:
+            logger.warning("Token has expired")
+            return None
+
+    return payload
+
+def verify_token_sync(token: str, token_type: str = "access") -> Optional[Dict[str, Any]]:
+    """
+    Synchronous version for backward compatibility
+    """
+    # Check if token is blacklisted (sync)
+    if is_token_blacklisted_sync(token):
+        logger.warning("Token is blacklisted")
+        return None
+
+    payload = decode_token(token)
+
+    if not payload:
+        return None
+
+    # Check token type
+    if payload.get("type") != token_type:
+        logger.warning(f"Token type mismatch: expected {token_type}, got {payload.get('type')}")
+        return None
+
+    # Check expiration
     exp = payload.get("exp")
     if exp:
         exp_datetime = datetime.fromtimestamp(exp, tz=timezone.utc)
@@ -178,6 +212,68 @@ def generate_api_key() -> str:
         A secure API key string
     """
     return f"sk_{secrets.token_urlsafe(32)}"
+
+def generate_csrf_token() -> str:
+    """
+    Generate a secure CSRF token
+
+    Returns:
+        A secure CSRF token string
+    """
+    return secrets.token_urlsafe(32)
+
+def verify_csrf_token(token: str, expected_token: str) -> bool:
+    """
+    Verify CSRF token using constant-time comparison
+
+    Args:
+        token: The CSRF token to verify
+        expected_token: The expected CSRF token
+
+    Returns:
+        True if tokens match
+    """
+    if not token or not expected_token:
+        return False
+    return secrets.compare_digest(token, expected_token)
+
+# Token blacklist functions (async wrappers for Redis service)
+async def blacklist_token(token: str) -> bool:
+    """
+    Add token to blacklist (async)
+
+    Args:
+        token: JWT token to blacklist
+
+    Returns:
+        True if successfully blacklisted
+    """
+    from app.core.redis_service import redis_service
+    return await redis_service.blacklist_token(token)
+
+async def is_token_blacklisted(token: str) -> bool:
+    """
+    Check if token is blacklisted (async)
+
+    Args:
+        token: JWT token to check
+
+    Returns:
+        True if token is blacklisted
+    """
+    from app.core.redis_service import redis_service
+    return await redis_service.is_token_blacklisted(token)
+
+# Synchronous fallback for compatibility
+_sync_blacklist = set()
+
+def blacklist_token_sync(token: str) -> None:
+    """Synchronous fallback for token blacklisting"""
+    _sync_blacklist.add(token)
+
+def is_token_blacklisted_sync(token: str) -> bool:
+    """Synchronous fallback for token checking"""
+    return token in _sync_blacklist
 
 class SecurityContext:
     """

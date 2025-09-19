@@ -26,7 +26,7 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/downloads", tags=["downloads"])
+router = APIRouter(prefix="/api/downloads", tags=["downloads"])
 
 
 @router.post("/create", response_model=DownloadRecordResponse)

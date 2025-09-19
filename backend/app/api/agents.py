@@ -19,7 +19,7 @@ from app.services.rag.multi_agent_service import multi_agent_service
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/agents", tags=["multi-agent"])
+router = APIRouter(prefix="/api/agents", tags=["multi-agent"])
 
 
 @router.post("/query", response_model=AgentQueryResponse)

@@ -1,6 +1,5 @@
 """
-Downloads models for FastAPI
-Migrated from Django downloads app
+Downloads models for temporary file distribution system
 """
 from datetime import datetime, timedelta
 from typing import Optional

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useImperativeHandle, forwardRef } from 'react';
+import React, { useState, useEffect, useImperativeHandle, forwardRef, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { useLLMStatusRefresh } from '../hooks/useLLMStatusRefresh';
@@ -21,12 +21,9 @@ export const LLMStatusIndicator = forwardRef<LLMStatusIndicatorRef>((props, ref)
   const [loading, setLoading] = useState(true);
   const { setGlobalRefresh } = useLLMStatusRefresh();
 
-  const fetchLLMStatus = async () => {
-    if (!user?.is_admin) {
-      setLoading(false);
-      return;
-    }
-
+  const fetchLLMStatus = useCallback(async () => {
+    // Não incluir user?.is_admin nas dependências para evitar loops
+    // A verificação é feita no useEffect que chama esta função
     try {
       const response = await api.get('/rag/llm/status');
       setLlmStatus(response.data);
@@ -42,7 +39,7 @@ export const LLMStatusIndicator = forwardRef<LLMStatusIndicatorRef>((props, ref)
     } finally {
       setLoading(false);
     }
-  };
+  }, []); // Sem dependências para manter a função estável
 
   useEffect(() => {
     // Só executa se é admin
@@ -57,18 +54,20 @@ export const LLMStatusIndicator = forwardRef<LLMStatusIndicatorRef>((props, ref)
     const interval = setInterval(fetchLLMStatus, 30000);
 
     return () => clearInterval(interval);
-  }, [user?.is_admin]);
+  }, [user?.is_admin]); // Removido fetchLLMStatus das dependências
 
   // Registrar função de refresh global
   useEffect(() => {
-    setGlobalRefresh(fetchLLMStatus);
-    return () => setGlobalRefresh(null);
-  }, [setGlobalRefresh]);
+    if (user?.is_admin) {
+      setGlobalRefresh(fetchLLMStatus);
+      return () => setGlobalRefresh(null);
+    }
+  }, [setGlobalRefresh, fetchLLMStatus, user?.is_admin]);
 
   // Expor método para forçar atualização
   useImperativeHandle(ref, () => ({
     forceRefresh: fetchLLMStatus
-  }), []);
+  }), []); // Sem dependências pois fetchLLMStatus é estável
 
   // Só mostra para administradores
   if (!user?.is_admin) {

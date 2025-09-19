@@ -1,19 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MainLayout } from '../components/MainLayout';
-import { 
-  MessageSquare, 
-  FileText, 
-  Download, 
+import {
+  MessageSquare,
+  FileText,
+  Download,
   Users,
   Clock,
   TrendingUp,
-  Activity,
-  BarChart3,
   Loader2
 } from 'lucide-react';
 import { Card } from '../components/ui/card';
-import { Progress } from '../components/ui/progress';
 import { ChartContainer } from '../components/ui/chart';
 import { ChartAreaInteractive } from '../components/charts/ChartAreaInteractive';
 
@@ -54,17 +51,17 @@ export const DashboardPage: React.FC = () => {
 
         // Fazer chamadas paralelas para todas as APIs de estatísticas
         const [documentsRes, chatRes, activityRes] = await Promise.all([
-          fetch('/api/documents/stats/', {
+          fetch('http://localhost:8000/api/documents/stats/overview', {
             headers: {
               'Authorization': `Bearer ${token}`
             }
           }),
-          fetch('/api/chat/stats/', {
+          fetch('http://localhost:8000/api/chat/stats', {
             headers: {
               'Authorization': `Bearer ${token}`
             }
           }),
-          fetch('/api/chat/activity-chart/', {
+          fetch('http://localhost:8000/api/chat/activity', {
             headers: {
               'Authorization': `Bearer ${token}`
             }
@@ -607,75 +604,6 @@ export const DashboardPage: React.FC = () => {
             />
           </div>
 
-          {/* Performance Cards */}
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6">
-            <Card className="p-4 sm:p-6 bg-gradient-to-br from-card to-card/45 border border-border">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-foreground">Desempenho do Sistema</h3>
-                <Activity className="h-5 w-5 text-accent" />
-              </div>
-              <div className="space-y-4">
-                <div>
-                  <div className="flex justify-between text-sm mb-2">
-                    <span className="text-muted-foreground">Uptime</span>
-                    <span className="font-medium text-foreground">{stats?.systemUptime}%</span>
-                  </div>
-                  <Progress value={stats?.systemUptime} className="h-2" />
-                </div>
-                <div>
-                  <div className="flex justify-between text-sm mb-2">
-                    <span className="text-muted-foreground">Processamento RAG</span>
-                    <span className="font-medium text-foreground">94%</span>
-                  </div>
-                  <Progress value={94} className="h-2" />
-                </div>
-                <div>
-                  <div className="flex justify-between text-sm mb-2">
-                    <span className="text-muted-foreground">Satisfação dos Usuários</span>
-                    <span className="font-medium text-foreground">92%</span>
-                  </div>
-                  <Progress value={92} className="h-2" />
-                </div>
-              </div>
-            </Card>
-
-            <Card className="p-4 sm:p-6 bg-gradient-to-br from-card to-card/45 border border-border">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-foreground">Atividade Recente</h3>
-                <BarChart3 className="h-5 w-5 text-accent" />
-              </div>
-              <div className="space-y-4">
-                <div className="flex items-center space-x-3">
-                  <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-foreground">Nova conversa iniciada</p>
-                    <p className="text-xs text-muted-foreground">há 2 minutos</p>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-foreground">Documento processado</p>
-                    <p className="text-xs text-muted-foreground">há 15 minutos</p>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <div className="w-2 h-2 rounded-full bg-orange-500"></div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-foreground">Download solicitado</p>
-                    <p className="text-xs text-muted-foreground">há 1 hora</p>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <div className="w-2 h-2 rounded-full bg-purple-500"></div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-foreground">Usuário conectado</p>
-                    <p className="text-xs text-muted-foreground">há 2 horas</p>
-                  </div>
-                </div>
-              </div>
-            </Card>
-          </div>
         </div>
       </div>
     </MainLayout>

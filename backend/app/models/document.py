@@ -1,6 +1,5 @@
 """
-Document models for FastAPI
-Migrated from Django documents app
+Document models for document processing and RAG system
 """
 import os
 import shutil

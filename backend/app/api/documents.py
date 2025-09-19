@@ -29,7 +29,7 @@ from app.workers.background_tasks import process_document_async
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/documents", tags=["documents"])
+router = APIRouter(prefix="/api/documents", tags=["documents"])
 
 
 @router.post("/upload", response_model=DocumentResponse)
@@ -395,7 +395,7 @@ async def delete_document(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/stats/overview", response_model=DocumentStatsResponse)
+@router.get("/stats", response_model=DocumentStatsResponse)
 async def get_document_stats(
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user)

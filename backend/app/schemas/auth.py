@@ -23,6 +23,11 @@ class MicrosoftTokenRequest(BaseModel):
     """Microsoft token exchange request"""
     access_token: str = Field(..., description="Microsoft access token from MSAL")
 
+class MicrosoftIdTokenRequest(BaseModel):
+    """Request model for Microsoft ID token + Access token exchange (RECOMMENDED)"""
+    id_token: str = Field(..., description="Microsoft ID token for authentication")
+    access_token: str = Field(..., description="Microsoft access token for Graph API calls")
+
 # Response schemas
 class TokenResponse(BaseModel):
     """Token response after successful authentication"""
@@ -41,6 +46,10 @@ class UserInfo(BaseModel):
     email: EmailStr
     username: str
     display_name: str
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    preferred_name: Optional[str] = None
+    profile_picture: Optional[str] = None
     is_admin: bool = False
     is_active: bool = True
     preferred_language: Optional[str] = None

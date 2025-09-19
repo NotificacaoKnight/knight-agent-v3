@@ -21,8 +21,10 @@ python-jose[cryptography]
 passlib[bcrypt]
 cryptography
 
-# Rate Limiting
+# Rate Limiting & Caching
 slowapi
+redis
+aioredis
 
 # LangGraph e AI
 langgraph

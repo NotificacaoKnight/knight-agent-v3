@@ -1,6 +1,6 @@
 """
 Knight Agent FastAPI Application
-Migrated from Django REST Framework
+Corporate AI assistant with agentic RAG and Azure AD authentication
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -23,6 +23,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Setup log sanitization
+from app.core.log_sanitizer import setup_logging
+setup_logging()
+
 # Lifecycle events
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -36,13 +40,34 @@ async def lifespan(app: FastAPI):
     try:
         await init_database()
         logger.info("✅ Database initialized")
+
+        # Sync initial admin emails
+        from app.api.deps import get_async_db
+        from app.core.admin_config import admin_service
+        async for db in get_async_db():
+            await admin_service.sync_initial_admins(db)
+            logger.info("✅ Admin emails synchronized")
+            break
     except Exception as e:
         logger.error(f"❌ Failed to initialize database: {e}")
+
+    # Initialize Redis
+    try:
+        from app.core.redis_service import redis_service
+        await redis_service.connect()
+        logger.info("✅ Redis service initialized")
+    except Exception as e:
+        logger.warning(f"⚠️ Redis initialization failed: {e}")
 
     yield
 
     # Shutdown
     logger.info("👋 Knight Agent FastAPI shutting down...")
+    try:
+        from app.core.redis_service import redis_service
+        await redis_service.disconnect()
+    except Exception:
+        pass
     await close_database()
 
 # Criar instância FastAPI
@@ -83,7 +108,13 @@ app = FastAPI(
     }
 )
 
-# Configurar CORS
+# Setup custom middlewares FIRST (they execute last)
+setup_middlewares(app)
+
+# Adicionar compressão Gzip
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+# Configurar CORS LAST (executes first - important!)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -91,7 +122,7 @@ app.add_middleware(
         "http://127.0.0.1:3000",
         "https://knight-frontend-dev.loca.lt",
     ],
-    allow_credentials=False,  # Mantendo configuração de segurança do Django
+    allow_credentials=True,  # OBRIGATÓRIO para HttpOnly cookies
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allow_headers=[
         "accept",
@@ -105,12 +136,6 @@ app.add_middleware(
         "x-requested-with",
     ],
 )
-
-# Adicionar compressão Gzip
-app.add_middleware(GZipMiddleware, minimum_size=1000)
-
-# Setup custom middlewares
-setup_middlewares(app)
 
 # Add rate limiting
 from slowapi import _rate_limit_exceeded_handler
@@ -161,7 +186,7 @@ async def ping():
     return {"ping": "pong"}
 
 # Incluir routers dos módulos
-app.include_router(api_router, prefix="/api")
+app.include_router(api_router)
 
 # Tratamento de erros customizado
 from fastapi.responses import JSONResponse

@@ -17,7 +17,7 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/locales", tags=["locales"])
+router = APIRouter(prefix="/api/locales", tags=["locales"])
 
 
 # Available languages

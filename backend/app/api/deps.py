@@ -2,6 +2,7 @@
 FastAPI dependencies for authentication and database
 Common dependencies used across the application
 """
+import logging
 from typing import Optional, Annotated
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -9,12 +10,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_async_db
 from app.core.security import verify_token
+from app.core.config import settings
 from app.models.user import User
 from app.services.auth_service import auth_service
 
 # Rate limiting
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+
+logger = logging.getLogger(__name__)
 
 # Create rate limiter instance
 limiter = Limiter(
@@ -31,7 +35,9 @@ security = HTTPBearer(
 
 async def get_current_user(
     request: Request,
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(
+        HTTPBearer(auto_error=False)
+    ),
     db: AsyncSession = Depends(get_async_db)
 ) -> User:
     """
@@ -48,11 +54,27 @@ async def get_current_user(
     Raises:
         HTTPException: If authentication fails
     """
-    token = credentials.credentials
+    token = None
 
-    # Verify token
-    payload = verify_token(token, token_type="access")
+    # Try to get token from Authorization header first
+    if credentials:
+        token = credentials.credentials
+    # If httpOnly cookies are enabled, try to get token from cookie
+    elif settings.USE_HTTPONLY_COOKIES:
+        token = request.cookies.get("access_token")
+
+    if not token:
+        logger.info("Authentication attempt without credentials")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Verify token (async)
+    payload = await verify_token(token, token_type="access")
     if not payload:
+        logger.info("Token validation failed")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",
@@ -62,6 +84,7 @@ async def get_current_user(
     # Get user from database
     user = await auth_service.get_current_user(token, db)
     if not user:
+        logger.info("User not found for valid token")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found",
@@ -139,7 +162,7 @@ async def get_optional_current_user(
 
     try:
         token = credentials.credentials
-        payload = verify_token(token, token_type="access")
+        payload = await verify_token(token, token_type="access")
 
         if payload:
             user = await auth_service.get_current_user(token, db)

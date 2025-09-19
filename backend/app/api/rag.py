@@ -28,7 +28,7 @@ from app.services.rag.llm_providers import ProviderType
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/rag", tags=["RAG"])
+router = APIRouter(prefix="/api/rag", tags=["RAG"])
 
 
 @router.post("/search", response_model=SearchResponse)

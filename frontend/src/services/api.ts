@@ -27,7 +27,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  // withCredentials removido para evitar problemas com CORS
+  withCredentials: true, // OBRIGATÓRIO para HttpOnly cookies
 });
 
 // Helper function to validate JWT token format
@@ -37,21 +37,20 @@ const isValidJWT = (token: string): boolean => {
   return parts.length === 3 && parts.every(part => part.length > 0);
 };
 
-// Interceptor para adicionar token em todas as requisições
+// Interceptor para adicionar token de autenticação e debug
 api.interceptors.request.use(
   (config) => {
+    console.log('📤 API Request:', config.method?.toUpperCase(), config.url);
+
+    // Adicionar token de autenticação se disponível
     const token = localStorage.getItem('sessionToken');
     if (token) {
-      // Validate token format before sending
-      if (!isValidJWT(token)) {
-        console.log('🚨 Token inválido detectado no interceptor, removendo...');
-        localStorage.removeItem('sessionToken');
-        localStorage.removeItem('justLoggedOut');
-        // Don't add invalid token to headers
-      } else {
-        config.headers.Authorization = `Bearer ${token}`;
-      }
+      config.headers.Authorization = `Bearer ${token}`;
+      console.log('🔑 Token adicionado ao header Authorization');
+    } else {
+      console.log('⚠️ Nenhum token encontrado no localStorage');
     }
+
     return config;
   },
   (error) => {
@@ -64,10 +63,8 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Token expirado ou inválido
-      console.log('🚨 Erro 401 - Token inválido ou expirado, limpando dados...');
-      localStorage.removeItem('sessionToken');
-      localStorage.removeItem('justLoggedOut');
+      // Token expirado ou inválido (cookies são limpos automaticamente pelo backend)
+      console.log('🚨 Erro 401 - Token inválido ou expirado, redirecionando...');
 
       // Only redirect if not already on login page
       if (window.location.pathname !== '/login') {
@@ -139,16 +136,28 @@ export interface SendMessageResponse {
 export const chatApi = {
   // Enviar mensagem
   sendMessage: async (data: SendMessageRequest): Promise<SendMessageResponse> => {
+    // Mapear para o formato esperado pelo backend
+    const backendPayload = {
+      query: data.message,  // backend espera 'query', não 'message'
+      session_id: data.session_id ? parseInt(data.session_id) : null,  // converter para number
+      use_rag: true,
+      use_agentic: false,
+      stream: false,
+      language: 'pt',
+      max_tokens: 1000,
+      temperature: 0.7
+    };
+
     if (data.audio_file) {
       // Para mensagens com áudio, usar FormData
       const formData = new FormData();
-      formData.append('message', data.message);
-      formData.append('content_type', data.content_type || 'audio');
+      formData.append('query', data.message);  // usar 'query' em vez de 'message'
+      formData.append('session_id', data.session_id || '');
+      formData.append('use_rag', 'true');
+      formData.append('use_agentic', 'false');
+      formData.append('language', 'pt');
       formData.append('audio_file', data.audio_file);
-      if (data.session_id) {
-        formData.append('session_id', data.session_id);
-      }
-      
+
       const response = await api.post('/chat/query', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
@@ -157,7 +166,7 @@ export const chatApi = {
       return response.data;
     } else {
       // Para mensagens de texto, usar JSON normal
-      const response = await api.post('/chat/query', data);
+      const response = await api.post('/chat/query', backendPayload);
       return response.data;
     }
   },

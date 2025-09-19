@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv
+.env
+
+# Database
+*.db
+*.sqlite3
+db.sqlite3
+
+# Media files
+media/profile_pictures/*.jpg
+media/profile_pictures/*.jpeg
+media/profile_pictures/*.png
+media/profile_pictures/*.gif
+media/profile_pictures/*.webp
+
+# Processed documents
+processed_documents/
+documents/
+vector_store/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Alembic
+alembic.ini.local

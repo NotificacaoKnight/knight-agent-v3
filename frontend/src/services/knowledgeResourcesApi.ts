@@ -83,7 +83,7 @@ export interface DocumentStats {
 }
 
 // API Base URL
-const BASE_URL = '/knowledge-resources';
+const BASE_URL = '/knowledge';
 
 // Useful Links API
 export const usefulLinksApi = {

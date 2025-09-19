@@ -226,7 +226,7 @@ export const ChatPage: React.FC = () => {
           if (Array.isArray(historyMessages)) {
             const convertedMessages: Message[] = historyMessages.map((msg: any) => ({
               id: msg.id.toString(),
-              type: msg.type as 'user' | 'assistant' | 'system',
+              type: msg.message_type as 'user' | 'assistant' | 'system',
               content: msg.content,
               timestamp: new Date(msg.created_at || msg.timestamp),
               messageType: msg.content_type || 'text',

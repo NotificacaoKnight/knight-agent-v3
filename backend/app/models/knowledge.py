@@ -1,6 +1,5 @@
 """
-Knowledge Resources models for FastAPI
-Migrated from Django knowledge_resources app
+Knowledge Resources models for contextual links and documents
 """
 import os
 from datetime import datetime

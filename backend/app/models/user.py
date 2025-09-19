@@ -1,6 +1,5 @@
 """
-User and Session models
-Migrated from Django authentication models
+User and Session models for FastAPI authentication
 """
 from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Text, Integer
 from sqlalchemy.orm import relationship
@@ -12,7 +11,7 @@ from app.core.database import Base
 
 class User(Base):
     """
-    User model - migrated from Django AbstractUser
+    User model for authentication and profile management
     """
     __tablename__ = "users"
 

@@ -80,7 +80,7 @@ export const useLanguage = (): UseLanguageReturn => {
    */
   const saveUserPreference = useCallback(async (languageCode: string): Promise<boolean> => {
     try {
-      const response = await fetch('/api/auth/language-preference/', {
+      const response = await fetch('http://localhost:8000/api/auth/preferences', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

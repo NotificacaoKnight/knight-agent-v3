@@ -6,47 +6,50 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Knight Agent is a corporate AI assistant system built for internal company support, featuring **agentic RAG (Retrieval-Augmented Generation)** with LangGraph for multi-step reasoning, optimized for Portuguese documents. The system includes traditional hybrid search fallback, supports multiple LLM providers with automatic fallback, and includes Microsoft Azure AD authentication.
 
-**Recent Migrations**: 
-1. **LangGraph Agentic RAG**: Migrated from traditional LangChain RAG to LangGraph-based agentic RAG with dynamic decision-making and self-reflection
-2. **PgVector Integration**: Migrated from FAISS to pgvector for production-ready vector similarity search with true concurrent access and atomic updates
-3. **Knowledge Resources**: Added contextual link and document suggestion system with semantic matching on ai_guidance fields
+**Recent Migrations**:
+1. **FastAPI Migration**: Migrated from Django REST Framework to FastAPI for better async performance and modern API features
+2. **LangGraph Agentic RAG**: Migrated from traditional LangChain RAG to LangGraph-based agentic RAG with dynamic decision-making and self-reflection
+3. **PgVector Integration**: Migrated from FAISS to pgvector for production-ready vector similarity search with true concurrent access and atomic updates
+4. **Knowledge Resources**: Added contextual link and document suggestion system with semantic matching on ai_guidance fields
 
 ## Architecture
 
-The project uses a **microservices-style Django architecture** with separate apps for distinct functionalities:
+The project uses a **FastAPI microservices architecture** with modular apps for distinct functionalities:
 
-- **authentication/**: Microsoft Azure AD integration with MSAL
-- **documents/**: Document processing pipeline using Docling + async Celery tasks
-- **rag/**: **Agentic RAG system** using LangGraph with traditional hybrid search fallback
-- **chat/**: Conversational interface with session management
-- **knowledge_resources/**: Useful links and downloadable documents that AI can suggest contextually
-- **downloads/**: Temporary file distribution system (7-day expiry)
+- **app/api/auth.py**: Microsoft Azure AD integration with MSAL and JWT authentication
+- **app/api/documents.py**: Document processing pipeline using Docling + async processing
+- **app/api/rag.py**: **Agentic RAG system** using LangGraph with traditional hybrid search fallback
+- **app/api/chat.py**: Conversational interface with session management
+- **app/api/knowledge.py**: Useful links and downloadable documents that AI can suggest contextually
+- **app/api/downloads.py**: Temporary file distribution system (7-day expiry)
 
 **Key architectural patterns:**
-- **Agentic RAG**: `rag/agentic_rag_service.py` implements LangGraph-based multi-step reasoning with self-reflection, planning, and dynamic decision-making
-- **Multi-Agent System**: `rag/consolidated_multi_agent.py` provides specialized agents (Knight, Bard, Wizard) for different query types
-- **Knowledge Resources Integration**: `rag/knowledge_resources_service.py` finds and suggests relevant links and documents based on context using semantic search
-- **Hybrid Vector Search**: `rag/hybrid_vector_service.py` provides pgvector-first with FAISS fallback for optimal performance and reliability
-- **Production Vector Storage**: pgvector integration (`rag/pgvector_service.py`) enables concurrent access, atomic updates, and PostgreSQL-native vector operations
-- **Provider Pattern**: `rag/llm_providers.py` abstracts multiple LLM APIs (Cohere, Groq, Together AI, Ollama) with automatic fallback
+- **FastAPI Dependencies**: Authentication handled via dependency injection with JWT Bearer tokens
+- **Agentic RAG**: `app/services/rag/agentic_rag_service.py` implements LangGraph-based multi-step reasoning with self-reflection, planning, and dynamic decision-making
+- **Multi-Agent System**: `app/services/rag/consolidated_multi_agent.py` provides specialized agents (Knight, Bard, Wizard) for different query types
+- **Knowledge Resources Integration**: `app/services/knowledge_resources_service.py` finds and suggests relevant links and documents based on context using semantic search
+- **Hybrid Vector Search**: `app/services/rag/hybrid_vector_service.py` provides pgvector-first with FAISS fallback for optimal performance and reliability
+- **Production Vector Storage**: pgvector integration (`app/services/rag/pgvector_service.py`) enables concurrent access, atomic updates, and PostgreSQL-native vector operations
+- **Provider Pattern**: `app/services/rag/llm_providers.py` abstracts multiple LLM APIs (Cohere, Groq, Together AI, Ollama) with automatic fallback
 - **Portuguese Optimization**: Semantic search (BGE-m3 embeddings) + keyword search (BM25) optimized for Portuguese text processing
-- **Async Processing**: Document ingestion uses Celery for background processing (chunking, embedding generation, indexing)
-- **Token Authentication**: Custom middleware (`authentication/middleware.py`) for session token management
+- **Async Processing**: Document ingestion uses async processing (chunking, embedding generation, indexing)
+- **JWT Authentication**: FastAPI dependencies (`app/api/deps.py`) for JWT Bearer token validation
 
 ## Project Structure
 
 ```
 knight-agent/
-├── backend/                    # Django REST API
-│   ├── knight_backend/         # Main Django settings
-│   ├── authentication/         # Microsoft Azure AD
-│   ├── documents/              # Document processing pipeline
-│   ├── rag/                    # Hybrid search engine
-│   ├── chat/                   # Chat interface
-│   ├── downloads/              # Temporary file distribution
-│   ├── manage.py               # Django management
+├── backend/                    # FastAPI Application
+│   ├── app/                    # Main application code
+│   │   ├── api/                # API endpoints (auth, documents, rag, chat, etc.)
+│   │   ├── core/               # Core functionality (config, database, security, middleware)
+│   │   ├── models/             # SQLAlchemy models
+│   │   ├── schemas/            # Pydantic schemas
+│   │   ├── services/           # Business logic services
+│   │   └── main.py             # FastAPI application entry point
+│   ├── alembic/                # Database migrations
 │   ├── requirements.txt        # Python dependencies
-│   └── *.py                    # Utility scripts (create_migrations, reset_database, etc.)
+│   └── *.py                    # Utility scripts
 ├── frontend/                   # React TypeScript app
 │   ├── src/                    # React source code
 │   ├── public/                 # Static assets
@@ -60,11 +63,7 @@ knight-agent/
 ### Quick Start
 
 ```bash
-# Automated setup scripts (recommended)
-./setup.sh         # Linux/Mac
-setup.bat          # Windows
-
-# Manual setup:
+# FastAPI setup:
 cd backend
 
 # 1. Create virtual environment (only once)
@@ -79,17 +78,17 @@ venv\Scripts\activate     # Windows
 pip install -r requirements.txt
 
 # 4. Setup database (only first time or when models change)
-python manage.py migrate
+alembic upgrade head
 
 # 5. Run development server
-python manage.py runserver
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-**IMPORTANT**: You must activate the virtual environment (`source venv/bin/activate`) every time you open a new terminal before running any Python/Django commands.
+**IMPORTANT**: You must activate the virtual environment (`source venv/bin/activate`) every time you open a new terminal before running any Python/FastAPI commands.
 
-### Backend (Django)
+### Backend (FastAPI)
 
-**Working Directory**: All Django commands must be run from `/backend/` directory.
+**Working Directory**: All FastAPI commands must be run from `/backend/` directory.
 
 **PREREQUISITE**: Always activate virtual environment first: `source venv/bin/activate` (Linux/Mac) or `venv\Scripts\activate` (Windows)
 
