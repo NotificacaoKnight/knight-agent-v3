@@ -710,3 +710,5 @@ External testers should receive:
 - `TESTING_GUIDE.md`: Complete testing instructions
 - `AZURE_AD_SETUP.md`: Azure AD configuration guide
 - Fixed tunnel URLs for consistent access
+- Read the (DEPRECATED)backend_django folder to see more context about how the backend was before the migration to fastapi, this is good to see missing endpoints after this framework change
+- backend/knight_db_backup.sql have the old database structure, read it to see if the is missing parts for the new db

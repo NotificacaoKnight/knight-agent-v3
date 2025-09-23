@@ -91,7 +91,6 @@ const settings = {
   light_theme: 'Claro',
   dark_theme: 'Escuro',
   system_theme: 'Sistema',
-  notifications: 'Notificações',
   save_settings: 'Salvar Configurações',
   settings_saved: 'Configurações salvas com sucesso',
   user_profile: 'Perfil do Usuário',
@@ -100,7 +99,49 @@ const settings = {
   security: 'Segurança',
   account: 'Conta',
   preferences: 'Preferências do Sistema',
-  advanced: 'Configurações Avançadas'
+  advanced: 'Configurações Avançadas',
+
+  // Profile section
+  photo_synced_microsoft: 'Foto sincronizada do Microsoft 365',
+  name: 'Nome',
+  email: 'Email',
+  department: 'Departamento',
+  job_title: 'Cargo',
+  not_informed: 'Não informado',
+
+  // Notifications
+  notifications: 'Notificações',
+  notifications_new_messages: 'Notificações de novas mensagens',
+  notifications_documents_processed: 'Notificações de documentos processados',
+  notifications_email: 'Notificações por email',
+
+  // Appearance
+  appearance: 'Aparência',
+  theme_toggle_hint: 'Use o botão de tema no menu lateral para alternar entre modo claro e escuro.',
+
+  // AI Settings
+  ai_settings: 'Configurações de IA',
+  admin_badge: 'Admin',
+
+  // Privacy
+  privacy_security: 'Privacidade e Segurança',
+  session: 'Sessão',
+  session_expiry_info: 'Sua sessão expira automaticamente após 1 hora de inatividade',
+  conversation_history: 'Histórico de Conversas',
+  conversation_storage_info: 'Suas 10 últimas conversas são armazenadas de forma segura',
+
+  // Admin Management
+  admin_management: 'Gerenciamento de Administradores',
+  add_new_admin: 'Adicionar Novo Administrador',
+  admin_privilege_info: 'O usuário receberá privilégios de administrador no próximo login',
+  current_admins: 'Administradores Atuais',
+  you_label: '(você)',
+  add_button: 'Adicionar',
+  remove_admin_confirm: 'Tem certeza que deseja remover {{email}} como administrador?',
+  error_loading_admins: 'Erro ao carregar lista de administradores',
+  error_invalid_email: 'Por favor, insira um email válido',
+  error_adding_admin: 'Erro ao adicionar administrador',
+  error_removing_admin: 'Erro ao remover administrador'
 };
 
 const errors = {
@@ -355,7 +396,52 @@ const llmManagement = {
   tokens: 'Tokens',
   cost: 'Custo',
   status: 'Status',
-  error_loading_data: 'Erro ao carregar dados'
+  error_loading_data: 'Erro ao carregar dados',
+
+  // New translations (avoiding duplicates)
+  test: 'Testar',
+  test_connection: 'Testar Conexão',
+  refresh: 'Atualizar',
+  available_providers: 'Providers Disponíveis',
+  active: 'Ativo',
+  online: 'Online',
+  offline: 'Offline',
+
+  // Metrics
+  total_queries: 'Total de Consultas',
+  avg_response_time: 'Tempo Médio',
+  estimated_cost: 'Custo Estimado',
+  usage_by_provider: 'Uso por Provider',
+  queries: 'Consultas',
+  input_tokens: 'Tokens Entrada',
+  output_tokens: 'Tokens Saída',
+
+  // Costs
+  this_month: 'Este Mês',
+  six_months: '6 Meses',
+  annual: 'Anual',
+  average_per_day: 'Média: {{amount}}/dia',
+  costs_by_period: 'Custos por Período',
+  costs_by_provider: 'Custos por Provider',
+  cost_projections: 'Projeções de Custos',
+  next_month: 'Próximo Mês',
+  next_quarter: 'Próximo Trimestre',
+  next_year: 'Próximo Ano',
+  confidence: 'Confiança',
+  not_available: 'Não disponível',
+  cost_comparison_monthly: 'Comparação de Custos (Mensal)',
+  model: 'Modelo',
+  input_per_1k: 'Entrada/1k',
+  output_per_1k: 'Saída/1k',
+  potential_savings: 'Economia Potencial',
+
+  // History
+  change_history: 'Histórico de Mudanças',
+  date_time: 'Data/Hora',
+  user: 'Usuário',
+  change: 'Mudança',
+  reason: 'Motivo',
+  no_changes_recorded: 'Nenhuma mudança registrada'
 };
 
 const bard = {

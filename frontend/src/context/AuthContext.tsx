@@ -238,14 +238,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
             console.log('✅ Resposta do backend recebida, cookie JWT definido automaticamente');
 
-            // Salvar tokens no localStorage para usar nas requests
-            if (backendResponse.data.access_token) {
-              localStorage.setItem('sessionToken', backendResponse.data.access_token);
-              console.log('🔑 Token JWT salvo no localStorage');
-            }
-            if (backendResponse.data.refresh_token) {
-              localStorage.setItem('refreshToken', backendResponse.data.refresh_token);
-            }
+            // Tokens agora são gerenciados via HttpOnly cookies pelo backend
+            // Não salvamos mais no localStorage por segurança
+            console.log('🔐 Usando HttpOnly cookies para tokens (mais seguro)');
 
             setUser({
               id: backendResponse.data.user.id,
@@ -321,14 +316,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 console.log('⚠️ Silent login usando método de fallback (menos seguro)');
               }
 
-              // Salvar tokens no localStorage para usar nas requests
-              if (backendResponse.data.access_token) {
-                localStorage.setItem('sessionToken', backendResponse.data.access_token);
-                console.log('🔑 Token JWT salvo no localStorage (silent login)');
-              }
-              if (backendResponse.data.refresh_token) {
-                localStorage.setItem('refreshToken', backendResponse.data.refresh_token);
-              }
+              // Tokens agora são gerenciados via HttpOnly cookies pelo backend
+              // Não salvamos mais no localStorage por segurança
+              console.log('🔐 Usando HttpOnly cookies para tokens (silent login - mais seguro)');
 
               setUser({
                 id: backendResponse.data.user.id,
@@ -464,10 +454,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setIsLoading(true);
       setUser(null);
 
-      // Limpar tokens do localStorage
-      localStorage.removeItem('sessionToken');
-      localStorage.removeItem('refreshToken');
-      console.log('🗑️ Tokens removidos do localStorage');
+      // Tokens HttpOnly são limpos automaticamente pelo backend
+      // Não precisamos mais limpar localStorage
+      console.log('🗑️ Logout: cookies serão limpos pelo backend');
 
       // Logout do backend (irá limpar cookies HttpOnly automaticamente)
       try {

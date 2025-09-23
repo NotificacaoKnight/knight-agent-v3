@@ -43,28 +43,19 @@ export const DashboardPage: React.FC = () => {
       setLoading(true);
       
       try {
-        // Obter token de autenticação
-        const token = localStorage.getItem('sessionToken');
-        if (!token) {
-          console.warn('DashboardPage - Token de autenticação não encontrado');
-        }
+        // Autenticação via HttpOnly cookies - não precisa de token manual
+        // Cookies são enviados automaticamente com credentials: 'include'
 
         // Fazer chamadas paralelas para todas as APIs de estatísticas
         const [documentsRes, chatRes, activityRes] = await Promise.all([
           fetch('http://localhost:8000/api/documents/stats/overview', {
-            headers: {
-              'Authorization': `Bearer ${token}`
-            }
+            credentials: 'include'
           }),
           fetch('http://localhost:8000/api/chat/stats', {
-            headers: {
-              'Authorization': `Bearer ${token}`
-            }
+            credentials: 'include'
           }),
           fetch('http://localhost:8000/api/chat/activity', {
-            headers: {
-              'Authorization': `Bearer ${token}`
-            }
+            credentials: 'include'
           })
         ]);
 

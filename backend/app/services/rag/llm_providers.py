@@ -25,10 +25,8 @@ class ProviderType(str, Enum):
     OPENAI = "openai"
     COHERE = "cohere"
     GROQ = "groq"
-    TOGETHER = "together"
     DEEPSEEK = "deepseek"
     GEMINI = "gemini"
-    OLLAMA = "ollama"
 
 
 class LLMProvider(ABC):
@@ -467,7 +465,9 @@ class LLMProviderManager:
     def get_provider(self, provider_type: Optional[ProviderType] = None) -> LLMProvider:
         """Get a specific provider or the default"""
         if provider_type is None:
-            provider_type = ProviderType(settings.LLM_PROVIDER or ProviderType.DEEPSEEK)
+            # Read from environment variable directly for real-time updates
+            current_provider = os.environ.get('LLM_PROVIDER', settings.LLM_PROVIDER) or ProviderType.DEEPSEEK
+            provider_type = ProviderType(current_provider)
 
         # Check cache
         if provider_type in self.providers:

@@ -6,7 +6,6 @@ import { useLLMStatusRefresh } from '../hooks/useLLMStatusRefresh';
 interface LLMStatus {
   current_provider: string;
   provider_name: string;
-  provider_color: string;
   is_healthy: boolean;
   status: string;
 }
@@ -32,7 +31,6 @@ export const LLMStatusIndicator = forwardRef<LLMStatusIndicatorRef>((props, ref)
       setLlmStatus({
         current_provider: 'error',
         provider_name: 'Error',
-        provider_color: '#ef4444',
         is_healthy: false,
         status: 'error'
       });
@@ -50,8 +48,8 @@ export const LLMStatusIndicator = forwardRef<LLMStatusIndicatorRef>((props, ref)
 
     fetchLLMStatus();
 
-    // Atualizar status a cada 30 segundos
-    const interval = setInterval(fetchLLMStatus, 30000);
+    // Atualizar status a cada 5 minutos (menos overhead)
+    const interval = setInterval(fetchLLMStatus, 300000);
 
     return () => clearInterval(interval);
   }, [user?.is_admin]); // Removido fetchLLMStatus das dependências
@@ -102,9 +100,8 @@ export const LLMStatusIndicator = forwardRef<LLMStatusIndicatorRef>((props, ref)
       ></div>
       
       {/* Provider name */}
-      <span 
-        className="text-xs font-medium"
-        style={{ color: llmStatus.provider_color }}
+      <span
+        className="text-xs font-medium text-foreground"
         title={`LLM Provider: ${llmStatus.provider_name} (${llmStatus.current_provider})`}
       >
         {llmStatus.provider_name}

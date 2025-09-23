@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { useLLMStatusRefresh } from '../hooks/useLLMStatusRefresh';
@@ -118,6 +119,7 @@ export const LLMManagement: React.FC = () => {
   const [testing, setTesting] = useState<string | null>(null);
   const [selectedPeriod, setSelectedPeriod] = useState('month');
   const { refreshLLMStatus } = useLLMStatusRefresh();
+  const { t } = useTranslation();
 
   // Definir todas as funções ANTES de loadData para evitar erros de "used before declaration"
   const loadProviders = useCallback(async () => {
@@ -260,11 +262,11 @@ export const LLMManagement: React.FC = () => {
     return new Date(dateString).toLocaleString('pt-BR');
   };
 
-  // Preparar dados para gráficos
-  const costChartData = costs ? [
-    { period: 'Mês', value: costs.costs_by_period.month.total_cost_usd },
-    { period: '6 Meses', value: costs.costs_by_period['6months'].total_cost_usd },
-    { period: 'Ano', value: costs.costs_by_period.year.total_cost_usd }
+  // Preparar dados para gráficos com validação defensiva
+  const costChartData = costs?.costs_by_period ? [
+    { period: 'Mês', value: costs.costs_by_period.month?.total_cost_usd || 0 },
+    { period: '6 Meses', value: costs.costs_by_period['6months']?.total_cost_usd || 0 },
+    { period: 'Ano', value: costs.costs_by_period.year?.total_cost_usd || 0 }
   ] : [];
 
   const providerPieData = costs?.provider_comparison.map((provider, index) => ({
@@ -293,10 +295,10 @@ export const LLMManagement: React.FC = () => {
     <div className="space-y-6">
       <Tabs defaultValue="config" className="w-full">
         <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="config">Configuração</TabsTrigger>
-          <TabsTrigger value="metrics">Métricas</TabsTrigger>
-          <TabsTrigger value="costs">Custos</TabsTrigger>
-          <TabsTrigger value="history">Histórico</TabsTrigger>
+          <TabsTrigger value="config">{t('llmManagement.config_tab')}</TabsTrigger>
+          <TabsTrigger value="metrics">{t('llmManagement.metrics_tab')}</TabsTrigger>
+          <TabsTrigger value="costs">{t('llmManagement.costs_tab')}</TabsTrigger>
+          <TabsTrigger value="history">{t('llmManagement.history_tab')}</TabsTrigger>
         </TabsList>
 
         {/* Aba de Configuração */}
@@ -305,14 +307,14 @@ export const LLMManagement: React.FC = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-2">Selecionar Provider</label>
+                <label className="block text-sm font-medium mb-2">{t('llmManagement.select_provider')}</label>
                 <Select
                   value={currentProvider?.key || ''}
                   onValueChange={handleSwitchProvider}
                   disabled={switching}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecione um provider" />
+                    <SelectValue placeholder={t('llmManagement.select_provider_placeholder')} />
                   </SelectTrigger>
                   <SelectContent>
                     {providers.map((provider) => (
@@ -325,10 +327,10 @@ export const LLMManagement: React.FC = () => {
                         <div className="flex items-center space-x-2">
                           <span>{provider.name}</span>
                           {!provider.api_key_configured && (
-                            <Badge variant="destructive" className="text-xs">Sem API Key</Badge>
+                            <Badge variant="destructive" className="text-xs">{t('llmManagement.no_api_key')}</Badge>
                           )}
                           {!provider.is_available && (
-                            <Badge variant="secondary" className="text-xs">Indisponível</Badge>
+                            <Badge variant="secondary" className="text-xs">{t('llmManagement.unavailable')}</Badge>
                           )}
                         </div>
                       </SelectItem>
@@ -347,7 +349,7 @@ export const LLMManagement: React.FC = () => {
                     disabled={!currentProvider || testing === currentProvider.key}
                   >
                     <TestTube className="h-4 w-4 mr-1" />
-                    {testing === currentProvider?.key ? 'Testando...' : 'Testar'}
+                    {testing === currentProvider?.key ? t('llmManagement.testing') : t('llmManagement.test')}
                   </Button>
                   <Button
                     variant="outline"
@@ -356,7 +358,7 @@ export const LLMManagement: React.FC = () => {
                     disabled={loading}
                   >
                     <Activity className="h-4 w-4 mr-1" />
-                    Atualizar
+                    {t('llmManagement.refresh')}
                   </Button>
                 </div>
               </div>
@@ -364,7 +366,7 @@ export const LLMManagement: React.FC = () => {
 
             {/* Lista de providers disponíveis */}
             <div className="mt-6">
-              <h4 className="text-md font-medium mb-3">Providers Disponíveis</h4>
+              <h4 className="text-md font-medium mb-3">{t('llmManagement.available_providers')}</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {providers.map((provider) => (
                   <Card key={provider.key} className="p-3 border bg-gray-50 dark:bg-[#181818] shadow-sm">
@@ -375,9 +377,9 @@ export const LLMManagement: React.FC = () => {
                           alt={provider.name}
                           className={`w-5 h-5 object-contain ${(provider.key === 'openai' || provider.key === 'groq') ? 'dark:invert' : ''}`}
                           onError={(e) => {
-                            // Fallback para emoji se SVG falhar
+                            // Fallback para ícone emoji quando imagem falhar
                             const target = e.target as HTMLImageElement;
-                            target.src = 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><text x="50%" y="50%" font-size="16" text-anchor="middle" dy=".3em">🔧</text></svg>');
+                            target.src = `data:image/svg+xml;base64,${btoa(`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><text x="8" y="12" text-anchor="middle" font-size="12">🔧</text></svg>`)}`
                           }}
                         />
                         <div>
@@ -387,17 +389,17 @@ export const LLMManagement: React.FC = () => {
                       </div>
                       <div className="flex flex-col space-y-1">
                         {provider.is_current && (
-                          <Badge variant="default" className="text-xs">Ativo</Badge>
+                          <Badge variant="default" className="text-xs">{t('llmManagement.active')}</Badge>
                         )}
                         {provider.is_available ? (
                           <Badge variant="outline" className="text-xs text-green-600">
                             <CheckCircle className="h-3 w-3 mr-1" />
-                            Online
+                            {t('llmManagement.online')}
                           </Badge>
                         ) : (
                           <Badge variant="destructive" className="text-xs">
                             <XCircle className="h-3 w-3 mr-1" />
-                            Offline
+                            {t('llmManagement.offline')}
                           </Badge>
                         )}
                       </div>
@@ -409,7 +411,7 @@ export const LLMManagement: React.FC = () => {
                       onClick={() => handleTestProvider(provider.key)}
                       disabled={!provider.is_available || testing === provider.key}
                     >
-                      {testing === provider.key ? 'Testando...' : 'Testar Conexão'}
+                      {testing === provider.key ? t('llmManagement.testing') : t('llmManagement.test_connection')}
                     </Button>
                   </Card>
                 ))}
@@ -428,7 +430,7 @@ export const LLMManagement: React.FC = () => {
                   <div className="flex items-center space-x-2">
                     <Activity className="h-5 w-5 text-blue-500" />
                     <div>
-                      <p className="text-sm font-medium">Total de Consultas</p>
+                      <p className="text-sm font-medium">{t('llmManagement.total_queries')}</p>
                       <p className="text-2xl font-bold">{formatNumber(metrics.summary.total_queries)}</p>
                     </div>
                   </div>
@@ -438,7 +440,7 @@ export const LLMManagement: React.FC = () => {
                   <div className="flex items-center space-x-2">
                     <CheckCircle className="h-5 w-5 text-green-500" />
                     <div>
-                      <p className="text-sm font-medium">Taxa de Sucesso</p>
+                      <p className="text-sm font-medium">{t('llmManagement.success_rate')}</p>
                       <p className="text-2xl font-bold">{metrics.summary.success_rate}%</p>
                     </div>
                   </div>
@@ -448,7 +450,7 @@ export const LLMManagement: React.FC = () => {
                   <div className="flex items-center space-x-2">
                     <Clock className="h-5 w-5 text-orange-500" />
                     <div>
-                      <p className="text-sm font-medium">Tempo Médio</p>
+                      <p className="text-sm font-medium">{t('llmManagement.avg_response_time')}</p>
                       <p className="text-2xl font-bold">{Math.round(metrics.summary.avg_response_time_ms)}ms</p>
                     </div>
                   </div>
@@ -458,7 +460,7 @@ export const LLMManagement: React.FC = () => {
                   <div className="flex items-center space-x-2">
                     <DollarSign className="h-5 w-5 text-purple-500" />
                     <div>
-                      <p className="text-sm font-medium">Custo Estimado</p>
+                      <p className="text-sm font-medium">{t('llmManagement.estimated_cost')}</p>
                       <p className="text-2xl font-bold">{formatCurrency(metrics.summary.estimated_cost_usd)}</p>
                     </div>
                   </div>
@@ -467,15 +469,15 @@ export const LLMManagement: React.FC = () => {
 
               {/* Métricas por Provider */}
               <Card className="p-6">
-                <h3 className="text-lg font-semibold mb-4">Uso por Provider</h3>
+                <h3 className="text-lg font-semibold mb-4">{t('llmManagement.usage_by_provider')}</h3>
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Provider</TableHead>
-                      <TableHead>Consultas</TableHead>
-                      <TableHead>Tempo Médio</TableHead>
-                      <TableHead>Tokens Entrada</TableHead>
-                      <TableHead>Tokens Saída</TableHead>
+                      <TableHead>{t('llmManagement.provider')}</TableHead>
+                      <TableHead>{t('llmManagement.queries')}</TableHead>
+                      <TableHead>{t('llmManagement.avg_response_time')}</TableHead>
+                      <TableHead>{t('llmManagement.input_tokens')}</TableHead>
+                      <TableHead>{t('llmManagement.output_tokens')}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -503,25 +505,25 @@ export const LLMManagement: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Card className="p-4">
                   <div className="text-center">
-                    <p className="text-sm font-medium text-muted-foreground">Este Mês</p>
-                    <p className="text-3xl font-bold">{formatCurrency(costs.costs_by_period.month.total_cost_usd)}</p>
-                    <p className="text-xs text-muted-foreground">Média: {formatCurrency(costs.costs_by_period.month.daily_average)}/dia</p>
+                    <p className="text-sm font-medium text-muted-foreground">{t('llmManagement.this_month')}</p>
+                    <p className="text-3xl font-bold">{formatCurrency(costs?.costs_by_period?.month?.total_cost_usd || 0)}</p>
+                    <p className="text-xs text-muted-foreground">Média: {formatCurrency(costs?.costs_by_period?.month?.daily_average || 0)}/dia</p>
                   </div>
                 </Card>
 
                 <Card className="p-4">
                   <div className="text-center">
-                    <p className="text-sm font-medium text-muted-foreground">6 Meses</p>
-                    <p className="text-3xl font-bold">{formatCurrency(costs.costs_by_period['6months'].total_cost_usd)}</p>
-                    <p className="text-xs text-muted-foreground">Média: {formatCurrency(costs.costs_by_period['6months'].daily_average)}/dia</p>
+                    <p className="text-sm font-medium text-muted-foreground">{t('llmManagement.six_months')}</p>
+                    <p className="text-3xl font-bold">{formatCurrency(costs?.costs_by_period?.['6months']?.total_cost_usd || 0)}</p>
+                    <p className="text-xs text-muted-foreground">Média: {formatCurrency(costs?.costs_by_period?.['6months']?.daily_average || 0)}/dia</p>
                   </div>
                 </Card>
 
                 <Card className="p-4">
                   <div className="text-center">
-                    <p className="text-sm font-medium text-muted-foreground">Anual</p>
-                    <p className="text-3xl font-bold">{formatCurrency(costs.costs_by_period.year.total_cost_usd)}</p>
-                    <p className="text-xs text-muted-foreground">Média: {formatCurrency(costs.costs_by_period.year.daily_average)}/dia</p>
+                    <p className="text-sm font-medium text-muted-foreground">{t('llmManagement.annual')}</p>
+                    <p className="text-3xl font-bold">{formatCurrency(costs?.costs_by_period?.year?.total_cost_usd || 0)}</p>
+                    <p className="text-xs text-muted-foreground">Média: {formatCurrency(costs?.costs_by_period?.year?.daily_average || 0)}/dia</p>
                   </div>
                 </Card>
               </div>
@@ -531,7 +533,7 @@ export const LLMManagement: React.FC = () => {
                 <Card className="p-6">
                   <h3 className="text-lg font-semibold mb-4 flex items-center">
                     <BarChart3 className="h-5 w-5 mr-2" />
-                    Custos por Período
+                    {t('llmManagement.costs_by_period')}
                   </h3>
                   <ChartContainer
                     config={{
@@ -557,7 +559,7 @@ export const LLMManagement: React.FC = () => {
                 <Card className="p-6">
                   <h3 className="text-lg font-semibold mb-4 flex items-center">
                     <PieChart className="h-5 w-5 mr-2" />
-                    Custos por Provider
+                    {t('llmManagement.costs_by_provider')}
                   </h3>
                   <ChartContainer
                     config={{
@@ -598,28 +600,28 @@ export const LLMManagement: React.FC = () => {
               <Card className="p-6">
                 <h3 className="text-lg font-semibold mb-4 flex items-center">
                   <TrendingUp className="h-5 w-5 mr-2" />
-                  Projeções de Custos
+                  {t('llmManagement.cost_projections')}
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="text-center p-4 border rounded-lg">
-                    <p className="text-sm font-medium text-muted-foreground">Próximo Mês</p>
-                    <p className="text-2xl font-bold">{formatCurrency(costs.projections.next_month)}</p>
+                    <p className="text-sm font-medium text-muted-foreground">{t('llmManagement.next_month')}</p>
+                    <p className="text-2xl font-bold">{formatCurrency(costs?.projections?.next_month || 0)}</p>
                   </div>
                   <div className="text-center p-4 border rounded-lg">
-                    <p className="text-sm font-medium text-muted-foreground">Próximo Trimestre</p>
-                    <p className="text-2xl font-bold">{formatCurrency(costs.projections.next_quarter)}</p>
+                    <p className="text-sm font-medium text-muted-foreground">{t('llmManagement.next_quarter')}</p>
+                    <p className="text-2xl font-bold">{formatCurrency(costs?.projections?.next_quarter || 0)}</p>
                   </div>
                   <div className="text-center p-4 border rounded-lg">
-                    <p className="text-sm font-medium text-muted-foreground">Próximo Ano</p>
-                    <p className="text-2xl font-bold">{formatCurrency(costs.projections.next_year)}</p>
+                    <p className="text-sm font-medium text-muted-foreground">{t('llmManagement.next_year')}</p>
+                    <p className="text-2xl font-bold">{formatCurrency(costs?.projections?.next_year || 0)}</p>
                   </div>
                 </div>
                 <div className="mt-4">
                   <p className="text-sm text-muted-foreground">
-                    <strong>Confiança:</strong> {costs.projections.confidence}
+                    <strong>{t('llmManagement.confidence')}:</strong> {costs?.projections?.confidence || t('llmManagement.not_available')}
                   </p>
                   <ul className="text-xs text-muted-foreground mt-2 list-disc list-inside">
-                    {costs.projections.factors.map((factor, index) => (
+                    {(costs?.projections?.factors || []).map((factor, index) => (
                       <li key={index}>{factor}</li>
                     ))}
                   </ul>
@@ -628,16 +630,16 @@ export const LLMManagement: React.FC = () => {
 
               {/* Comparação entre Providers */}
               <Card className="p-6">
-                <h3 className="text-lg font-semibold mb-4">Comparação de Custos (Mensal)</h3>
+                <h3 className="text-lg font-semibold mb-4">{t('llmManagement.cost_comparison_monthly')}</h3>
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Provider</TableHead>
-                      <TableHead>Modelo</TableHead>
-                      <TableHead>Custo Mensal</TableHead>
-                      <TableHead>Entrada/1k</TableHead>
-                      <TableHead>Saída/1k</TableHead>
-                      <TableHead>Economia Potencial</TableHead>
+                      <TableHead>{t('llmManagement.provider')}</TableHead>
+                      <TableHead>{t('llmManagement.model')}</TableHead>
+                      <TableHead>{t('llmManagement.monthly_cost')}</TableHead>
+                      <TableHead>{t('llmManagement.input_per_1k')}</TableHead>
+                      <TableHead>{t('llmManagement.output_per_1k')}</TableHead>
+                      <TableHead>{t('llmManagement.potential_savings')}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -669,15 +671,15 @@ export const LLMManagement: React.FC = () => {
         {/* Aba de Histórico */}
         <TabsContent value="history" className="space-y-4">
           <Card className="p-6">
-            <h3 className="text-lg font-semibold mb-4">Histórico de Mudanças</h3>
+            <h3 className="text-lg font-semibold mb-4">{t('llmManagement.change_history')}</h3>
             {history.length > 0 ? (
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Data/Hora</TableHead>
-                    <TableHead>Usuário</TableHead>
-                    <TableHead>Mudança</TableHead>
-                    <TableHead>Motivo</TableHead>
+                    <TableHead>{t('llmManagement.date_time')}</TableHead>
+                    <TableHead>{t('llmManagement.user')}</TableHead>
+                    <TableHead>{t('llmManagement.change')}</TableHead>
+                    <TableHead>{t('llmManagement.reason')}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

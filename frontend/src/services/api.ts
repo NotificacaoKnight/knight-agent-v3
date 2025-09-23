@@ -37,19 +37,14 @@ const isValidJWT = (token: string): boolean => {
   return parts.length === 3 && parts.every(part => part.length > 0);
 };
 
-// Interceptor para adicionar token de autenticação e debug
+// Interceptor para debug de requisições
 api.interceptors.request.use(
   (config) => {
     console.log('📤 API Request:', config.method?.toUpperCase(), config.url);
 
-    // Adicionar token de autenticação se disponível
-    const token = localStorage.getItem('sessionToken');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-      console.log('🔑 Token adicionado ao header Authorization');
-    } else {
-      console.log('⚠️ Nenhum token encontrado no localStorage');
-    }
+    // Tokens são enviados automaticamente via HttpOnly cookies
+    // Não precisamos mais adicionar Authorization header manualmente
+    console.log('🍪 Usando HttpOnly cookies para autenticação');
 
     return config;
   },

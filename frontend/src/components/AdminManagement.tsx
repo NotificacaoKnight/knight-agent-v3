@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -14,6 +15,7 @@ interface AdminListResponse {
 
 export default function AdminManagement() {
   const { user } = useAuth();
+  const { t } = useTranslation();
   const [admins, setAdmins] = useState<string[]>([]);
   const [newAdminEmail, setNewAdminEmail] = useState('');
   const [loading, setLoading] = useState(false);
@@ -28,7 +30,7 @@ export default function AdminManagement() {
       setAdmins(response.data.admins);
     } catch (error) {
       console.error('Error fetching admins:', error);
-      setMessage({ type: 'error', text: 'Erro ao carregar lista de administradores' });
+      setMessage({ type: 'error', text: t('settings.error_loading_admins') });
     } finally {
       setLoading(false);
     }
@@ -37,7 +39,7 @@ export default function AdminManagement() {
   // Add new admin
   const handleAddAdmin = async () => {
     if (!newAdminEmail || !newAdminEmail.includes('@')) {
-      setMessage({ type: 'error', text: 'Por favor, insira um email válido' });
+      setMessage({ type: 'error', text: t('settings.error_invalid_email') });
       return;
     }
 
@@ -56,7 +58,7 @@ export default function AdminManagement() {
       console.error('Error adding admin:', error);
       setMessage({
         type: 'error',
-        text: error.response?.data?.detail || 'Erro ao adicionar administrador'
+        text: error.response?.data?.detail || t('settings.error_adding_admin')
       });
     } finally {
       setProcessingEmail(null);
@@ -66,7 +68,7 @@ export default function AdminManagement() {
   // Remove admin
   const handleRemoveAdmin = async (email: string) => {
     // Confirm before removing
-    if (!window.confirm(`Tem certeza que deseja remover ${email} como administrador?`)) {
+    if (!window.confirm(t('settings.remove_admin_confirm', { email }))) {
       return;
     }
 
@@ -84,7 +86,7 @@ export default function AdminManagement() {
       console.error('Error removing admin:', error);
       setMessage({
         type: 'error',
-        text: error.response?.data?.detail || 'Erro ao remover administrador'
+        text: error.response?.data?.detail || t('settings.error_removing_admin')
       });
     } finally {
       setProcessingEmail(null);
@@ -115,7 +117,7 @@ export default function AdminManagement() {
     <Card className="p-6 bg-gradient-to-br from-card to-card/45 border border-border">
       <div className="flex items-center mb-6">
         <Shield className="h-6 w-6 mr-3 text-knight-gold" />
-        <h3 className="text-xl font-semibold text-white">Gerenciamento de Administradores</h3>
+        <h3 className="text-xl font-semibold text-white">{t('settings.admin_management')}</h3>
       </div>
 
       {/* Message Alert */}
@@ -137,7 +139,7 @@ export default function AdminManagement() {
       {/* Add New Admin Section */}
       <div className="mb-6">
         <label className="block text-sm font-medium text-gray-300 mb-2">
-          Adicionar Novo Administrador
+          {t('settings.add_new_admin')}
         </label>
         <div className="flex gap-2">
           <Input
@@ -158,20 +160,20 @@ export default function AdminManagement() {
             ) : (
               <>
                 <Plus className="h-4 w-4 mr-1" />
-                Adicionar
+                {t('settings.add_button')}
               </>
             )}
           </Button>
         </div>
         <p className="text-xs text-gray-400 mt-2">
-          O usuário receberá privilégios de administrador no próximo login
+          {t('settings.admin_privilege_info')}
         </p>
       </div>
 
       {/* Current Admins List */}
       <div>
         <h4 className="text-sm font-medium text-gray-300 mb-3">
-          Administradores Atuais ({admins.length})
+          {t('settings.current_admins')} ({admins.length})
         </h4>
 
         {loading ? (
@@ -190,7 +192,7 @@ export default function AdminManagement() {
                   <span className="text-white">
                     {email}
                     {email === user?.email && (
-                      <span className="ml-2 text-xs text-gray-400">(você)</span>
+                      <span className="ml-2 text-xs text-gray-400">{t('settings.you_label')}</span>
                     )}
                   </span>
                 </div>

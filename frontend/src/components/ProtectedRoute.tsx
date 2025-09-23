@@ -10,10 +10,9 @@ interface ProtectedRouteProps {
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requireAdmin = false }) => {
   const { isAuthenticated, isLoading, user } = useAuth();
 
-  // Se está em processo de logout, não fazer redirect
-  const isLoggingOut = localStorage.getItem('justLoggedOut');
-  
-  if (isLoading || isLoggingOut) {
+  // Verificar apenas o loading state
+  // Não precisamos mais verificar localStorage
+  if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center px-4 py-8 bg-background relative overflow-hidden">
         {/* Noise effect overlay - same as login */}
@@ -38,7 +37,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, requir
         <div className="text-center relative z-10">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-knight-primary mx-auto mb-4"></div>
           <p className="text-gray-600 dark:text-gray-400">
-            {isLoggingOut ? 'Saindo...' : 'Carregando...'}
+            Carregando...
           </p>
         </div>
       </div>

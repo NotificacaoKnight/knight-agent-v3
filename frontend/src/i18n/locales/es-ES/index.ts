@@ -91,7 +91,6 @@ const settings = {
   light_theme: 'Claro',
   dark_theme: 'Oscuro',
   system_theme: 'Sistema',
-  notifications: 'Notificaciones',
   save_settings: 'Guardar Configuración',
   settings_saved: 'Configuración guardada exitosamente',
   user_profile: 'Perfil de Usuario',
@@ -100,7 +99,49 @@ const settings = {
   security: 'Seguridad',
   account: 'Cuenta',
   preferences: 'Preferencias del Sistema',
-  advanced: 'Configuración Avanzada'
+  advanced: 'Configuración Avanzada',
+
+  // Profile section
+  photo_synced_microsoft: 'Foto sincronizada de Microsoft 365',
+  name: 'Nombre',
+  email: 'Email',
+  department: 'Departamento',
+  job_title: 'Cargo',
+  not_informed: 'No informado',
+
+  // Notifications
+  notifications: 'Notificaciones',
+  notifications_new_messages: 'Notificaciones de nuevos mensajes',
+  notifications_documents_processed: 'Notificaciones de documentos procesados',
+  notifications_email: 'Notificaciones por email',
+
+  // Appearance
+  appearance: 'Apariencia',
+  theme_toggle_hint: 'Use el botón de tema en la barra lateral para alternar entre modo claro y oscuro.',
+
+  // AI Settings
+  ai_settings: 'Configuración de IA',
+  admin_badge: 'Admin',
+
+  // Privacy
+  privacy_security: 'Privacidad y Seguridad',
+  session: 'Sesión',
+  session_expiry_info: 'Su sesión expira automáticamente después de 1 hora de inactividad',
+  conversation_history: 'Historial de Conversaciones',
+  conversation_storage_info: 'Sus últimas 10 conversaciones se almacenan de forma segura',
+
+  // Admin Management
+  admin_management: 'Gestión de Administradores',
+  add_new_admin: 'Agregar Nuevo Administrador',
+  admin_privilege_info: 'El usuario recibirá privilegios de administrador en el próximo inicio de sesión',
+  current_admins: 'Administradores Actuales',
+  you_label: '(tú)',
+  add_button: 'Agregar',
+  remove_admin_confirm: '¿Está seguro de que desea eliminar a {{email}} como administrador?',
+  error_loading_admins: 'Error al cargar la lista de administradores',
+  error_invalid_email: 'Por favor, ingrese un email válido',
+  error_adding_admin: 'Error al agregar administrador',
+  error_removing_admin: 'Error al eliminar administrador'
 };
 
 const errors = {
@@ -286,6 +327,93 @@ const documentsPage = {
   title_and_file_required: 'Título y archivo son obligatorios'
 };
 
+const llmManagement = {
+  title: 'Gestión de Proveedor LLM',
+  subtitle: 'Configuración y monitoreo de proveedores de IA',
+  config_tab: 'Configuración',
+  metrics_tab: 'Métricas',
+  costs_tab: 'Costos',
+  history_tab: 'Historial',
+  select_provider: 'Seleccionar Proveedor',
+  select_provider_placeholder: 'Seleccione un proveedor',
+  actions: 'Acciones',
+  no_api_key: 'Sin Clave API',
+  unavailable: 'No disponible',
+  test_provider: 'Probar Proveedor',
+  testing: 'Probando...',
+  switch_provider: 'Cambiar Proveedor',
+  switching: 'Cambiando...',
+  provider_status: 'Estado del Proveedor',
+  current_provider: 'Proveedor Actual',
+  last_test: 'Última Prueba',
+  success: 'Éxito',
+  failed: 'Falló',
+  performance_metrics: 'Métricas de Rendimiento',
+  response_time: 'Tiempo de Respuesta',
+  success_rate: 'Tasa de Éxito',
+  requests_today: 'Solicitudes Hoy',
+  total_requests: 'Total de Solicitudes',
+  cost_overview: 'Resumen de Costos',
+  daily_cost: 'Costo Diario',
+  monthly_cost: 'Costo Mensual',
+  cost_per_request: 'Costo por Solicitud',
+  total_cost: 'Costo Total',
+  request_history: 'Historial de Solicitudes',
+  recent_requests: 'Solicitudes Recientes',
+  no_requests_found: 'No se encontraron solicitudes',
+  timestamp: 'Fecha/Hora',
+  provider: 'Proveedor',
+  tokens: 'Tokens',
+  cost: 'Costo',
+  status: 'Estado',
+  error_loading_data: 'Error al cargar datos',
+
+  // New translations (avoiding duplicates)
+  test: 'Probar',
+  test_connection: 'Probar Conexión',
+  refresh: 'Actualizar',
+  available_providers: 'Proveedores Disponibles',
+  active: 'Activo',
+  online: 'En línea',
+  offline: 'Sin conexión',
+
+  // Metrics
+  total_queries: 'Total de Consultas',
+  avg_response_time: 'Tiempo Promedio',
+  estimated_cost: 'Costo Estimado',
+  usage_by_provider: 'Uso por Proveedor',
+  queries: 'Consultas',
+  input_tokens: 'Tokens de Entrada',
+  output_tokens: 'Tokens de Salida',
+
+  // Costs
+  this_month: 'Este Mes',
+  six_months: '6 Meses',
+  annual: 'Anual',
+  average_per_day: 'Promedio: {{amount}}/día',
+  costs_by_period: 'Costos por Período',
+  costs_by_provider: 'Costos por Proveedor',
+  cost_projections: 'Proyecciones de Costos',
+  next_month: 'Próximo Mes',
+  next_quarter: 'Próximo Trimestre',
+  next_year: 'Próximo Año',
+  confidence: 'Confianza',
+  not_available: 'No disponible',
+  cost_comparison_monthly: 'Comparación de Costos (Mensual)',
+  model: 'Modelo',
+  input_per_1k: 'Entrada/1k',
+  output_per_1k: 'Salida/1k',
+  potential_savings: 'Ahorros Potenciales',
+
+  // History
+  change_history: 'Historial de Cambios',
+  date_time: 'Fecha/Hora',
+  user: 'Usuario',
+  change: 'Cambio',
+  reason: 'Razón',
+  no_changes_recorded: 'No se registraron cambios'
+};
+
 const deleteModal = {
   delete_conversation: 'Eliminar conversación',
   confirm_delete_conversation: '¿Estás seguro de que quieres eliminar la conversación "{{title}}"?',
@@ -305,7 +433,8 @@ const translations = {
   dashboard,
   chatPage,
   documentsPage,
-  deleteModal
+  deleteModal,
+  llmManagement
 };
 
 export default { translation: translations };

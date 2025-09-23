@@ -139,6 +139,7 @@ class Settings(BaseSettings):
     TOGETHER_API_KEY: Optional[str] = Field(default="")
     GROQ_API_KEY: Optional[str] = Field(default="")
     OPENAI_API_KEY: Optional[str] = Field(default="")
+    OPENAI_MODEL: str = Field(default="gpt-4o-mini")
     GOOGLE_API_KEY: Optional[str] = Field(default="")
     GEMINI_API_KEY: Optional[str] = Field(default="")
     GEMINI_MODEL: str = Field(default="gemini-1.5-flash")

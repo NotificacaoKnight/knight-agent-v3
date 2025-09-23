@@ -91,7 +91,6 @@ const settings = {
   light_theme: 'Light',
   dark_theme: 'Dark',
   system_theme: 'System',
-  notifications: 'Notifications',
   save_settings: 'Save Settings',
   settings_saved: 'Settings saved successfully',
   user_profile: 'User Profile',
@@ -100,7 +99,49 @@ const settings = {
   security: 'Security',
   account: 'Account',
   preferences: 'System Preferences',
-  advanced: 'Advanced Settings'
+  advanced: 'Advanced Settings',
+
+  // Profile section
+  photo_synced_microsoft: 'Photo synced from Microsoft 365',
+  name: 'Name',
+  email: 'Email',
+  department: 'Department',
+  job_title: 'Job Title',
+  not_informed: 'Not informed',
+
+  // Notifications
+  notifications: 'Notifications',
+  notifications_new_messages: 'New message notifications',
+  notifications_documents_processed: 'Document processing notifications',
+  notifications_email: 'Email notifications',
+
+  // Appearance
+  appearance: 'Appearance',
+  theme_toggle_hint: 'Use the theme button in the sidebar to toggle between light and dark mode.',
+
+  // AI Settings
+  ai_settings: 'AI Settings',
+  admin_badge: 'Admin',
+
+  // Privacy
+  privacy_security: 'Privacy & Security',
+  session: 'Session',
+  session_expiry_info: 'Your session expires automatically after 1 hour of inactivity',
+  conversation_history: 'Conversation History',
+  conversation_storage_info: 'Your last 10 conversations are stored securely',
+
+  // Admin Management
+  admin_management: 'Administrator Management',
+  add_new_admin: 'Add New Administrator',
+  admin_privilege_info: 'User will receive administrator privileges on next login',
+  current_admins: 'Current Administrators',
+  you_label: '(you)',
+  add_button: 'Add',
+  remove_admin_confirm: 'Are you sure you want to remove {{email}} as administrator?',
+  error_loading_admins: 'Error loading administrator list',
+  error_invalid_email: 'Please enter a valid email',
+  error_adding_admin: 'Error adding administrator',
+  error_removing_admin: 'Error removing administrator'
 };
 
 const errors = {
@@ -355,7 +396,52 @@ const llmManagement = {
   tokens: 'Tokens',
   cost: 'Cost',
   status: 'Status',
-  error_loading_data: 'Error loading data'
+  error_loading_data: 'Error loading data',
+
+  // New translations (avoiding duplicates)
+  test: 'Test',
+  test_connection: 'Test Connection',
+  refresh: 'Refresh',
+  available_providers: 'Available Providers',
+  active: 'Active',
+  online: 'Online',
+  offline: 'Offline',
+
+  // Metrics
+  total_queries: 'Total Queries',
+  avg_response_time: 'Average Response Time',
+  estimated_cost: 'Estimated Cost',
+  usage_by_provider: 'Usage by Provider',
+  queries: 'Queries',
+  input_tokens: 'Input Tokens',
+  output_tokens: 'Output Tokens',
+
+  // Costs
+  this_month: 'This Month',
+  six_months: '6 Months',
+  annual: 'Annual',
+  average_per_day: 'Average: {{amount}}/day',
+  costs_by_period: 'Costs by Period',
+  costs_by_provider: 'Costs by Provider',
+  cost_projections: 'Cost Projections',
+  next_month: 'Next Month',
+  next_quarter: 'Next Quarter',
+  next_year: 'Next Year',
+  confidence: 'Confidence',
+  not_available: 'Not available',
+  cost_comparison_monthly: 'Cost Comparison (Monthly)',
+  model: 'Model',
+  input_per_1k: 'Input/1k',
+  output_per_1k: 'Output/1k',
+  potential_savings: 'Potential Savings',
+
+  // History
+  change_history: 'Change History',
+  date_time: 'Date/Time',
+  user: 'User',
+  change: 'Change',
+  reason: 'Reason',
+  no_changes_recorded: 'No changes recorded'
 };
 
 const bard = {

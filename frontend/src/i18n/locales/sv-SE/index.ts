@@ -91,9 +91,57 @@ const settings = {
   light_theme: 'Ljust',
   dark_theme: 'Mörkt',
   system_theme: 'System',
-  notifications: 'Notifieringar',
   save_settings: 'Spara inställningar',
-  settings_saved: 'Inställningar sparade framgångsrikt'
+  settings_saved: 'Inställningar sparade framgångsrikt',
+  user_profile: 'Användarprofil',
+  theme_preferences: 'Temapreferenser',
+  privacy: 'Integritet',
+  security: 'Säkerhet',
+  account: 'Konto',
+  preferences: 'Systempreferenser',
+  advanced: 'Avancerade inställningar',
+
+  // Profile section
+  photo_synced_microsoft: 'Foto synkroniserad från Microsoft 365',
+  name: 'Namn',
+  email: 'E-post',
+  department: 'Avdelning',
+  job_title: 'Jobbtitel',
+  not_informed: 'Ej informerad',
+
+  // Notifications
+  notifications: 'Notifieringar',
+  notifications_new_messages: 'Notifieringar för nya meddelanden',
+  notifications_documents_processed: 'Notifieringar för bearbetade dokument',
+  notifications_email: 'E-postnotifieringar',
+
+  // Appearance
+  appearance: 'Utseende',
+  theme_toggle_hint: 'Använd temaknappen i sidopanelen för att växla mellan ljust och mörkt läge.',
+
+  // AI Settings
+  ai_settings: 'AI-inställningar',
+  admin_badge: 'Admin',
+
+  // Privacy
+  privacy_security: 'Integritet och säkerhet',
+  session: 'Session',
+  session_expiry_info: 'Din session går ut automatiskt efter 1 timme av inaktivitet',
+  conversation_history: 'Konversationshistorik',
+  conversation_storage_info: 'Dina senaste 10 konversationer lagras säkert',
+
+  // Admin Management
+  admin_management: 'Administratörshantering',
+  add_new_admin: 'Lägg till ny administratör',
+  admin_privilege_info: 'Användaren kommer att få administratörsprivilegier vid nästa inloggning',
+  current_admins: 'Nuvarande administratörer',
+  you_label: '(du)',
+  add_button: 'Lägg till',
+  remove_admin_confirm: 'Är du säker på att du vill ta bort {{email}} som administratör?',
+  error_loading_admins: 'Fel vid laddning av administratörslista',
+  error_invalid_email: 'Vänligen ange en giltig e-postadress',
+  error_adding_admin: 'Fel vid tillägg av administratör',
+  error_removing_admin: 'Fel vid borttagning av administratör'
 };
 
 const errors = {
@@ -301,6 +349,93 @@ const documentsPage = {
   title_and_file_required: 'Titel och fil krävs'
 };
 
+const llmManagement = {
+  title: 'LLM-leverantörshantering',
+  subtitle: 'Konfiguration och övervakning av AI-leverantörer',
+  config_tab: 'Konfiguration',
+  metrics_tab: 'Mätvärden',
+  costs_tab: 'Kostnader',
+  history_tab: 'Historik',
+  select_provider: 'Välj leverantör',
+  select_provider_placeholder: 'Välj en leverantör',
+  actions: 'Åtgärder',
+  no_api_key: 'Ingen API-nyckel',
+  unavailable: 'Ej tillgänglig',
+  test_provider: 'Testa leverantör',
+  testing: 'Testar...',
+  switch_provider: 'Byt leverantör',
+  switching: 'Byter...',
+  provider_status: 'Leverantörsstatus',
+  current_provider: 'Nuvarande leverantör',
+  last_test: 'Senaste test',
+  success: 'Framgång',
+  failed: 'Misslyckades',
+  performance_metrics: 'Prestandamått',
+  response_time: 'Svarstid',
+  success_rate: 'Framgångsfrekvens',
+  requests_today: 'Förfrågningar idag',
+  total_requests: 'Totala förfrågningar',
+  cost_overview: 'Kostnadsöversikt',
+  daily_cost: 'Daglig kostnad',
+  monthly_cost: 'Månadskostnad',
+  cost_per_request: 'Kostnad per förfrågan',
+  total_cost: 'Total kostnad',
+  request_history: 'Förfrågningshistorik',
+  recent_requests: 'Senaste förfrågningar',
+  no_requests_found: 'Inga förfrågningar hittades',
+  timestamp: 'Tidsstämpel',
+  provider: 'Leverantör',
+  tokens: 'Tokens',
+  cost: 'Kostnad',
+  status: 'Status',
+  error_loading_data: 'Fel vid laddning av data',
+
+  // New translations (avoiding duplicates)
+  test: 'Testa',
+  test_connection: 'Testa anslutning',
+  refresh: 'Uppdatera',
+  available_providers: 'Tillgängliga leverantörer',
+  active: 'Aktiv',
+  online: 'Online',
+  offline: 'Offline',
+
+  // Metrics
+  total_queries: 'Totala frågor',
+  avg_response_time: 'Genomsnittlig svarstid',
+  estimated_cost: 'Beräknad kostnad',
+  usage_by_provider: 'Användning per leverantör',
+  queries: 'Frågor',
+  input_tokens: 'Indata-tokens',
+  output_tokens: 'Utdata-tokens',
+
+  // Costs
+  this_month: 'Denna månad',
+  six_months: '6 månader',
+  annual: 'Årlig',
+  average_per_day: 'Genomsnitt: {{amount}}/dag',
+  costs_by_period: 'Kostnader per period',
+  costs_by_provider: 'Kostnader per leverantör',
+  cost_projections: 'Kostnadsprognoser',
+  next_month: 'Nästa månad',
+  next_quarter: 'Nästa kvartal',
+  next_year: 'Nästa år',
+  confidence: 'Förtroende',
+  not_available: 'Ej tillgänglig',
+  cost_comparison_monthly: 'Kostnadsjämförelse (månatlig)',
+  model: 'Modell',
+  input_per_1k: 'Indata/1k',
+  output_per_1k: 'Utdata/1k',
+  potential_savings: 'Potentiella besparingar',
+
+  // History
+  change_history: 'Ändringshistorik',
+  date_time: 'Datum/Tid',
+  user: 'Användare',
+  change: 'Ändring',
+  reason: 'Anledning',
+  no_changes_recorded: 'Inga ändringar registrerade'
+};
+
 const deleteModal = {
   delete_conversation: 'Ta bort konversation',
   confirm_delete_conversation: 'Är du säker på att du vill ta bort konversationen "{{title}}"?',
@@ -320,7 +455,8 @@ const translations = {
   dashboard,
   chatPage,
   documentsPage,
-  deleteModal
+  deleteModal,
+  llmManagement
 };
 
 export default { translation: translations };

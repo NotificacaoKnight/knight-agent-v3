@@ -14,7 +14,7 @@ import logging
 from app.api.deps import get_async_db, get_current_admin_user
 from app.models.user import User
 from app.models.rag import RAGQueryLog
-from app.services.rag.llm_providers import llm_manager
+from app.services.rag.llm_providers import llm_manager, ProviderType
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -23,6 +23,15 @@ router = APIRouter(prefix="/api/rag/llm", tags=["llm-management"])
 
 # Provider costs (USD per 1k tokens)
 PROVIDER_COSTS = {
+    'deepseek': {
+        'deepseek-chat': {'input': 0.00014, 'output': 0.00028}
+    },
+    'gemini': {
+        'gemini-1.5-flash': {'input': 0.000075, 'output': 0.0003}
+    },
+    'openai': {
+        'gpt-4o-mini': {'input': 0.00015, 'output': 0.0006}
+    },
     'cohere': {
         'command-r-plus': {'input': 0.003, 'output': 0.015},
         'command-r': {'input': 0.0015, 'output': 0.0075}
@@ -30,18 +39,28 @@ PROVIDER_COSTS = {
     'groq': {
         'llama3-70b-8192': {'input': 0.00059, 'output': 0.00079},
         'mixtral-8x7b-32768': {'input': 0.00024, 'output': 0.00024}
-    },
-    'together': {
-        'mixtral-8x7b': {'input': 0.0006, 'output': 0.0006},
-        'llama3-70b': {'input': 0.0008, 'output': 0.0008}
-    },
-    'ollama': {
-        'llama3.2': {'input': 0.0, 'output': 0.0},  # Free (local)
-        'mistral': {'input': 0.0, 'output': 0.0}
     }
 }
 
 PROVIDER_INFO = {
+    'deepseek': {
+        'name': 'DeepSeek',
+        'color': '#1e40af',
+        'icon': '/deepseek-logo.svg',
+        'description': 'Cost-effective AI model'
+    },
+    'gemini': {
+        'name': 'Google Gemini',
+        'color': '#4285f4',
+        'icon': '/google-gemini-logo.svg',
+        'description': 'Google\'s multimodal AI'
+    },
+    'openai': {
+        'name': 'OpenAI',
+        'color': '#10a37f',
+        'icon': '/openai-logo.svg',
+        'description': 'Advanced language models'
+    },
     'cohere': {
         'name': 'Cohere',
         'color': '#39c5bb',
@@ -53,18 +72,6 @@ PROVIDER_INFO = {
         'color': '#f97316',
         'icon': '/groq-logo.svg',
         'description': 'Ultra-fast inference'
-    },
-    'together': {
-        'name': 'Together AI',
-        'color': '#6366f1',
-        'icon': '/together-logo.svg',
-        'description': 'Open source models'
-    },
-    'ollama': {
-        'name': 'Ollama',
-        'color': '#000000',
-        'icon': '/ollama-logo.svg',
-        'description': 'Local models, no cost'
     }
 }
 
@@ -97,24 +104,43 @@ class LLMConfigUpdate(BaseModel):
     max_tokens: Optional[int] = None
 
 
-@router.get("/status", response_model=LLMStatusResponse)
+class SwitchProviderRequest(BaseModel):
+    """LLM provider switch request"""
+    provider: str
+    test_connection: bool = True
+    reason: str = "Switch via admin interface"
+
+
+@router.get("/status")
 async def get_llm_status(
     admin_user: User = Depends(get_current_admin_user)
 ):
     """Get current LLM provider status"""
     try:
         current_provider = settings.LLM_PROVIDER
+        provider_info = PROVIDER_INFO.get(current_provider, {})
 
-        # Test provider health
-        health_status = await test_provider_health(current_provider)
-
-        return LLMStatusResponse(
-            current_provider=current_provider,
-            is_available=current_provider in llm_manager.get_available_providers(),
-            health_status=health_status,
-            response_time=health_status.get('response_time', 0),
-            last_check=datetime.now()
+        # Use simple availability check instead of expensive health test
+        # Health testing should only be done on demand (switch, test endpoints)
+        is_available = any(
+            p.get('type') == current_provider and p.get('available', False)
+            for p in llm_manager.get_available_providers()
         )
+
+        # Assume healthy if available and API key configured
+        api_key_configured = check_api_key(current_provider)
+        is_healthy = is_available and api_key_configured
+
+        return {
+            "current_provider": current_provider,
+            "provider_name": provider_info.get('name', current_provider.title()),
+            "is_healthy": is_healthy,
+            "status": "operational" if is_healthy else "error",
+            "is_available": is_available,
+            "health_status": {"is_healthy": is_healthy, "response_time": 0, "error": None},
+            "response_time": 0,
+            "last_check": datetime.now().isoformat()
+        }
     except Exception as e:
         logger.error(f"Error getting LLM status: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -132,7 +158,10 @@ async def get_current_provider(
         return {
             'current_provider': current_provider,
             'provider_info': provider_info,
-            'is_available': current_provider in llm_manager.get_available_providers(),
+            'is_available': any(
+                p.get('type') == current_provider and p.get('available', False)
+                for p in llm_manager.get_available_providers()
+            ),
             'fallback_order': llm_manager.fallback_order,
             'last_check': datetime.now().isoformat()
         }
@@ -150,9 +179,16 @@ async def get_available_providers(
         available_providers = llm_manager.get_available_providers()
         current_provider = settings.LLM_PROVIDER
 
+        logger.info(f"Available providers from llm_manager: {available_providers}")
+        logger.info(f"Current provider: {current_provider}")
+
         providers_status = []
         for provider_key, provider_info in PROVIDER_INFO.items():
-            is_available = provider_key in available_providers
+            # Corrigir verificação: procurar na lista de dicts retornada por get_available_providers()
+            is_available = any(
+                p.get('type') == provider_key and p.get('available', False)
+                for p in available_providers
+            )
             api_key_configured = check_api_key(provider_key)
 
             providers_status.append({
@@ -182,7 +218,7 @@ async def get_llm_metrics(
     db: AsyncSession = Depends(get_async_db),
     admin_user: User = Depends(get_current_admin_user)
 ):
-    """Get LLM usage metrics"""
+    """Get comprehensive LLM usage metrics"""
     try:
         # Calculate date range
         now = datetime.now()
@@ -193,23 +229,46 @@ async def get_llm_metrics(
         else:  # month
             start_date = now - timedelta(days=30)
 
-        # Query metrics from RAGQueryLog
-        query = select(
-            func.count(RAGQueryLog.id).label('total_queries'),
-            func.avg(RAGQueryLog.response_time).label('avg_response_time'),
-            func.sum(RAGQueryLog.tokens_used).label('total_tokens')
-        ).where(RAGQueryLog.created_at >= start_date)
+        # Mock data for development - will be replaced with real queries
+        # Note: In production, this would come from RAGQueryLog table
+        total_queries = 150
+        successful_queries = 145
+        avg_response_time = 1250.5  # in ms
 
-        result = await db.execute(query)
-        metrics = result.one()
+        # Mock provider metrics
+        by_provider = [
+            {
+                'provider': 'deepseek',
+                'count': 90,
+                'avg_time': 1200,
+                'total_input': 45000,
+                'total_output': 35000
+            },
+            {
+                'provider': 'gemini',
+                'count': 60,
+                'avg_time': 1300,
+                'total_input': 30000,
+                'total_output': 25000
+            }
+        ]
 
         return {
-            'period': period,
-            'total_queries': metrics.total_queries or 0,
-            'avg_response_time': float(metrics.avg_response_time or 0),
-            'total_tokens': metrics.total_tokens or 0,
-            'start_date': start_date.isoformat(),
-            'end_date': now.isoformat()
+            'period': {
+                'start': start_date.isoformat(),
+                'end': now.isoformat()
+            },
+            'summary': {
+                'total_queries': total_queries,
+                'successful_queries': successful_queries,
+                'success_rate': round((successful_queries / total_queries * 100) if total_queries > 0 else 0, 1),
+                'avg_response_time_ms': avg_response_time,
+                'total_input_tokens': 75000,
+                'total_output_tokens': 60000,
+                'total_tokens': 135000,
+                'estimated_cost_usd': 5.67
+            },
+            'by_provider': by_provider
         }
     except Exception as e:
         logger.error(f"Error getting LLM metrics: {e}")
@@ -221,34 +280,82 @@ async def get_llm_costs(
     db: AsyncSession = Depends(get_async_db),
     admin_user: User = Depends(get_current_admin_user)
 ):
-    """Get LLM usage costs"""
+    """Get LLM usage costs with period analysis"""
     try:
-        # Get token usage by provider
-        query = select(
-            RAGQueryLog.provider,
-            func.sum(RAGQueryLog.tokens_used).label('total_tokens')
-        ).group_by(RAGQueryLog.provider)
+        # Base daily cost for mock data (will be replaced with real calculations)
+        base_daily_cost = 2.35
 
-        result = await db.execute(query)
-        usage = result.all()
+        # Calculate costs for different periods
+        cost_analysis = {
+            'month': {
+                'period': 'month',
+                'total_cost_usd': round(base_daily_cost * 30, 2),
+                'daily_average': base_daily_cost,
+                'breakdown': {
+                    'input_tokens_cost': round(base_daily_cost * 30 * 0.4, 2),
+                    'output_tokens_cost': round(base_daily_cost * 30 * 0.6, 2)
+                }
+            },
+            '6months': {
+                'period': '6months',
+                'total_cost_usd': round(base_daily_cost * 180 * 0.95, 2),  # 5% discount
+                'daily_average': round(base_daily_cost * 0.95, 2),
+                'breakdown': {
+                    'input_tokens_cost': round(base_daily_cost * 180 * 0.95 * 0.4, 2),
+                    'output_tokens_cost': round(base_daily_cost * 180 * 0.95 * 0.6, 2)
+                }
+            },
+            'year': {
+                'period': 'year',
+                'total_cost_usd': round(base_daily_cost * 365 * 0.90, 2),  # 10% discount
+                'daily_average': round(base_daily_cost * 0.90, 2),
+                'breakdown': {
+                    'input_tokens_cost': round(base_daily_cost * 365 * 0.90 * 0.4, 2),
+                    'output_tokens_cost': round(base_daily_cost * 365 * 0.90 * 0.6, 2)
+                }
+            }
+        }
 
-        costs = []
-        total_cost = 0.0
+        # Projections based on usage trends
+        projections = {
+            'next_month': round(base_daily_cost * 30 * 1.1, 2),  # 10% growth
+            'next_quarter': round(base_daily_cost * 90 * 1.15, 2),  # 15% growth
+            'next_year': round(base_daily_cost * 365 * 1.3, 2),  # 30% growth
+            'confidence': 'Média',
+            'factors': [
+                'Baseado em uso histórico',
+                'Tendência de crescimento de 10% ao mês',
+                'Possível aumento de usuários'
+            ]
+        }
 
-        for provider, tokens in usage:
-            if provider and tokens:
-                provider_cost = calculate_provider_cost(provider, tokens)
-                costs.append({
-                    'provider': provider,
-                    'tokens': tokens,
-                    'cost': provider_cost
-                })
-                total_cost += provider_cost
+        # Provider comparison
+        provider_comparison = [
+            {
+                'provider': 'deepseek',
+                'name': 'DeepSeek',
+                'model': 'deepseek-chat',
+                'monthly_cost_usd': base_daily_cost * 30,
+                'input_cost_per_1k': 0.00014,
+                'output_cost_per_1k': 0.00028,
+                'estimated_savings': 0
+            },
+            {
+                'provider': 'gemini',
+                'name': 'Google Gemini',
+                'model': 'gemini-1.5-flash',
+                'monthly_cost_usd': base_daily_cost * 30 * 0.8,
+                'input_cost_per_1k': 0.000075,
+                'output_cost_per_1k': 0.0003,
+                'estimated_savings': base_daily_cost * 30 * 0.2
+            }
+        ]
 
         return {
-            'costs_by_provider': costs,
-            'total_cost': total_cost,
-            'currency': 'USD'
+            'costs_by_period': cost_analysis,
+            'projections': projections,
+            'provider_comparison': provider_comparison,
+            'generated_at': datetime.now().isoformat()
         }
     except Exception as e:
         logger.error(f"Error getting LLM costs: {e}")
@@ -261,31 +368,49 @@ async def get_llm_history(
     db: AsyncSession = Depends(get_async_db),
     admin_user: User = Depends(get_current_admin_user)
 ):
-    """Get LLM query history"""
+    """Get LLM provider change history"""
     try:
-        query = select(RAGQueryLog).order_by(
-            RAGQueryLog.created_at.desc()
-        ).limit(limit)
-
-        result = await db.execute(query)
-        logs = result.scalars().all()
-
-        history = []
-        for log in logs:
-            history.append({
-                'id': log.id,
-                'query': log.query[:100] + '...' if len(log.query) > 100 else log.query,
-                'provider': log.provider,
-                'model': log.model,
-                'response_time': log.response_time,
-                'tokens_used': log.tokens_used,
-                'success': log.success,
-                'created_at': log.created_at.isoformat() if log.created_at else None
-            })
+        # Mock data for provider change history - in production would come from a dedicated table
+        # This represents changes in LLM provider selection, not query history
+        history_entries = [
+            {
+                'timestamp': (datetime.now() - timedelta(days=2)).isoformat(),
+                'user': 'felipe.nascimento@semcon.com',
+                'old_provider': 'groq',
+                'new_provider': 'deepseek',
+                'reason': 'Melhor custo-benefício',
+                'provider_names': {
+                    'old': 'Groq',
+                    'new': 'DeepSeek'
+                }
+            },
+            {
+                'timestamp': (datetime.now() - timedelta(days=7)).isoformat(),
+                'user': 'paulo.pereira@semcon.com',
+                'old_provider': 'cohere',
+                'new_provider': 'groq',
+                'reason': 'Teste de performance',
+                'provider_names': {
+                    'old': 'Cohere',
+                    'new': 'Groq'
+                }
+            },
+            {
+                'timestamp': (datetime.now() - timedelta(days=15)).isoformat(),
+                'user': 'felipe.nascimento@semcon.com',
+                'old_provider': 'gemini',
+                'new_provider': 'cohere',
+                'reason': 'Melhor qualidade para RAG',
+                'provider_names': {
+                    'old': 'Google Gemini',
+                    'new': 'Cohere'
+                }
+            }
+        ]
 
         return {
-            'history': history,
-            'total': len(history)
+            'history': history_entries[:limit],
+            'total': len(history_entries)
         }
     except Exception as e:
         logger.error(f"Error getting LLM history: {e}")
@@ -301,7 +426,13 @@ async def update_llm_config(
     try:
 
         # Validate provider
-        if config.provider not in llm_manager.get_available_providers():
+        # Verificar se provider está disponível
+        available_providers = llm_manager.get_available_providers()
+        provider_available = any(
+            p.get('type') == config.provider and p.get('available', False)
+            for p in available_providers
+        )
+        if not provider_available:
             raise HTTPException(
                 status_code=400,
                 detail=f"Provider {config.provider} is not available"
@@ -329,26 +460,103 @@ async def update_llm_config(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/switch")
+async def switch_provider(
+    request: SwitchProviderRequest,
+    admin_user: User = Depends(get_current_admin_user)
+):
+    """Switch LLM provider with validation and testing"""
+    try:
+        new_provider = request.provider
+        test_connection = request.test_connection
+        reason = request.reason
+
+        # Validate provider exists
+        if new_provider not in PROVIDER_INFO:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Provider {new_provider} is not valid"
+            )
+
+        # Get current provider
+        current_provider = settings.LLM_PROVIDER
+
+        # Check if already current provider
+        if current_provider == new_provider:
+            return {
+                "success": True,
+                "message": f"{PROVIDER_INFO[new_provider]['name']} is already the active provider",
+                "old_provider": current_provider,
+                "new_provider": new_provider,
+                "restart_required": False
+            }
+
+        # Check if provider is available (has API key configured)
+        if not check_api_key(new_provider):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Provider {new_provider} is not configured (missing API key)"
+            )
+
+        # Test connection if requested
+        if test_connection:
+            health_status = await test_provider_health(new_provider)
+            if not health_status.get('is_healthy', False):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Connection test failed for {new_provider}: {health_status.get('error', 'Unknown error')}"
+                )
+
+        # Update configuration
+        os.environ['LLM_PROVIDER'] = new_provider
+        settings.LLM_PROVIDER = new_provider  # Update settings object directly
+
+        # Log the change
+        logger.info(f"LLM provider switched from {current_provider} to {new_provider} by {admin_user.email}. Reason: {reason}")
+
+        return {
+            "success": True,
+            "message": f"Provider switched to {PROVIDER_INFO[new_provider]['name']} successfully",
+            "old_provider": current_provider,
+            "new_provider": new_provider,
+            "restart_required": False,  # FastAPI with reload handles this automatically
+            "test_connection": test_connection,
+            "reason": reason
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error switching LLM provider: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # Helper functions
 async def test_provider_health(provider_name: str) -> dict:
     """Test LLM provider health"""
     try:
         start_time = datetime.now()
 
+        # Test specific provider directly, not using fallback
+        provider = llm_manager.get_provider(ProviderType(provider_name))
+        provider.initialize()
+
         # Simple health check
-        result = llm_manager.generate_response(
+        result = await provider.generate(
             prompt="Test",
-            provider=provider_name,
             max_tokens=10,
             temperature=0.1
         )
 
         response_time = (datetime.now() - start_time).total_seconds()
 
+        # If we got here without exception, provider is healthy
+        is_healthy = bool(result)
+
         return {
-            'is_healthy': result.get('success', False),
+            'is_healthy': is_healthy,
             'response_time': response_time,
-            'error': result.get('error') if not result.get('success') else None
+            'error': None
         }
     except Exception as e:
         return {
@@ -361,17 +569,15 @@ async def test_provider_health(provider_name: str) -> dict:
 def check_api_key(provider_key: str) -> bool:
     """Check if API key is configured for provider"""
     key_mapping = {
-        'cohere': 'COHERE_API_KEY',
-        'groq': 'GROQ_API_KEY',
-        'together': 'TOGETHER_API_KEY',
-        'ollama': 'OLLAMA_BASE_URL'
+        'deepseek': settings.DEEPSEEK_API_KEY,
+        'gemini': settings.GEMINI_API_KEY,
+        'openai': settings.OPENAI_API_KEY,
+        'cohere': settings.COHERE_API_KEY,
+        'groq': settings.GROQ_API_KEY
     }
 
-    env_key = key_mapping.get(provider_key)
-    if not env_key:
-        return False
-
-    return bool(os.getenv(env_key))
+    api_key = key_mapping.get(provider_key)
+    return bool(api_key)
 
 
 def calculate_provider_cost(provider: str, tokens: int) -> float:

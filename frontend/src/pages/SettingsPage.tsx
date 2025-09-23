@@ -40,25 +40,25 @@ export const SettingsPage: React.FC = () => {
                     {user?.name || 'Usuário'}
                   </h4>
                   <p className="text-sm text-muted-foreground">
-                    Foto sincronizada do Microsoft 365
+                    {t('settings.photo_synced_microsoft')}
                   </p>
                 </div>
               </div>
               <div>
-                <label className="text-sm font-medium text-muted-foreground">Nome</label>
-                <p className="text-foreground">{user?.name || 'Não informado'}</p>
+                <label className="text-sm font-medium text-muted-foreground">{t('settings.name')}</label>
+                <p className="text-foreground">{user?.name || t('settings.not_informed')}</p>
               </div>
               <div>
-                <label className="text-sm font-medium text-muted-foreground">Email</label>
+                <label className="text-sm font-medium text-muted-foreground">{t('settings.email')}</label>
                 <p className="text-foreground">{user?.email}</p>
               </div>
               <div>
-                <label className="text-sm font-medium text-muted-foreground">Departamento</label>
-                <p className="text-foreground">{user?.department || 'Não informado'}</p>
+                <label className="text-sm font-medium text-muted-foreground">{t('settings.department')}</label>
+                <p className="text-foreground">{user?.department || t('settings.not_informed')}</p>
               </div>
               <div>
-                <label className="text-sm font-medium text-muted-foreground">Cargo</label>
-                <p className="text-foreground">{user?.job_title || 'Não informado'}</p>
+                <label className="text-sm font-medium text-muted-foreground">{t('settings.job_title')}</label>
+                <p className="text-foreground">{user?.job_title || t('settings.not_informed')}</p>
               </div>
             </div>
           </Card>
@@ -86,7 +86,7 @@ export const SettingsPage: React.FC = () => {
             <div className="flex items-center mb-4">
               <Bell className="h-5 w-5 text-accent mr-2" />
               <h3 className="text-lg font-semibold text-foreground">
-                Notificações
+                {t('settings.notifications')}
               </h3>
             </div>
             <div className="space-y-4">
@@ -100,7 +100,7 @@ export const SettingsPage: React.FC = () => {
                   htmlFor="new-messages" 
                   className="text-sm font-medium text-foreground cursor-pointer"
                 >
-                  Notificações de novas mensagens
+                  {t('settings.notifications_new_messages')}
                 </label>
               </div>
               
@@ -114,7 +114,7 @@ export const SettingsPage: React.FC = () => {
                   htmlFor="document-processed" 
                   className="text-sm font-medium text-foreground cursor-pointer"
                 >
-                  Notificações de documentos processados
+                  {t('settings.notifications_documents_processed')}
                 </label>
               </div>
               
@@ -128,7 +128,7 @@ export const SettingsPage: React.FC = () => {
                   htmlFor="email-notifications" 
                   className="text-sm font-medium text-foreground cursor-pointer"
                 >
-                  Notificações por email
+                  {t('settings.notifications_email')}
                 </label>
               </div>
             </div>
@@ -139,11 +139,11 @@ export const SettingsPage: React.FC = () => {
             <div className="flex items-center mb-4">
               <Palette className="h-5 w-5 text-accent mr-2" />
               <h3 className="text-lg font-semibold text-foreground">
-                Aparência
+                {t('settings.appearance')}
               </h3>
             </div>
             <p className="text-muted-foreground">
-              Use o botão de tema no menu lateral para alternar entre modo claro e escuro.
+              {t('settings.theme_toggle_hint')}
             </p>
           </Card>
 
@@ -153,10 +153,10 @@ export const SettingsPage: React.FC = () => {
               <div className="flex items-center mb-4">
                 <Bot className="h-5 w-5 text-accent mr-2" />
                 <h3 className="text-lg font-semibold text-foreground">
-                  Configurações de IA
+                  {t('settings.ai_settings')}
                 </h3>
                 <span className="ml-2 bg-accent text-accent-foreground text-xs px-2 py-1 rounded-full">
-                  Admin
+                  {t('settings.admin_badge')}
                 </span>
               </div>
               <LLMManagement />
@@ -175,20 +175,20 @@ export const SettingsPage: React.FC = () => {
             <div className="flex items-center mb-4">
               <Shield className="h-5 w-5 text-accent mr-2" />
               <h3 className="text-lg font-semibold text-foreground">
-                Privacidade e Segurança
+                {t('settings.privacy_security')}
               </h3>
             </div>
             <div className="space-y-3">
               <div>
-                <label className="text-sm font-medium text-muted-foreground">Sessão</label>
+                <label className="text-sm font-medium text-muted-foreground">{t('settings.session')}</label>
                 <p className="text-muted-foreground text-sm">
-                  Sua sessão expira automaticamente após 1 hora de inatividade
+                  {t('settings.session_expiry_info')}
                 </p>
               </div>
               <div>
-                <label className="text-sm font-medium text-muted-foreground">Histórico de Conversas</label>
+                <label className="text-sm font-medium text-muted-foreground">{t('settings.conversation_history')}</label>
                 <p className="text-muted-foreground text-sm">
-                  Suas 10 últimas conversas são armazenadas de forma segura
+                  {t('settings.conversation_storage_info')}
                 </p>
               </div>
             </div>

@@ -16,12 +16,9 @@ from app.core.middleware import setup_middlewares
 from app.core.database import init_database, close_database, check_database_connection
 from app.api.router import api_router
 
-# Configurar logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
+# Configurar logging com fix para uvicorn
+from app.core.logging_config import configure_logging
+logger = configure_logging()
 
 # Setup log sanitization
 from app.core.log_sanitizer import setup_logging
