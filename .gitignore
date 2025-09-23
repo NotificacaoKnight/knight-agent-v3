@@ -33,6 +33,12 @@ backend/staticfiles/
 backend/static/
 backend/logs/
 
+# Database backups (may contain sensitive data)
+backend/knight_fastapi_db_backup.sql
+backend/knight_db_backup.sql
+backend/*_backup.sql
+*.sql
+
 # Environment variables
 .env
 .env.*
