@@ -70,7 +70,35 @@ const chat = {
   conversation_history: 'Conversation History',
   thinking: 'Knight is thinking...',
   error_message: 'Sorry, I encountered an error. Please try again.',
-  welcome_message: 'Hi! I\'m Knight, your AI assistant. How can I help you today?'
+  welcome_message: 'Hi! I\'m Knight, your AI assistant. How can I help you today?',
+
+  // Time-based greetings
+  good_morning: 'Good morning',
+  good_afternoon: 'Good afternoon',
+  good_evening: 'Good evening',
+
+  // Greeting patterns (using {{firstName}} for interpolation)
+  greeting_time_name: '{{timeGreeting}}, {{firstName}}!',
+  greeting_hello: 'Hello, {{firstName}}!',
+  greeting_hi: 'Hi, {{firstName}}!',
+  greeting_whats_up: 'What\'s up, {{firstName}}?',
+  greeting_whats_new: 'What\'s new, {{firstName}}?',
+  greeting_how_help: 'How can I help, {{firstName}}?',
+  greeting_ready_work: 'Ready to work, {{firstName}}?',
+  greeting_lets_start: 'Let\'s get started, {{firstName}}?',
+  greeting_time_how_are_you: '{{timeGreeting}}! How are you, {{firstName}}?',
+  greeting_welcome: 'Welcome, {{firstName}}!',
+
+  // Audio and error messages
+  audio_message: 'Audio message',
+  response_with_documents: 'Response based on corporate documents',
+  send_error: 'Error sending message. Please try again.',
+  processing_error: 'Error processing message',
+  transcription_error: 'Audio transcription error',
+  file_too_large: 'File too large (max 20MB)',
+  unsupported_format: 'Unsupported audio format',
+  session_load_error: 'Error loading conversation history',
+  processing_message_error: 'Sorry, an error occurred processing your message. Please try again.'
 };
 
 const documents = {
@@ -517,6 +545,14 @@ const wizard = {
   error_creating_path: 'Error creating learning path'
 };
 
+const sidebar = {
+  history: 'History',
+  information: 'Information',
+  recent_documents: 'Recent Documents',
+  no_documents: 'No documents loaded',
+  statistics: 'Statistics'
+};
+
 const translations = {
   common,
   navigation,
@@ -531,7 +567,8 @@ const translations = {
   deleteModal,
   llmManagement,
   bard,
-  wizard
+  wizard,
+  sidebar
 };
 
 export default { translation: translations };

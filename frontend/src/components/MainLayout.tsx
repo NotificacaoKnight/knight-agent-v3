@@ -8,6 +8,7 @@ import { useChatContext } from '../context/ChatContext';
 import { toast as sonnerToast } from 'sonner';
 import { emitChatSessionDeleted } from '../utils/events';
 import { DeleteChatModal } from './DeleteChatModal';
+import { useTranslation } from 'react-i18next';
 import { KnightIcon } from './KnightIcon';
 import { LLMStatusIndicator, LLMStatusIndicatorRef } from './LLMStatusIndicator';
 import {
@@ -50,6 +51,7 @@ interface MainLayoutProps {
 
 export const MainLayout: React.FC<MainLayoutProps> = ({ children, title, subtitle }) => {
   const { user, logout } = useAuth();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const { chatSessions, refreshChatSessions, isProcessingMessage, setIsProcessingMessage } = useChatContext();
@@ -295,7 +297,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, title, subtitl
         <div className="h-full flex flex-col">
           {/* Header */}
           <div className="h-16 px-4 flex items-center justify-between border-b border-border">
-            <h2 className="font-semibold text-foreground">Histórico</h2>
+            <h2 className="font-semibold text-foreground">{t('sidebar.history')}</h2>
             <div className="flex items-center space-x-2">
               <button
                 onClick={(e) => {
@@ -488,7 +490,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, title, subtitl
       >
         <div className="h-full p-4">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-foreground">Informações</h3>
+            <h3 className="font-semibold text-foreground">{t('sidebar.information')}</h3>
             <button
               onClick={() => setRightSidebarOpen(false)}
               className="p-1 hover:bg-muted rounded transition-colors"
@@ -501,16 +503,16 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, title, subtitl
           <div className="space-y-4">
             <div className="p-3 bg-muted rounded-lg">
               <h4 className="text-sm font-medium text-foreground mb-2">
-                Documentos Recentes
+                {t('sidebar.recent_documents')}
               </h4>
               <p className="text-xs text-muted-foreground">
-                Nenhum documento carregado
+                {t('sidebar.no_documents')}
               </p>
             </div>
             
             <div className="p-3 bg-muted rounded-lg">
               <h4 className="text-sm font-medium text-foreground mb-2">
-                Estatísticas
+                {t('sidebar.statistics')}
               </h4>
               <p className="text-xs text-muted-foreground">
                 Conversas hoje: 0

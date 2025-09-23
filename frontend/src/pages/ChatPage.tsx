@@ -22,6 +22,7 @@ import toast from 'react-hot-toast';
 import { AudioPlayer } from '../components/AudioPlayer';
 import { useChatContext } from '../context/ChatContext';
 import { KnightIcon } from '../components/KnightIcon';
+import { useTranslation } from 'react-i18next';
 
 interface Message {
   id: string;
@@ -58,6 +59,7 @@ export const ChatPage: React.FC = () => {
   const { sessionId: urlSessionId } = useParams<{ sessionId: string }>();
   const { refreshChatSessions, setIsProcessingMessage } = useChatContext();
   const { user } = useAuth();
+  const { t } = useTranslation();
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -121,36 +123,36 @@ export const ChatPage: React.FC = () => {
   // Memoize personalized greeting to prevent it from changing on every render
   const personalizedGreeting = useMemo(() => {
     const hour = new Date().getHours();
-    const firstName = user?.name?.split(' ')[0] || user?.preferred_name?.split(' ')[0] || 'usuário';
-    
+    const firstName = user?.name?.split(' ')[0] || user?.preferred_name?.split(' ')[0] || t('chatPage.user');
+
     // Time-based greetings
     let timeGreeting = '';
     if (hour >= 5 && hour < 12) {
-      timeGreeting = 'Bom dia';
+      timeGreeting = t('chat.good_morning');
     } else if (hour >= 12 && hour < 18) {
-      timeGreeting = 'Boa tarde';
+      timeGreeting = t('chat.good_afternoon');
     } else {
-      timeGreeting = 'Boa noite';
+      timeGreeting = t('chat.good_evening');
     }
 
-    // Various greeting patterns
+    // Various greeting patterns using translation keys
     const greetingPatterns = [
-      `${timeGreeting}, ${firstName}!`,
-      `Olá, ${firstName}!`,
-      `Oi, ${firstName}!`,
-      `E aí, ${firstName}?`,
-      `O que há de novo, ${firstName}?`,
-      `Como posso ajudar, ${firstName}?`,
-      `Pronto para trabalhar, ${firstName}?`,
-      `Vamos começar, ${firstName}?`,
-      `${timeGreeting}! Como está, ${firstName}?`,
-      `Seja bem-vindo, ${firstName}!`
+      t('chat.greeting_time_name', { timeGreeting, firstName }),
+      t('chat.greeting_hello', { firstName }),
+      t('chat.greeting_hi', { firstName }),
+      t('chat.greeting_whats_up', { firstName }),
+      t('chat.greeting_whats_new', { firstName }),
+      t('chat.greeting_how_help', { firstName }),
+      t('chat.greeting_ready_work', { firstName }),
+      t('chat.greeting_lets_start', { firstName }),
+      t('chat.greeting_time_how_are_you', { timeGreeting, firstName }),
+      t('chat.greeting_welcome', { firstName })
     ];
 
     // Select random greeting
     const randomIndex = Math.floor(Math.random() * greetingPatterns.length);
     return greetingPatterns[randomIndex];
-  }, [user?.name, user?.preferred_name]); // Only recalculate when user changes
+  }, [user?.name, user?.preferred_name, t]); // Include t in dependencies
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -244,7 +246,7 @@ export const ChatPage: React.FC = () => {
           }
         } catch (error) {
           console.error('Erro ao carregar histórico da sessão:', error);
-          toast.error('Erro ao carregar histórico da conversa');
+          toast.error(t('chat.session_load_error'));
           setMessages([]);
         } finally {
           setIsLoadingHistory(false);
@@ -272,8 +274,8 @@ export const ChatPage: React.FC = () => {
     const userMessage: Message = {
       id: requestId,
       type: 'user',
-      content: isAudioMessage 
-        ? (inputMessage.trim() ? inputMessage : 'Mensagem de áudio')
+      content: isAudioMessage
+        ? (inputMessage.trim() ? inputMessage : t('chat.audio_message'))
         : inputMessage,
       timestamp: new Date(),
       messageType: isAudioMessage ? 'audio' : 'text',
@@ -360,28 +362,28 @@ export const ChatPage: React.FC = () => {
       setMessages(prev => [...prev, botMessage]);
       
       if (response.context_used) {
-        toast.success('Resposta baseada em documentos corporativos');
+        toast.success(t('chat.response_with_documents'));
       }
       
     } catch (error: any) {
       console.error('Erro ao enviar mensagem:', error);
       
       // Extrair mensagem de erro específica se disponível
-      let errorContent = 'Desculpe, ocorreu um erro ao processar sua mensagem. Tente novamente.';
-      let toastMessage = 'Erro ao enviar mensagem. Tente novamente.';
-      
+      let errorContent = t('chat.processing_message_error');
+      let toastMessage = t('chat.send_error');
+
       if (error.response?.data?.message?.content) {
         errorContent = error.response.data.message.content;
-        toastMessage = 'Erro no processamento da mensagem';
+        toastMessage = t('chat.processing_error');
       } else if (error.response?.data?.error) {
         // Verificar se é erro de áudio específico
         const apiError = error.response.data.error;
         if (apiError.includes('transcrição')) {
-          toastMessage = 'Erro na transcrição do áudio';
+          toastMessage = t('chat.transcription_error');
         } else if (apiError.includes('muito grande')) {
-          toastMessage = 'Arquivo muito grande (máx 20MB)';
+          toastMessage = t('chat.file_too_large');
         } else if (apiError.includes('formato')) {
-          toastMessage = 'Formato de áudio não suportado';
+          toastMessage = t('chat.unsupported_format');
         }
       }
       

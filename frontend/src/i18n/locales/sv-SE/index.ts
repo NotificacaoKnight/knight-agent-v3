@@ -70,7 +70,35 @@ const chat = {
   conversation_history: 'Konversationshistorik',
   thinking: 'Knight tänker...',
   error_message: 'Förlåt, jag stötte på ett fel. Försök igen.',
-  welcome_message: 'Hej! Jag är Knight, din AI-assistent. Hur kan jag hjälpa dig idag?'
+  welcome_message: 'Hej! Jag är Knight, din AI-assistent. Hur kan jag hjälpa dig idag?',
+
+  // Time-based greetings
+  good_morning: 'God morgon',
+  good_afternoon: 'God eftermiddag',
+  good_evening: 'God kväll',
+
+  // Greeting patterns (using {{firstName}} for interpolation)
+  greeting_time_name: '{{timeGreeting}}, {{firstName}}!',
+  greeting_hello: 'Hej, {{firstName}}!',
+  greeting_hi: 'Hej, {{firstName}}!',
+  greeting_whats_up: 'Vad händer, {{firstName}}?',
+  greeting_whats_new: 'Vad är nytt, {{firstName}}?',
+  greeting_how_help: 'Hur kan jag hjälpa, {{firstName}}?',
+  greeting_ready_work: 'Redo att jobba, {{firstName}}?',
+  greeting_lets_start: 'Vi kör igång, {{firstName}}?',
+  greeting_time_how_are_you: '{{timeGreeting}}! Hur mår du, {{firstName}}?',
+  greeting_welcome: 'Välkommen, {{firstName}}!',
+
+  // Audio and error messages
+  audio_message: 'Ljudmeddelande',
+  response_with_documents: 'Svar baserat på företagsdokument',
+  send_error: 'Fel vid skickande av meddelande. Försök igen.',
+  processing_error: 'Fel vid bearbetning av meddelande',
+  transcription_error: 'Fel vid ljudtranskription',
+  file_too_large: 'Filen är för stor (max 20MB)',
+  unsupported_format: 'Ljudformat stöds inte',
+  session_load_error: 'Fel vid inläsning av konversationshistorik',
+  processing_message_error: 'Förlåt, ett fel inträffade vid bearbetning av ditt meddelande. Försök igen.'
 };
 
 const documents = {
@@ -444,6 +472,14 @@ const deleteModal = {
   delete_conversation_button: 'Ta bort konversation'
 };
 
+const sidebar = {
+  history: 'Historik',
+  information: 'Information',
+  recent_documents: 'Senaste dokument',
+  no_documents: 'Inga dokument laddade',
+  statistics: 'Statistik'
+};
+
 const translations = {
   common,
   navigation,
@@ -456,7 +492,8 @@ const translations = {
   chatPage,
   documentsPage,
   deleteModal,
-  llmManagement
+  llmManagement,
+  sidebar
 };
 
 export default { translation: translations };

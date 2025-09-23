@@ -3,13 +3,14 @@
  */
 import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { 
-  SUPPORTED_LANGUAGES, 
-  Language, 
-  DEFAULT_LANGUAGE, 
-  getLanguageByCode, 
-  isValidLanguage, 
-  normalizeLanguageCode 
+import api from '../../services/api';
+import {
+  SUPPORTED_LANGUAGES,
+  Language,
+  DEFAULT_LANGUAGE,
+  getLanguageByCode,
+  isValidLanguage,
+  normalizeLanguageCode
 } from '../languages';
 
 interface UseLanguageReturn {
@@ -80,26 +81,16 @@ export const useLanguage = (): UseLanguageReturn => {
    */
   const saveUserPreference = useCallback(async (languageCode: string): Promise<boolean> => {
     try {
-      const response = await fetch('http://localhost:8000/api/auth/preferences', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('sessionToken') || ''}`,
-        },
-        body: JSON.stringify({ language: languageCode })
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          console.log('User language preference saved:', languageCode);
-          return true;
-        }
+      const response = await api.post('/auth/preferences', { language: languageCode });
+
+      if (response.data.message) {
+        console.log('User language preference saved:', languageCode);
+        return true;
       }
-      
+
       console.warn('Failed to save user language preference');
       return false;
-      
+
     } catch (error) {
       console.error('Error saving user language preference:', error);
       return false;

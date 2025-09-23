@@ -70,7 +70,35 @@ const chat = {
   conversation_history: 'Historial de Conversaciones',
   thinking: 'Knight está pensando...',
   error_message: 'Lo siento, encontré un error. Inténtalo de nuevo.',
-  welcome_message: '¡Hola! Soy Knight, tu asistente de IA. ¿Cómo puedo ayudarte hoy?'
+  welcome_message: '¡Hola! Soy Knight, tu asistente de IA. ¿Cómo puedo ayudarte hoy?',
+
+  // Time-based greetings
+  good_morning: 'Buenos días',
+  good_afternoon: 'Buenas tardes',
+  good_evening: 'Buenas noches',
+
+  // Greeting patterns (using {{firstName}} for interpolation)
+  greeting_time_name: '¡{{timeGreeting}}, {{firstName}}!',
+  greeting_hello: '¡Hola, {{firstName}}!',
+  greeting_hi: '¡Hola, {{firstName}}!',
+  greeting_whats_up: '¿Qué tal, {{firstName}}?',
+  greeting_whats_new: '¿Qué hay de nuevo, {{firstName}}?',
+  greeting_how_help: '¿Cómo puedo ayudar, {{firstName}}?',
+  greeting_ready_work: '¿Listo para trabajar, {{firstName}}?',
+  greeting_lets_start: '¿Empezamos, {{firstName}}?',
+  greeting_time_how_are_you: '¡{{timeGreeting}}! ¿Cómo estás, {{firstName}}?',
+  greeting_welcome: '¡Bienvenido, {{firstName}}!',
+
+  // Audio and error messages
+  audio_message: 'Mensaje de audio',
+  response_with_documents: 'Respuesta basada en documentos corporativos',
+  send_error: 'Error al enviar mensaje. Inténtalo de nuevo.',
+  processing_error: 'Error en el procesamiento del mensaje',
+  transcription_error: 'Error en la transcripción del audio',
+  file_too_large: 'Archivo demasiado grande (máx 20MB)',
+  unsupported_format: 'Formato de audio no soportado',
+  session_load_error: 'Error al cargar historial de la conversación',
+  processing_message_error: 'Lo siento, ocurrió un error al procesar tu mensaje. Inténtalo de nuevo.'
 };
 
 const documents = {
@@ -422,6 +450,14 @@ const deleteModal = {
   delete_conversation_button: 'Eliminar conversación'
 };
 
+const sidebar = {
+  history: 'Historial',
+  information: 'Información',
+  recent_documents: 'Documentos Recientes',
+  no_documents: 'Ningún documento cargado',
+  statistics: 'Estadísticas'
+};
+
 const translations = {
   common,
   navigation,
@@ -434,7 +470,8 @@ const translations = {
   chatPage,
   documentsPage,
   deleteModal,
-  llmManagement
+  llmManagement,
+  sidebar
 };
 
 export default { translation: translations };

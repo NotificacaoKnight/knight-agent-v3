@@ -74,7 +74,7 @@ export default function AdminManagement() {
 
     setProcessingEmail(email);
     try {
-      const response = await api.delete(`/api/admin/remove/${email}`);
+      const response = await api.delete(`/admin/remove/${email}`);
 
       if (response.data.success) {
         setMessage({ type: 'success', text: response.data.message });
