@@ -28,7 +28,6 @@ from app.schemas.chat import (
     ChatHistoryResponse
 )
 from app.services.rag.rag_service import rag_service
-from app.services.rag.agentic_rag_service import agentic_rag_service
 from app.services.rag.multi_agent_service import multi_agent_service
 from app.core.config import settings
 
@@ -69,6 +68,7 @@ async def create_chat_session(
             agent_type=session.agent_type,
             created_at=session.created_at,
             updated_at=session.updated_at,
+            last_message_at=session.last_message_at,
             message_count=0,
             is_active=session.is_active
         )
@@ -134,6 +134,7 @@ async def list_chat_sessions(
                 agent_type=session.agent_type,
                 created_at=session.created_at,
                 updated_at=session.updated_at,
+                last_message_at=session.last_message_at,
                 message_count=message_count,
                 is_active=session.is_active
             ))
@@ -225,6 +226,7 @@ async def get_chat_history(
                 agent_type=session.agent_type,
                 created_at=session.created_at,
                 updated_at=session.updated_at,
+                last_message_at=session.last_message_at,
                 message_count=total_messages,
                 is_active=session.is_active
             ),
@@ -286,6 +288,16 @@ async def chat_query(
         db.add(user_message)
         await db.commit()
 
+        # If this is the first message in the session, update title from user message
+        if session.title.startswith("Chat ") and " " in session.title:
+            # Extract first 30 characters and add date
+            first_words = query.query[:30].strip()
+            if len(query.query) > 30:
+                first_words += "..."
+            current_date = datetime.now().strftime('%d/%m/%Y')
+            session.title = f"{first_words} [{current_date}]"
+            await db.commit()
+
         # Get chat history for context
         history_result = await db.execute(
             select(ChatMessage)
@@ -303,18 +315,17 @@ async def chat_query(
             })
 
         # Generate response
-        if query.use_agentic:
-            # Use agentic RAG
-            result = await agentic_rag_service.search(
-                query=query.query,
-                k=5,
-                language=query.language,
-                chat_history=chat_history
-            )
-        elif query.use_rag:
-            # Use standard RAG
+        if query.use_rag:
+            # Use mode from request, or determine based on use_agentic flag
+            if hasattr(query, 'mode') and query.mode:
+                mode = query.mode
+            else:
+                mode = "deep" if query.use_agentic else "auto"
+
+            # Use unified RAG service
             result = await rag_service.generate_answer(
                 query=query.query,
+                mode=mode,
                 context_size=5,
                 max_tokens=query.max_tokens,
                 temperature=query.temperature,
@@ -344,6 +355,7 @@ async def chat_query(
 
         # Update session
         session.updated_at = datetime.utcnow()
+        session.last_message_at = datetime.utcnow()
 
         await db.commit()
         await db.refresh(assistant_message)

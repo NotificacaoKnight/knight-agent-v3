@@ -477,7 +477,9 @@ const sidebar = {
   information: 'Information',
   recent_documents: 'Senaste dokument',
   no_documents: 'Inga dokument laddade',
-  statistics: 'Statistik'
+  statistics: 'Statistik',
+  message_singular: 'meddelande',
+  message_plural: 'meddelanden'
 };
 
 const translations = {

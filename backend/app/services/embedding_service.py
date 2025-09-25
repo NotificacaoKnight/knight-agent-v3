@@ -356,6 +356,31 @@ class EmbeddingService:
 
         return result
 
+    async def generate_embeddings_async(
+        self,
+        texts: List[str]
+    ) -> List[np.ndarray]:
+        """
+        Async wrapper for batch embedding generation
+
+        Args:
+            texts: List of texts to encode
+
+        Returns:
+            List of embeddings as numpy arrays
+        """
+        import asyncio
+
+        # Run the sync method in a thread pool
+        loop = asyncio.get_event_loop()
+        embeddings = await loop.run_in_executor(
+            None,
+            self.encode_batch,
+            texts
+        )
+
+        return embeddings
+
 
 # Global singleton instance
 _embedding_service_instance: Optional[EmbeddingService] = None

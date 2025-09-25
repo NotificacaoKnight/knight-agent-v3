@@ -14,6 +14,7 @@ import {
 } from './ui/dropdown-menu';
 import { useLanguage } from '../i18n/hooks/useLanguage';
 import { Language } from '../i18n/languages';
+import { useAuth } from '../context/AuthContext';
 
 interface LanguageSelectorProps {
   variant?: 'default' | 'compact';
@@ -29,14 +30,15 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
   className = ''
 }) => {
   const { t } = useTranslation();
-  const { 
-    currentLanguage, 
-    availableLanguages, 
-    changeLanguage, 
+  const { user } = useAuth();
+  const {
+    currentLanguage,
+    availableLanguages,
+    changeLanguage,
     isChangingLanguage,
-    saveUserPreference 
+    saveUserPreference
   } = useLanguage();
-  
+
   const [isOpen, setIsOpen] = useState(false);
 
   const handleLanguageChange = async (language: Language) => {
@@ -45,11 +47,15 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
       const success = await changeLanguage(language.code);
       
       if (success) {
-        // Save user preference to backend (async, don't wait)
-        saveUserPreference(language.code).catch(error => {
-          console.warn('Could not save language preference to backend:', error);
-        });
-        
+        // Save user preference to backend only if user is authenticated
+        if (user) {
+          saveUserPreference(language.code).catch(error => {
+            console.warn('Could not save language preference to backend:', error);
+          });
+        } else {
+          console.log('User not authenticated - language preference saved locally only');
+        }
+
         setIsOpen(false);
       } else {
         console.error('Failed to change language');

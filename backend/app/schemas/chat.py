@@ -43,6 +43,7 @@ class ChatSessionResponse(BaseModel):
     agent_type: Optional[str] = None
     created_at: datetime
     updated_at: datetime
+    last_message_at: Optional[datetime] = None
     message_count: int = 0
     is_active: bool = True
 
@@ -61,6 +62,7 @@ class ChatQueryRequest(BaseModel):
     session_id: Optional[int] = Field(None, description="Chat session ID")
     use_rag: bool = Field(True, description="Use RAG for response")
     use_agentic: bool = Field(False, description="Use agentic RAG")
+    mode: str = Field("auto", description="Response mode: fast, deep, auto")
     stream: bool = Field(False, description="Stream response")
     language: str = Field("pt", description="Response language")
     max_tokens: int = Field(1000, description="Maximum tokens in response")

@@ -1,10 +1,12 @@
 """
 Main RAG Service for FastAPI
 Integrates search, LLM generation, and response formatting
+Unified service with fast/deep/auto modes
 """
 import time
 import logging
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional, Tuple, Literal
+import re
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -91,6 +93,7 @@ class RAGService:
     async def generate_answer(
         self,
         query: str,
+        mode: Literal["fast", "deep", "auto"] = "auto",
         context_size: int = 5,
         max_tokens: int = 1000,
         temperature: float = 0.7,
@@ -105,6 +108,7 @@ class RAGService:
 
         Args:
             query: User question
+            mode: Response mode (fast/deep/auto)
             context_size: Number of context chunks
             max_tokens: Maximum tokens in response
             temperature: Generation temperature
@@ -119,8 +123,84 @@ class RAGService:
         """
         start_time = time.time()
 
+        # Auto-detect complexity if mode is auto
+        if mode == "auto":
+            mode = self._detect_complexity(query)
+            logger.info(f"Auto-detected mode: {mode} for query: {query}")
+
+        # Route to appropriate pipeline
+        if mode == "fast":
+            return await self._fast_pipeline(
+                query=query,
+                context_size=context_size,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                include_sources=include_sources,
+                language=language,
+                llm_provider=llm_provider,
+                filter_document_ids=filter_document_ids,
+                db=db,
+                start_time=start_time
+            )
+        else:  # deep mode
+            return await self._deep_pipeline(
+                query=query,
+                context_size=context_size,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                include_sources=include_sources,
+                language=language,
+                llm_provider=llm_provider,
+                filter_document_ids=filter_document_ids,
+                db=db,
+                start_time=start_time
+            )
+
+    def _detect_complexity(self, query: str) -> str:
+        """Detect if query needs deep analysis"""
+        # Complex keywords that indicate need for deep analysis
+        complex_keywords = [
+            "como", "por que", "porque", "explique", "detalhe", "detalhes",
+            "processo", "procedimento", "cálculo", "calcular", "passos",
+            "compare", "analise", "quando devo", "o que fazer",
+            "passo a passo", "tutorial", "configurar", "implementar"
+        ]
+
+        # Simple keywords that indicate fast response is enough
+        simple_keywords = [
+            "qual", "onde", "quem", "quando", "horário", "telefone",
+            "email", "endereço", "nome", "data", "número", "código"
+        ]
+
+        query_lower = query.lower()
+
+        # Check for simple queries first
+        if any(kw in query_lower for kw in simple_keywords) and len(query) < 50:
+            return "fast"
+
+        # Check for complex queries
+        if len(query) > 100 or any(kw in query_lower for kw in complex_keywords):
+            return "deep"
+
+        # Default to fast for short queries
+        return "fast" if len(query) < 30 else "deep"
+
+    async def _fast_pipeline(
+        self,
+        query: str,
+        context_size: int,
+        max_tokens: int,
+        temperature: float,
+        include_sources: bool,
+        language: str,
+        llm_provider: Optional[str],
+        filter_document_ids: Optional[List[int]],
+        db: Optional[AsyncSession],
+        start_time: float
+    ) -> Dict[str, Any]:
+        """Fast pipeline - simple search and generation"""
         try:
-            # Step 1: Search for relevant chunks
+            # Search for relevant chunks
             search_results = await self.search(
                 query=query,
                 k=context_size,
@@ -129,23 +209,15 @@ class RAGService:
                 db=db
             )
 
-            if not search_results['success'] or not search_results['results']:
-                return {
-                    'success': False,
-                    'query': query,
-                    'answer': self._get_no_results_message(language),
-                    'sources': [],
-                    'error': 'No relevant context found',
-                    'response_time_ms': int((time.time() - start_time) * 1000)
-                }
+            # Build context (empty if no results)
+            context = ""
+            if search_results['success'] and search_results['results']:
+                context = self._build_context(search_results['results'], language)
 
-            # Step 2: Build context from search results
-            context = self._build_context(search_results['results'], language)
-
-            # Step 3: Create prompt
+            # Always try to generate response, even without context
             prompt = self._create_prompt(query, language)
 
-            # Step 4: Generate answer with LLM
+            # Generate answer with LLM
             if llm_provider:
                 provider = self.llm_manager.get_provider(ProviderType(llm_provider))
                 answer = await provider.generate_with_context(
@@ -156,7 +228,6 @@ class RAGService:
                 )
                 provider_used = llm_provider
             else:
-                # Use fallback chain
                 answer, provider_used = await self.llm_manager.generate_with_fallback(
                     prompt=prompt,
                     context=context,
@@ -164,29 +235,227 @@ class RAGService:
                     temperature=temperature
                 )
 
-            # Step 5: Format response
+            # Format response
             response = {
                 'success': True,
                 'query': query,
                 'answer': answer,
+                'mode': 'fast',
                 'llm_provider': str(provider_used),
                 'response_time_ms': int((time.time() - start_time) * 1000)
             }
 
-            if include_sources:
-                response['sources'] = search_results['results'][:3]  # Top 3 sources
+            if include_sources and search_results.get('results'):
+                response['sources'] = search_results['results'][:3]
 
             return response
 
         except Exception as e:
-            logger.error(f"RAG generation error: {e}")
+            logger.error(f"Fast pipeline error: {e}")
             return {
                 'success': False,
                 'query': query,
                 'answer': self._get_error_message(language),
+                'mode': 'fast',
                 'error': str(e),
                 'response_time_ms': int((time.time() - start_time) * 1000)
             }
+
+    async def _deep_pipeline(
+        self,
+        query: str,
+        context_size: int,
+        max_tokens: int,
+        temperature: float,
+        include_sources: bool,
+        language: str,
+        llm_provider: Optional[str],
+        filter_document_ids: Optional[List[int]],
+        db: Optional[AsyncSession],
+        start_time: float
+    ) -> Dict[str, Any]:
+        """Deep pipeline - multi-step reasoning with refinement"""
+        try:
+            max_attempts = 3
+            best_results = []
+            search_attempts = 0
+            refined_queries = [query]
+
+            # Multiple search attempts with query refinement
+            for attempt in range(max_attempts):
+                search_query = refined_queries[-1]
+
+                # Search with current query
+                search_results = await self.search(
+                    query=search_query,
+                    k=context_size * 2,  # Get more results for better selection
+                    search_type="hybrid",
+                    filter_document_ids=filter_document_ids,
+                    db=db
+                )
+
+                search_attempts += 1
+
+                # Evaluate search quality
+                if search_results['success'] and search_results['results']:
+                    # Calculate average score
+                    avg_score = sum(r.get('score', 0) for r in search_results['results']) / len(search_results['results'])
+
+                    # If good results, use them
+                    if avg_score > 0.6 or len(search_results['results']) >= 3:
+                        best_results = search_results['results']
+                        break
+
+                    # Keep best results so far
+                    if len(search_results['results']) > len(best_results):
+                        best_results = search_results['results']
+
+                # Try to refine query for next attempt
+                if attempt < max_attempts - 1:
+                    refined_query = await self._refine_query(query, search_query, language)
+                    if refined_query and refined_query != search_query:
+                        refined_queries.append(refined_query)
+                    else:
+                        break  # Can't refine further
+
+            # Build context from best results
+            context = ""
+            if best_results:
+                # Select most relevant chunks
+                selected_chunks = self._select_best_chunks(best_results, context_size)
+                context = self._build_context(selected_chunks, language)
+
+            # Generate response with enriched prompt for deep mode
+            prompt = self._create_deep_prompt(query, language)
+
+            # Generate answer
+            if llm_provider:
+                provider = self.llm_manager.get_provider(ProviderType(llm_provider))
+                answer = await provider.generate_with_context(
+                    prompt=prompt,
+                    context=context,
+                    max_tokens=max_tokens * 2,  # Allow longer responses in deep mode
+                    temperature=temperature
+                )
+                provider_used = llm_provider
+            else:
+                answer, provider_used = await self.llm_manager.generate_with_fallback(
+                    prompt=prompt,
+                    context=context,
+                    max_tokens=max_tokens * 2,
+                    temperature=temperature
+                )
+
+            # Format response
+            response = {
+                'success': True,
+                'query': query,
+                'answer': answer,
+                'mode': 'deep',
+                'search_attempts': search_attempts,
+                'refined_queries': refined_queries if len(refined_queries) > 1 else None,
+                'llm_provider': str(provider_used),
+                'response_time_ms': int((time.time() - start_time) * 1000)
+            }
+
+            if include_sources and best_results:
+                response['sources'] = best_results[:5]  # More sources in deep mode
+
+            return response
+
+        except Exception as e:
+            logger.error(f"Deep pipeline error: {e}")
+            # Fallback to fast pipeline on error
+            return await self._fast_pipeline(
+                query=query,
+                context_size=context_size,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                include_sources=include_sources,
+                language=language,
+                llm_provider=llm_provider,
+                filter_document_ids=filter_document_ids,
+                db=db,
+                start_time=start_time
+            )
+
+    async def _refine_query(self, original_query: str, current_query: str, language: str) -> Optional[str]:
+        """Use LLM to refine search query"""
+        try:
+            if language == "pt":
+                refinement_prompt = f"""
+                A busca por '{current_query}' retornou poucos resultados relevantes.
+                Query original: '{original_query}'
+
+                Sugira uma query de busca refinada que possa encontrar melhores resultados.
+                Considere sinônimos, termos relacionados ou reformulações.
+
+                Query refinada:"""
+            else:
+                refinement_prompt = f"""
+                The search for '{current_query}' returned few relevant results.
+                Original query: '{original_query}'
+
+                Suggest a refined search query that might find better results.
+                Consider synonyms, related terms, or reformulations.
+
+                Refined query:"""
+
+            refined, _ = await self.llm_manager.generate_with_fallback(
+                prompt=refinement_prompt,
+                max_tokens=100,
+                temperature=0.3
+            )
+
+            return refined.strip() if refined else None
+
+        except Exception as e:
+            logger.error(f"Query refinement error: {e}")
+            return None
+
+    def _select_best_chunks(self, chunks: List[Dict[str, Any]], max_chunks: int) -> List[Dict[str, Any]]:
+        """Select best chunks based on score and diversity"""
+        # Sort by score
+        sorted_chunks = sorted(chunks, key=lambda x: x.get('score', 0), reverse=True)
+
+        # Select top chunks ensuring document diversity
+        selected = []
+        seen_docs = set()
+
+        for chunk in sorted_chunks:
+            if len(selected) >= max_chunks:
+                break
+
+            doc_id = chunk.get('document_id')
+            # Add chunk if from new document or high score
+            if doc_id not in seen_docs or chunk.get('score', 0) > 0.8:
+                selected.append(chunk)
+                seen_docs.add(doc_id)
+
+        return selected
+
+    def _create_deep_prompt(self, query: str, language: str) -> str:
+        """Create enriched prompt for deep mode"""
+        if language == "pt":
+            return f"""
+            Analise cuidadosamente o contexto fornecido e responda à pergunta de forma completa e detalhada.
+            Se o contexto não contiver informações suficientes, use seu conhecimento para complementar a resposta de forma útil.
+            Seja específico e forneça exemplos quando apropriado.
+
+            Pergunta: {query}
+
+            Responda em português brasileiro de forma clara e estruturada.
+            """
+        else:
+            return f"""
+            Carefully analyze the provided context and answer the question completely and in detail.
+            If the context doesn't contain enough information, use your knowledge to complement the answer helpfully.
+            Be specific and provide examples when appropriate.
+
+            Question: {query}
+
+            Answer in English clearly and with structure.
+            """
 
     def _build_context(self, chunks: List[Dict[str, Any]], language: str) -> str:
         """Build context from search results"""
@@ -227,11 +496,6 @@ Question: {query}
 Answer in English.
 """
 
-    def _get_no_results_message(self, language: str) -> str:
-        """Get no results message"""
-        if language == "pt":
-            return "Desculpe, não encontrei informações relevantes para responder sua pergunta."
-        return "Sorry, I couldn't find relevant information to answer your question."
 
     def _get_error_message(self, language: str) -> str:
         """Get error message"""

@@ -21,7 +21,8 @@ class UsefulLink(Base):
     url = Column(String(500), nullable=False)  # Link URL
     description = Column(Text, default="")  # Content description for users
     ai_guidance = Column(Text, default="")  # Guidelines for AI on when to share this link
-    category = Column(String(100), nullable=False)  # Category (HR, IT, Compliance, etc.)
+    category = Column(String(100), nullable=True)  # Legacy category field (to be deprecated)
+    category_id = Column(Integer, ForeignKey("resource_categories.id", ondelete="SET NULL"), nullable=True)  # FK to resource_categories
 
     # Status and control
     is_active = Column(Boolean, default=True)  # If the link is active to be shared
@@ -39,10 +40,12 @@ class UsefulLink(Base):
 
     # Relationships
     created_by = relationship("User")
+    resource_category = relationship("ResourceCategory", back_populates="useful_links")
 
     # Indexes
     __table_args__ = (
         Index('ix_useful_links_category', 'category'),
+        Index('ix_useful_links_category_id', 'category_id'),
         Index('ix_useful_links_is_active', 'is_active'),
     )
 
@@ -57,7 +60,8 @@ class DownloadableDocument(Base):
     title = Column(String(255), nullable=False)  # Document title
     description = Column(Text, default="")  # Document description and usage
     ai_guidance = Column(Text, default="")  # Guidelines for AI on when to provide this document
-    category = Column(String(100), nullable=False)  # Category (HR, Financial, Sales, etc.)
+    category = Column(String(100), nullable=True)  # Legacy category field (to be deprecated)
+    category_id = Column(Integer, ForeignKey("resource_categories.id", ondelete="SET NULL"), nullable=True)  # FK to resource_categories
 
     # File information
     file = Column(String(500), nullable=False)  # File path
@@ -86,10 +90,12 @@ class DownloadableDocument(Base):
 
     # Relationships
     created_by = relationship("User")
+    resource_category = relationship("ResourceCategory", back_populates="downloadable_documents")
 
     # Indexes
     __table_args__ = (
         Index('ix_downloadable_docs_category', 'category'),
+        Index('ix_downloadable_docs_category_id', 'category_id'),
         Index('ix_downloadable_docs_is_active', 'is_active'),
         Index('ix_downloadable_docs_file_type', 'file_type'),
     )
@@ -121,6 +127,10 @@ class ResourceCategory(Base):
 
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    # Relationships
+    useful_links = relationship("UsefulLink", back_populates="resource_category")
+    downloadable_documents = relationship("DownloadableDocument", back_populates="resource_category")
 
     # Indexes
     __table_args__ = (

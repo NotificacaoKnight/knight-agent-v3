@@ -85,6 +85,27 @@ export interface DocumentStats {
 // API Base URL
 const BASE_URL = '/knowledge';
 
+// Categories API
+export const categoriesApi = {
+  // List all categories
+  list: async (activeOnly: boolean = true): Promise<ResourceCategory[]> => {
+    const params = activeOnly ? '?active_only=true' : '';
+    const response = await api.get(`${BASE_URL}/categories${params}`);
+    return response.data;
+  },
+
+  // Create new category
+  create: async (data: {
+    name: string;
+    description?: string;
+    icon?: string;
+    color?: string;
+  }): Promise<ResourceCategory> => {
+    const response = await api.post(`${BASE_URL}/categories`, data);
+    return response.data;
+  },
+};
+
 // Useful Links API
 export const usefulLinksApi = {
   // List all useful links
@@ -225,37 +246,6 @@ export const downloadableDocumentsApi = {
   },
 };
 
-// Resource Categories API
-export const categoriesApi = {
-  // List all categories
-  list: async (): Promise<ResourceCategory[]> => {
-    const response = await api.get(`${BASE_URL}/categories/`);
-    return response.data;
-  },
-
-  // Get single category
-  get: async (id: number): Promise<ResourceCategory> => {
-    const response = await api.get(`${BASE_URL}/categories/${id}/`);
-    return response.data;
-  },
-
-  // Create new category
-  create: async (data: Partial<ResourceCategory>): Promise<ResourceCategory> => {
-    const response = await api.post(`${BASE_URL}/categories/`, data);
-    return response.data;
-  },
-
-  // Update category
-  update: async (id: number, data: Partial<ResourceCategory>): Promise<ResourceCategory> => {
-    const response = await api.patch(`${BASE_URL}/categories/${id}/`, data);
-    return response.data;
-  },
-
-  // Delete category
-  delete: async (id: number): Promise<void> => {
-    await api.delete(`${BASE_URL}/categories/${id}/`);
-  },
-};
 
 // Combined API exports
 export const knowledgeResourcesApi = {

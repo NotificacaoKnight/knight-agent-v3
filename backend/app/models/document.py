@@ -50,7 +50,7 @@ class Document(Base):
     status = Column(String(20), default=STATUS_PENDING, nullable=False)
     processing_error = Column(Text, default="")
 
-    is_downloadable = Column(Boolean, default=False)
+    is_downloadable = Column(Boolean, default=True)
     is_active = Column(Boolean, default=True)
 
     # Foreign key to User
@@ -58,7 +58,10 @@ class Document(Base):
 
     # Timestamps
     uploaded_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)  # Alias for uploaded_at
     processed_at = Column(DateTime, nullable=True)
+    processing_started_at = Column(DateTime, nullable=True)
+    processing_completed_at = Column(DateTime, nullable=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     # Metadata extracted from document (renamed from 'metadata' which is reserved in SQLAlchemy)
@@ -67,6 +70,13 @@ class Document(Base):
     # Access counter for ranking
     access_count = Column(Integer, default=0)
 
+    # Counts for tracking
+    page_count = Column(Integer, default=0)
+    chunk_count = Column(Integer, default=0)
+
+    # Error tracking
+    error_message = Column(Text, default="")
+
     # Relationships
     uploaded_by = relationship("User", back_populates="documents")
     chunks = relationship("DocumentChunk", back_populates="document", cascade="all, delete-orphan")
@@ -74,6 +84,11 @@ class Document(Base):
 
     def __repr__(self):
         return f"<Document(id={self.id}, title='{self.title}')>"
+
+    @property
+    def filename(self):
+        """Alias for original_filename for compatibility"""
+        return self.original_filename
 
     @property
     def status_display(self):

@@ -12,6 +12,7 @@ class UsefulLinkCreate(BaseModel):
     url: HttpUrl = Field(..., description="Link URL")
     description: str = Field(..., description="Link description")
     category_id: Optional[int] = Field(None, description="Category ID")
+    category: Optional[str] = Field(None, description="Category name (alternative to category_id)")
     ai_guidance: Optional[str] = Field(None, description="AI guidance for when to suggest this link")
     tags: Optional[List[str]] = Field(None, description="Link tags")
     is_active: bool = Field(True, description="Is link active")
@@ -22,15 +23,14 @@ class UsefulLinkResponse(BaseModel):
     id: int
     title: str
     url: str
-    description: str
-    category_id: Optional[int] = None
-    category_name: Optional[str] = None
+    description: Optional[str] = None
+    category: str  # The frontend expects "category" as string name
     ai_guidance: Optional[str] = None
-    tags: List[str] = []
-    send_count: int
-    click_count: int
+    tags: Optional[List[str]] = []
     is_active: bool
-    created_by: int
+    send_count: int
+    created_by: Optional[int] = None
+    created_by_name: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
@@ -41,6 +41,7 @@ class DownloadableDocumentCreate(BaseModel):
     file_path: str = Field(..., description="File path")
     description: str = Field(..., description="Document description")
     category_id: Optional[int] = Field(None, description="Category ID")
+    category: Optional[str] = Field(None, description="Category name (alternative to category_id)")
     ai_guidance: Optional[str] = Field(None, description="AI guidance for when to suggest this document")
     tags: Optional[List[str]] = Field(None, description="Document tags")
     is_active: bool = Field(True, description="Is document active")
@@ -50,20 +51,24 @@ class DownloadableDocumentResponse(BaseModel):
     """Downloadable document response"""
     id: int
     title: str
-    file_path: str
+    description: Optional[str] = None
+    ai_guidance: Optional[str] = None
+    category: str  # The frontend expects "category" as string name
+    file: str  # The frontend expects "file" field
+    file_url: Optional[str] = None
     file_name: str
     file_size: int
-    description: str
-    category_id: Optional[int] = None
-    category_name: Optional[str] = None
-    ai_guidance: Optional[str] = None
-    tags: List[str] = []
-    download_count: int
-    send_count: int
+    file_type: str
     is_active: bool
-    created_by: int
+    download_count: int
+    share_count: int  # The frontend expects "share_count" not "send_count"
+    requires_approval: Optional[bool] = False
+    expiry_date: Optional[str] = None
+    created_by: Optional[int] = None
+    created_by_name: Optional[str] = None
     created_at: datetime
     updated_at: datetime
+    tags: Optional[List[str]] = []
 
 
 class ResourceCategoryCreate(BaseModel):
@@ -81,12 +86,11 @@ class ResourceCategoryResponse(BaseModel):
     name: str
     description: Optional[str] = None
     icon: Optional[str] = None
-    color: Optional[str] = None
+    color_code: Optional[str] = None
     link_count: int = 0
     document_count: int = 0
     is_active: bool
     created_at: datetime
-    updated_at: datetime
 
 
 class ResourceUsageResponse(BaseModel):

@@ -64,7 +64,8 @@ export const useLanguage = (): UseLanguageReturn => {
       
       // Save to localStorage (i18next will handle this automatically)
       localStorage.setItem('knight-language', normalizedCode);
-      
+      localStorage.setItem('knight-language-timestamp', Date.now().toString());
+
       console.log('Language changed successfully to:', normalizedCode);
       return true;
       

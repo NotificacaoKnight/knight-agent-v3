@@ -550,7 +550,9 @@ const sidebar = {
   information: 'Information',
   recent_documents: 'Recent Documents',
   no_documents: 'No documents loaded',
-  statistics: 'Statistics'
+  statistics: 'Statistics',
+  message_singular: 'message',
+  message_plural: 'messages'
 };
 
 const translations = {

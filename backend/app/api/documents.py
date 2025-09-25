@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Q
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, delete
+from sqlalchemy.orm import selectinload
 
 from app.core.database import get_async_db
 from app.api.deps import get_current_user
@@ -22,7 +23,8 @@ from app.schemas.document import (
     ChunkResponse,
     ProcessingJobResponse,
     DocumentStatsResponse,
-    DeleteDocumentResponse
+    DeleteDocumentResponse,
+    DocumentContentResponse
 )
 from app.core.config import settings
 from app.workers.background_tasks import process_document_async
@@ -84,6 +86,10 @@ async def upload_document(
         # Extract file info
         file_type = file.filename.split('.')[-1].lower() if '.' in file.filename else 'unknown'
 
+        # Calculate checksum
+        import hashlib
+        checksum = hashlib.sha256(contents).hexdigest()
+
         # Parse tags
         tag_list = []
         if tags:
@@ -91,15 +97,16 @@ async def upload_document(
 
         # Create document record
         document = Document(
-            user_id=current_user.id,
+            uploaded_by_id=current_user.id,
             title=title,
-            filename=file.filename,
+            original_filename=file.filename,
             file_path=file_path,
             file_type=file_type,
             file_size=file_size,
+            checksum=checksum,
             status='uploaded',
-            language=language,
             document_metadata={
+                'language': language,
                 'enable_ocr': enable_ocr,
                 'chunk_size': chunk_size or settings.CHUNK_SIZE if hasattr(settings, 'CHUNK_SIZE') else 700,
                 'chunk_overlap': chunk_overlap or settings.CHUNK_OVERLAP if hasattr(settings, 'CHUNK_OVERLAP') else 100,
@@ -132,7 +139,7 @@ async def upload_document(
         return DocumentResponse(
             id=document.id,
             title=document.title,
-            filename=document.filename,
+            filename=document.original_filename,
             file_type=document.file_type,
             file_size=document.file_size,
             status=document.status,
@@ -154,6 +161,59 @@ async def upload_document(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/stats", response_model=DocumentStatsResponse)
+async def get_document_stats(
+    db: AsyncSession = Depends(get_async_db)
+):
+    """Get document statistics - public endpoint"""
+    try:
+        # Total documents
+        total_docs_result = await db.execute(
+            select(func.count()).select_from(Document)
+        )
+        total_documents = total_docs_result.scalar() or 0
+
+        # Total chunks
+        total_chunks_result = await db.execute(
+            select(func.count()).select_from(DocumentChunk)
+        )
+        total_chunks = total_chunks_result.scalar() or 0
+
+        # Documents by status
+        status_result = await db.execute(
+            select(Document.status, func.count())
+            .group_by(Document.status)
+        )
+        documents_by_status = dict(status_result.all())
+
+        # Get individual status counts
+        processed_documents = documents_by_status.get('processed', 0)
+        pending_documents = documents_by_status.get('pending', 0) + documents_by_status.get('uploaded', 0)
+        processing_documents = documents_by_status.get('processing', 0)
+        error_documents = documents_by_status.get('error', 0)
+
+        # Get downloadable documents count
+        downloadable_result = await db.execute(
+            select(func.count()).select_from(Document)
+            .where(Document.is_downloadable == True)
+        )
+        downloadable_documents = downloadable_result.scalar() or 0
+
+        return DocumentStatsResponse(
+            total_documents=total_documents,
+            processed_documents=processed_documents,
+            pending_documents=pending_documents,
+            processing_documents=processing_documents,
+            error_documents=error_documents,
+            downloadable_documents=downloadable_documents,
+            total_chunks=total_chunks
+        )
+
+    except Exception as e:
+        logger.error(f"Get stats error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("", response_model=DocumentListResponse)
 async def list_documents(
     page: int = Query(1, ge=1),
@@ -172,8 +232,8 @@ async def list_documents(
     - **search**: Search in title
     """
     try:
-        # Build query
-        query = select(Document).where(Document.user_id == current_user.id)
+        # Build query - Admins veem todos os documentos
+        query = select(Document).options(selectinload(Document.uploaded_by))
 
         if status:
             query = query.where(Document.status == status)
@@ -187,32 +247,43 @@ async def list_documents(
         total = total_result.scalar()
 
         # Apply pagination
-        query = query.order_by(Document.created_at.desc())
+        query = query.order_by(Document.uploaded_at.desc())
         query = query.offset((page - 1) * page_size).limit(page_size)
 
-        # Execute query
+        # Execute query with user relationship
         result = await db.execute(query)
         documents = result.scalars().all()
 
         # Format response
         document_list = []
         for doc in documents:
+            # Get user information if available
+            uploaded_by_name = None
+            uploaded_by_email = None
+
+            if doc.uploaded_by:
+                uploaded_by_name = doc.uploaded_by.display_name or doc.uploaded_by.username
+                uploaded_by_email = doc.uploaded_by.email
+
             document_list.append(DocumentResponse(
                 id=doc.id,
                 title=doc.title,
-                filename=doc.filename,
+                filename=doc.original_filename,
                 file_type=doc.file_type,
                 file_size=doc.file_size,
                 status=doc.status,
-                page_count=doc.page_count,
+                page_count=doc.document_metadata.get('page_count', 0) if doc.document_metadata else 0,
                 chunk_count=doc.chunk_count,
-                created_at=doc.created_at,
+                created_at=doc.uploaded_at,
                 updated_at=doc.updated_at,
                 processing_started_at=doc.processing_started_at,
                 processing_completed_at=doc.processing_completed_at,
                 error_message=doc.error_message,
                 document_metadata=doc.document_metadata,
-                tags=doc.document_metadata.get('tags', []) if doc.document_metadata else []
+                tags=doc.document_metadata.get('tags', []) if doc.document_metadata else [],
+                access_count=doc.access_count or 0,
+                uploaded_by_name=uploaded_by_name,
+                uploaded_by_email=uploaded_by_email
             ))
 
         return DocumentListResponse(
@@ -239,7 +310,7 @@ async def get_document(
         result = await db.execute(
             select(Document).where(
                 Document.id == document_id,
-                Document.user_id == current_user.id
+                Document.uploaded_by_id == current_user.id
             )
         )
         document = result.scalar_one_or_none()
@@ -250,7 +321,7 @@ async def get_document(
         return DocumentResponse(
             id=document.id,
             title=document.title,
-            filename=document.filename,
+            filename=document.original_filename,
             file_type=document.file_type,
             file_size=document.file_size,
             status=document.status,
@@ -262,7 +333,8 @@ async def get_document(
             processing_completed_at=document.processing_completed_at,
             error_message=document.error_message,
             document_metadata=document.document_metadata,
-            tags=document.document_metadata.get('tags', []) if document.document_metadata else []
+            tags=document.document_metadata.get('tags', []) if document.document_metadata else [],
+            access_count=document.access_count or 0
         )
 
     except HTTPException:
@@ -286,7 +358,7 @@ async def get_document_chunks(
         doc_result = await db.execute(
             select(Document).where(
                 Document.id == document_id,
-                Document.user_id == current_user.id
+                Document.uploaded_by_id == current_user.id
             )
         )
         document = doc_result.scalar_one_or_none()
@@ -327,6 +399,63 @@ async def get_document_chunks(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/{document_id}/content", response_model=DocumentContentResponse)
+async def get_document_content(
+    document_id: int,
+    db: AsyncSession = Depends(get_async_db)
+):
+    """Get document content (processed markdown)"""
+    try:
+        # Get document by ID (no ownership verification for admin interface)
+        doc_result = await db.execute(
+            select(Document).where(Document.id == document_id)
+        )
+        document = doc_result.scalar_one_or_none()
+
+        if not document:
+            raise HTTPException(status_code=404, detail="Document not found")
+
+        # Use markdown_content if available, otherwise reconstruct from chunks
+        content = document.markdown_content or ""
+
+        if not content:
+            # Fallback: reconstruct content from chunks
+            chunks_result = await db.execute(
+                select(DocumentChunk)
+                .where(DocumentChunk.document_id == document_id)
+                .order_by(DocumentChunk.chunk_index)
+            )
+            chunks = chunks_result.scalars().all()
+
+            # Reconstruct content from chunks
+            content_parts = []
+            for chunk in chunks:
+                if chunk.content:
+                    content_parts.append(chunk.content.strip())
+
+            content = "\n\n".join(content_parts)
+
+        # Count chunks
+        chunks_count_result = await db.execute(
+            select(func.count()).select_from(DocumentChunk)
+            .where(DocumentChunk.document_id == document_id)
+        )
+        chunks_count = chunks_count_result.scalar() or 0
+
+        return DocumentContentResponse(
+            title=document.title,
+            content=content,
+            metadata=document.document_metadata,
+            chunks_count=chunks_count
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Get content error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.delete("/{document_id}", response_model=DeleteDocumentResponse)
 async def delete_document(
     document_id: int,
@@ -335,12 +464,9 @@ async def delete_document(
 ):
     """Delete a document and all associated data"""
     try:
-        # Get document
+        # Get document by ID (no ownership verification for admin interface)
         result = await db.execute(
-            select(Document).where(
-                Document.id == document_id,
-                Document.user_id == current_user.id
-            )
+            select(Document).where(Document.id == document_id)
         )
         document = result.scalar_one_or_none()
 
@@ -364,14 +490,44 @@ async def delete_document(
             delete(ProcessingJob).where(ProcessingJob.document_id == document_id)
         )
 
-        # Delete file from disk
+        # Delete files from disk - complete cleanup
         files_deleted = []
+
+        # 1. Remove original file
         if document.file_path and os.path.exists(document.file_path):
             try:
                 os.remove(document.file_path)
-                files_deleted.append(document.file_path)
+                files_deleted.append(f"Original: {document.file_path}")
+                logger.info(f"Original file removed: {document.file_path}")
             except Exception as e:
-                logger.warning(f"Failed to delete file {document.file_path}: {e}")
+                logger.warning(f"Failed to delete original file {document.file_path}: {e}")
+
+        # 2. Remove processed directory and files
+        processed_paths_to_try = [
+            document.processed_path,
+            f"/home/felipealbertuxd/knight-agent/backend/processed_documents/{document_id}/",
+            f"processed_documents/{document_id}/"
+        ]
+
+        for processed_path in processed_paths_to_try:
+            if not processed_path:
+                continue
+
+            try:
+                # If it's a file, get parent directory
+                if processed_path.endswith('.md'):
+                    processed_dir = os.path.dirname(processed_path)
+                else:
+                    processed_dir = processed_path
+
+                if os.path.exists(processed_dir):
+                    shutil.rmtree(processed_dir)
+                    files_deleted.append(f"Processed: {processed_dir}")
+                    logger.info(f"Processed directory removed: {processed_dir}")
+                    break
+
+            except Exception as e:
+                logger.warning(f"Failed to remove processed directory {processed_path}: {e}")
 
         # Delete document record
         await db.delete(document)
@@ -395,94 +551,18 @@ async def delete_document(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/stats", response_model=DocumentStatsResponse)
-async def get_document_stats(
-    db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Get document statistics for current user"""
-    try:
-        # Total documents
-        total_docs_result = await db.execute(
-            select(func.count()).select_from(Document)
-            .where(Document.user_id == current_user.id)
-        )
-        total_documents = total_docs_result.scalar()
-
-        # Total chunks
-        total_chunks_result = await db.execute(
-            select(func.count()).select_from(DocumentChunk)
-            .join(Document)
-            .where(Document.user_id == current_user.id)
-        )
-        total_chunks = total_chunks_result.scalar()
-
-        # Documents by status
-        status_result = await db.execute(
-            select(Document.status, func.count())
-            .where(Document.user_id == current_user.id)
-            .group_by(Document.status)
-        )
-        documents_by_status = dict(status_result.all())
-
-        # Documents by type
-        type_result = await db.execute(
-            select(Document.file_type, func.count())
-            .where(Document.user_id == current_user.id)
-            .group_by(Document.file_type)
-        )
-        documents_by_type = dict(type_result.all())
-
-        # Total size
-        size_result = await db.execute(
-            select(func.sum(Document.file_size))
-            .where(Document.user_id == current_user.id)
-        )
-        total_size = size_result.scalar() or 0
-
-        # Documents with errors
-        error_result = await db.execute(
-            select(func.count()).select_from(Document)
-            .where(
-                Document.user_id == current_user.id,
-                Document.status == 'error'
-            )
-        )
-        documents_with_errors = error_result.scalar()
-
-        # Average chunks per document
-        avg_chunks = total_chunks / total_documents if total_documents > 0 else 0
-
-        return DocumentStatsResponse(
-            total_documents=total_documents,
-            total_chunks=total_chunks,
-            documents_by_status=documents_by_status,
-            documents_by_type=documents_by_type,
-            total_size_bytes=total_size,
-            processing_jobs={},  # TODO: Add job stats
-            average_chunks_per_document=avg_chunks,
-            documents_with_errors=documents_with_errors
-        )
-
-    except Exception as e:
-        logger.error(f"Get stats error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/{document_id}/download")
 async def download_document(
     document_id: int,
-    db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user)
+    db: AsyncSession = Depends(get_async_db)
 ):
     """Download original document file"""
     try:
-        # Get document
+        # Get document by ID (no ownership verification for admin interface)
         result = await db.execute(
-            select(Document).where(
-                Document.id == document_id,
-                Document.user_id == current_user.id
-            )
+            select(Document).where(Document.id == document_id)
         )
         document = result.scalar_one_or_none()
 
@@ -494,7 +574,7 @@ async def download_document(
 
         return FileResponse(
             path=document.file_path,
-            filename=document.filename,
+            filename=document.original_filename,
             media_type='application/octet-stream'
         )
 
@@ -510,17 +590,13 @@ async def reprocess_document(
     document_id: int,
     background_tasks: BackgroundTasks,
     enable_ocr: bool = False,
-    db: AsyncSession = Depends(get_async_db),
-    current_user: User = Depends(get_current_user)
+    db: AsyncSession = Depends(get_async_db)
 ):
     """Reprocess a document"""
     try:
-        # Get document
+        # Get document by ID (no ownership verification for admin interface)
         result = await db.execute(
-            select(Document).where(
-                Document.id == document_id,
-                Document.user_id == current_user.id
-            )
+            select(Document).where(Document.id == document_id)
         )
         document = result.scalar_one_or_none()
 

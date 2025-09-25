@@ -1,0 +1,19 @@
+Teste de Documento para Knight Agent
+
+Este é um documento de teste para verificar o funcionamento do sistema de upload e processamento de documentos.
+
+Seção 1: Introdução
+O Knight Agent é um assistente corporativo com capacidades de RAG (Retrieval-Augmented Generation) que permite processar documentos e usar seu conteúdo como base de conhecimento.
+
+Seção 2: Funcionalidades
+- Upload de documentos em diversos formatos
+- Conversão automática para markdown usando Docling
+- Criação de chunks semânticos
+- Geração de embeddings para busca vetorial
+- Integração com pgvector e FAISS
+
+Seção 3: Processamento
+O processamento ocorre de forma assíncrona usando FastAPI background tasks, que substituem o Celery na nova arquitetura.
+
+Conclusão
+Este documento serve para testar todo o pipeline de processamento.

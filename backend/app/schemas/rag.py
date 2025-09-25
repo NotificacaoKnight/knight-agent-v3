@@ -45,10 +45,10 @@ class SearchResponse(BaseModel):
 class RAGQuery(BaseModel):
     """RAG query for answer generation"""
     query: str = Field(..., description="User question")
+    mode: str = Field("auto", description="Response mode: fast, deep, auto")
     context_size: int = Field(5, description="Number of context chunks to use")
     max_tokens: int = Field(1000, description="Maximum tokens in response")
     temperature: float = Field(0.7, description="Response temperature", ge=0.0, le=1.0)
-    use_agentic: bool = Field(True, description="Use agentic RAG")
     include_sources: bool = Field(True, description="Include source references")
     language: str = Field("pt", description="Response language (pt, en)")
     llm_provider: Optional[str] = Field(None, description="Specific LLM provider to use")
@@ -60,6 +60,8 @@ class RAGResponse(BaseModel):
     query: str
     answer: str
     sources: Optional[List[ChunkResult]] = None
+    mode: str = Field("fast", description="Mode used for generation")
+    search_attempts: int = Field(1, description="Number of search attempts made")
     llm_provider: str
     response_time_ms: int
     tokens_used: Optional[int] = None

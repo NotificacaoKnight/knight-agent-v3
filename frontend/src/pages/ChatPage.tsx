@@ -4,9 +4,8 @@ import { MainLayout } from '../components/MainLayout';
 import { useAuth } from '../context/AuthContext';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { onChatSessionDeleted } from '../utils/events';
-import { 
-  ArrowUp, 
-  User, 
+import {
+  ArrowUp,
   Loader2,
   Mic,
   Square,
@@ -14,7 +13,10 @@ import {
   Link,
   Download,
   FileText,
-  ExternalLink
+  ExternalLink,
+  Rocket,
+  Brain,
+  Zap
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { chatApi } from '../services/api';
@@ -65,6 +67,7 @@ export const ChatPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(urlSessionId || null);
+  const [responseMode, setResponseMode] = useState<'fast' | 'deep' | 'auto'>('auto');
   const pendingRequestRef = useRef<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
@@ -192,19 +195,24 @@ export const ChatPage: React.FC = () => {
 
   // Reset processing state when navigating to new conversation
   useEffect(() => {
-    if (!urlSessionId) {
-      console.log('Resetting isProcessingMessage because no urlSessionId');
+    let isActive = true;
+
+    if (!urlSessionId && isActive) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Resetting isProcessingMessage because no urlSessionId');
+      }
       setIsProcessingMessage(false);
     }
+
+    return () => { isActive = false; };
   }, [urlSessionId, setIsProcessingMessage]);
 
-  // Additional reset when component mounts or URL changes
+  // Cleanup on unmount only
   useEffect(() => {
     return () => {
-      // Cleanup on unmount
       setIsProcessingMessage(false);
     };
-  }, [setIsProcessingMessage]);
+  }, []); // Remove setIsProcessingMessage from deps to avoid unnecessary re-runs
 
 
   // Load session history when sessionId from URL changes
@@ -299,6 +307,7 @@ export const ChatPage: React.FC = () => {
         session_id: sessionId || undefined,
         audio_file: audioBlob || undefined,
         content_type: audioBlob ? 'audio' : 'text',
+        mode: responseMode,
       });
 
       // Check if this request is still valid (user hasn't switched sessions)
@@ -555,21 +564,14 @@ export const ChatPage: React.FC = () => {
                       message.type === 'user' ? 'flex-row-reverse' : 'flex-row'
                     }`}
                   >
-                    <div
-                      className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
-                        message.type === 'user'
-                          ? 'bg-primary text-primary-foreground ml-2'
-                          : 'bg-muted text-muted-foreground mr-2'
-                      }`}
-                    >
-                      {message.type === 'user' ? (
-                        <User className="h-4 w-4" />
-                      ) : (
+                    {/* Avatar apenas para assistente */}
+                    {message.type !== 'user' && (
+                      <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-muted text-muted-foreground mr-2">
                         <span className="text-sm">
                           {message.agent_emoji || '🤖'}
                         </span>
-                      )}
-                    </div>
+                      </div>
+                    )}
                     <div
                       className={`px-4 py-2 rounded-lg ${
                         message.type === 'user'
@@ -695,7 +697,14 @@ export const ChatPage: React.FC = () => {
                     <span className="text-sm">🤖</span>
                   </div>
                   <div className="px-4 py-2 rounded-lg bg-card text-card-foreground border border-border">
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                    {responseMode === 'deep' ? (
+                      <div className="flex items-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span className="text-xs text-muted-foreground">Analisando profundamente...</span>
+                      </div>
+                    ) : (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    )}
                   </div>
                 </div>
               </div>
@@ -714,13 +723,15 @@ export const ChatPage: React.FC = () => {
                 <div className="flex items-center space-x-2">
                   <Loader2 className="h-4 w-4 animate-spin text-yellow-600 dark:text-yellow-400" />
                   <span className="text-sm text-yellow-800 dark:text-yellow-200">
-                    Aguardando resposta da IA... Evite alternar conversas para não perder a resposta.
+                    {responseMode === 'deep'
+                      ? '🧠 Analisando profundamente... Isso pode levar alguns segundos.'
+                      : 'Aguardando resposta da IA... Evite alternar conversas para não perder a resposta.'}
                   </span>
                 </div>
               </div>
             </div>
           )}
-          
+
           <div className="max-w-4xl mx-auto">
             <div className={`relative border border-border rounded-lg bg-secondary focus-within:border-ring transition-colors ${
               isLoading ? 'opacity-60 pointer-events-none' : ''
@@ -783,9 +794,10 @@ export const ChatPage: React.FC = () => {
                 />
               </div>
               
-              {/* Bottom section - Audio button and send button */}
+              {/* Bottom section - Audio button, mode buttons and send button */}
               <div className="flex items-center justify-between px-4 py-3">
                 <div className="flex items-center space-x-2">
+                  {/* Audio button */}
                   <button
                     onClick={isRecording ? stopRecording : startRecording}
                     disabled={isLoading}
@@ -803,18 +815,61 @@ export const ChatPage: React.FC = () => {
                     )}
                   </button>
                 </div>
-                
-                <button
-                  onClick={handleSendMessage}
-                  disabled={(!inputMessage.trim() && !audioBlob) || isLoading || isRecording}
-                  className={`w-8 h-8 rounded-lg transition-all duration-200 flex items-center justify-center ${
-                    (!inputMessage.trim() && !audioBlob) || isLoading || isRecording
-                      ? 'bg-knight-secondary/30 text-knight-secondary/50 cursor-not-allowed shadow-sm'
-                      : 'bg-knight-secondary text-gray-700 hover:bg-knight-secondary/90 hover:scale-105 active:scale-95 shadow-[0_0_20px_rgba(255,166,0,0.4)]'
-                  }`}
-                >
-                  <ArrowUp className="h-4 w-4" />
-                </button>
+
+                <div className="flex items-center space-x-2">
+                  {/* Mode buttons */}
+                  <button
+                    onClick={() => setResponseMode('fast')}
+                    disabled={isLoading}
+                    className={`w-8 h-8 rounded-lg transition-all duration-200 flex items-center justify-center ${
+                      responseMode === 'fast'
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground'
+                    }`}
+                    title="Resposta rápida (~2s)"
+                  >
+                    <Rocket className="h-4 w-4" />
+                  </button>
+
+                  <button
+                    onClick={() => setResponseMode('deep')}
+                    disabled={isLoading}
+                    className={`w-8 h-8 rounded-lg transition-all duration-200 flex items-center justify-center ${
+                      responseMode === 'deep'
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground'
+                    }`}
+                    title="Análise profunda (~5-10s)"
+                  >
+                    <Brain className="h-4 w-4" />
+                  </button>
+
+                  <button
+                    onClick={() => setResponseMode('auto')}
+                    disabled={isLoading}
+                    className={`w-8 h-8 rounded-lg transition-all duration-200 flex items-center justify-center ${
+                      responseMode === 'auto'
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground'
+                    }`}
+                    title="Detecção automática"
+                  >
+                    <Zap className="h-4 w-4" />
+                  </button>
+
+                  {/* Send button */}
+                  <button
+                    onClick={handleSendMessage}
+                    disabled={(!inputMessage.trim() && !audioBlob) || isLoading || isRecording}
+                    className={`w-8 h-8 rounded-lg transition-all duration-200 flex items-center justify-center ${
+                      (!inputMessage.trim() && !audioBlob) || isLoading || isRecording
+                        ? 'bg-knight-secondary/30 text-knight-secondary/50 cursor-not-allowed shadow-sm'
+                        : 'bg-knight-secondary text-gray-700 hover:bg-knight-secondary/90 hover:scale-105 active:scale-95 shadow-[0_0_20px_rgba(255,166,0,0.4)]'
+                    }`}
+                  >
+                    <ArrowUp className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
             </div>
           </div>

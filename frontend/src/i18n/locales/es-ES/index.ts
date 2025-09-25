@@ -455,7 +455,9 @@ const sidebar = {
   information: 'Información',
   recent_documents: 'Documentos Recientes',
   no_documents: 'Ningún documento cargado',
-  statistics: 'Estadísticas'
+  statistics: 'Estadísticas',
+  message_singular: 'mensaje',
+  message_plural: 'mensajes'
 };
 
 const translations = {

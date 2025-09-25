@@ -15,6 +15,7 @@ interface Column<T> {
   header: string | ((props: any) => React.ReactNode);
   cell?: (props: { row: { original: T; getValue: (key: string) => any } }) => React.ReactNode;
   id?: string;
+  className?: string;
 }
 
 interface DataTableProps<TData> {
@@ -144,7 +145,7 @@ export function DataTable<TData extends Record<string, any>>({
                 const sortDirection = isSorted && sortConfig ? sortConfig.direction : null;
                 
                 return (
-                  <TableHead key={column.id || index} className="text-left">
+                  <TableHead key={column.id || index} className={`text-left ${column.className || ''}`}>
                     {typeof column.header === 'function' ? (
                       column.header({ column: { toggleSorting: () => column.accessorKey && handleSort(column.accessorKey) } })
                     ) : column.accessorKey ? (
@@ -181,7 +182,7 @@ export function DataTable<TData extends Record<string, any>>({
                     {columns.map((column, colIndex) => {
                       const columnKey = column.id || column.accessorKey || colIndex;
                       return (
-                        <TableCell key={`cell-${columnKey}-${colIndex}`}>
+                        <TableCell key={`cell-${columnKey}-${colIndex}`} className={column.className}>
                           {column.cell ? (
                             column.cell({
                               row: {

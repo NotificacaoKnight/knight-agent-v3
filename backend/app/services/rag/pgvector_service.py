@@ -222,9 +222,9 @@ class PgVectorSearchService:
                 await db.execute(
                     text(
                         "UPDATE documents SET access_count = access_count + 1 "
-                        "WHERE id IN :doc_ids"
+                        "WHERE id = ANY(:doc_ids)"
                     ),
-                    {"doc_ids": tuple(doc_ids)}
+                    {"doc_ids": doc_ids}
                 )
                 await db.commit()
 

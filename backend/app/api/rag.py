@@ -115,16 +115,12 @@ async def generate_answer(
     - **llm_provider**: Specific LLM provider to use
     """
     try:
-        logger.info(f"Generate request: query='{query.query}', context_size={query.context_size}")
+        logger.info(f"Generate request: query='{query.query}', mode={query.mode}, context_size={query.context_size}")
 
-        # Check if we should use agentic RAG
-        if query.use_agentic:
-            # TODO: Implement agentic RAG with LangGraph
-            logger.warning("Agentic RAG not yet implemented, falling back to standard generation")
-
-        # Generate answer
+        # Generate answer with unified service
         result = await rag_service.generate_answer(
             query=query.query,
+            mode=query.mode,
             context_size=query.context_size,
             max_tokens=query.max_tokens,
             temperature=query.temperature,
@@ -157,6 +153,8 @@ async def generate_answer(
             query=result['query'],
             answer=result['answer'],
             sources=sources,
+            mode=result.get('mode', 'fast'),
+            search_attempts=result.get('search_attempts', 1),
             llm_provider=result.get('llm_provider', 'unknown'),
             response_time_ms=result['response_time_ms'],
             tokens_used=result.get('tokens_used'),
@@ -168,82 +166,9 @@ async def generate_answer(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/agentic", response_model=AgenticRAGResponse)
-async def agentic_generate(
-    query: AgenticRAGQuery,
-    db: AsyncSession = Depends(get_async_db),
-    current_user: Optional[User] = Depends(get_optional_current_user)
-):
-    """
-    Generate answer using Agentic RAG with LangGraph
-
-    Advanced RAG with multi-step reasoning, search refinement, and quality evaluation
-    """
-    try:
-        logger.info(f"Agentic RAG request: query='{query.query}'")
-
-        # Import agentic service
-        from app.services.rag.agentic_rag_service import agentic_rag_service
-
-        # Execute agentic RAG
-        result = await agentic_rag_service.search(
-            query=query.query,
-            k=query.max_documents,
-            language="pt",
-            chat_history=[]
-        )
-
-        # Convert sources to ChunkResult
-        sources = []
-        for s in result.get('sources', []):
-            source = ChunkResult(
-                chunk_id=s.get('chunk_id', 0),
-                document_id=s.get('document_id', 0),
-                document_title=s.get('document_title'),
-                content=s.get('content', ''),
-                chunk_index=s.get('chunk_index', 0),
-                similarity=s.get('similarity'),
-                score=s.get('score')
-            )
-            sources.append(source)
-
-        # Import multi-agent service for advanced features
-        if query.enable_multi_agent:
-            from app.services.rag.multi_agent_service import multi_agent_service
-
-            multi_result = await multi_agent_service.process_query(
-                query=query.query,
-                force_mode="complete" if query.agent_type else None,
-                user_language="pt"
-            )
-
-            agent_used = multi_result.get("agent", query.agent_type)
-            reasoning_steps = multi_result.get("execution_path", [])
-        else:
-            agent_used = query.agent_type
-            reasoning_steps = []
-
-        return AgenticRAGResponse(
-            success=result['success'],
-            query=result['query'],
-            answer=result['answer'],
-            sources=sources,
-            search_refinements=result.get('search_refinements', 0),
-            quality_score=result.get('quality_score', 0.0),
-            agent_used=agent_used,
-            useful_links=[],  # TODO: Add knowledge resources
-            downloadable_documents=[],  # TODO: Add knowledge resources
-            reasoning_steps=reasoning_steps,
-            llm_provider=result.get('llm_provider', 'unknown'),
-            response_time_ms=result['response_time_ms'],
-            metadata=result.get('metadata', {})
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Agentic RAG error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+# Removed agentic endpoint - use /generate with mode="deep" instead
+# The agentic functionality is now integrated in the main generate endpoint
+# Use mode="deep" for multi-step reasoning with refinement
 
 
 @router.get("/stats", response_model=VectorStatsResponse)

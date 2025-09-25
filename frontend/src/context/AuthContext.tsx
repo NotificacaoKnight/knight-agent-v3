@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { PublicClientApplication, Configuration } from '@azure/msal-browser';
 import api from '../services/api';
+import { useLanguage } from '../i18n/hooks/useLanguage';
 
 // MSAL instance will be initialized after fetching config from backend
 let msalInstance: PublicClientApplication | null = null;
@@ -119,6 +120,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const isInitialized = useRef(false);
+
+  // Language management
+  const { changeLanguage, saveUserPreference } = useLanguage();
 
   const fetchUserProfile = useCallback(async () => {
     console.log('🔍 Buscando perfil do usuário...');
@@ -254,6 +258,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               preferred_language: backendResponse.data.user.preferred_language,
             });
 
+            // Preserve language chosen during login
+            const localLanguage = localStorage.getItem('knight-language');
+            if (localLanguage && localLanguage !== backendResponse.data.user.preferred_language) {
+              console.log('🌐 Applying local language preference after login:', localLanguage);
+              await changeLanguage(localLanguage);
+              await saveUserPreference(localLanguage);
+            }
+
             // Limpar URL após processar o código e redirecionar para página principal
             window.history.replaceState({}, document.title, '/');
 
@@ -332,6 +344,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 preferred_language: backendResponse.data.user.preferred_language,
               });
 
+              // Preserve language chosen during login (silent login)
+              const localLanguage = localStorage.getItem('knight-language');
+              if (localLanguage && localLanguage !== backendResponse.data.user.preferred_language) {
+                console.log('🌐 Applying local language preference after silent login:', localLanguage);
+                await changeLanguage(localLanguage);
+                await saveUserPreference(localLanguage);
+              }
+
               // Limpar URL se houver parâmetros de auth
               if (window.location.search || window.location.hash) {
                 window.history.replaceState({}, document.title, window.location.pathname);
@@ -377,6 +397,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 preferred_language: backendResponse.data.user.preferred_language,
               });
 
+              // Preserve language chosen during login (retry login)
+              const localLanguage = localStorage.getItem('knight-language');
+              if (localLanguage && localLanguage !== backendResponse.data.user.preferred_language) {
+                console.log('🌐 Applying local language preference after retry login:', localLanguage);
+                await changeLanguage(localLanguage);
+                await saveUserPreference(localLanguage);
+              }
+
               window.history.replaceState({}, document.title, '/');
               console.log('✅ Login via retry completo!');
               setIsLoading(false);
@@ -408,7 +436,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
 
     initializeAuth();
-  }, [fetchUserProfile]); // Incluir fetchUserProfile na dependência
+  }, [fetchUserProfile, changeLanguage, saveUserPreference]); // Include all dependencies
 
   const login = useCallback(async () => {
     console.log('🔐 Iniciando login...');

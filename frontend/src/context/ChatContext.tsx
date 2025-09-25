@@ -18,8 +18,15 @@ interface ChatProviderProps {
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   const [isProcessingMessage, setIsProcessingMessage] = useState(false);
   const [chatSessions, setChatSessions] = useState<any[]>([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const refreshChatSessions = useCallback(async () => {
+    // Prevent duplicate calls
+    if (isRefreshing) {
+      return;
+    }
+
+    setIsRefreshing(true);
     try {
       const response = await chatApi.getSessions();
       const sessions = response.sessions;
@@ -32,8 +39,10 @@ export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
 
       // Don't show error to user for chat sessions - just fail silently
       // This prevents UI disruption when authentication is in progress
+    } finally {
+      setIsRefreshing(false);
     }
-  }, []);
+  }, [isRefreshing]);
 
   const setIsProcessingMessageWithLog = useCallback((value: boolean) => {
     setIsProcessingMessage(value);

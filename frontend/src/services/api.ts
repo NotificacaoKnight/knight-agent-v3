@@ -90,7 +90,7 @@ export interface ChatSession {
   title: string;
   message_count: number;
   created_at: string;
-  last_message_at: string;
+  last_message_at?: string;
   is_active: boolean;
 }
 
@@ -99,6 +99,7 @@ export interface SendMessageRequest {
   session_id?: string;
   audio_file?: Blob;
   content_type?: 'text' | 'audio';
+  mode?: 'fast' | 'deep' | 'auto';  // Response mode
 }
 
 export interface SendMessageResponse {
@@ -136,7 +137,8 @@ export const chatApi = {
       query: data.message,  // backend espera 'query', não 'message'
       session_id: data.session_id ? parseInt(data.session_id) : null,  // converter para number
       use_rag: true,
-      use_agentic: false,
+      use_agentic: data.mode === 'deep',  // Use agentic for deep mode
+      mode: data.mode || 'auto',  // Pass mode to backend
       stream: false,
       language: 'pt',
       max_tokens: 1000,
@@ -149,7 +151,8 @@ export const chatApi = {
       formData.append('query', data.message);  // usar 'query' em vez de 'message'
       formData.append('session_id', data.session_id || '');
       formData.append('use_rag', 'true');
-      formData.append('use_agentic', 'false');
+      formData.append('use_agentic', String(data.mode === 'deep'));
+      formData.append('mode', data.mode || 'auto');
       formData.append('language', 'pt');
       formData.append('audio_file', data.audio_file);
 

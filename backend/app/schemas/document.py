@@ -33,6 +33,9 @@ class DocumentResponse(BaseModel):
     error_message: Optional[str] = None
     document_metadata: Optional[Dict[str, Any]] = None
     tags: List[str] = []
+    access_count: int = 0
+    uploaded_by_name: Optional[str] = None
+    uploaded_by_email: Optional[str] = None
 
 
 class DocumentListResponse(BaseModel):
@@ -72,13 +75,12 @@ class ProcessingJobResponse(BaseModel):
 class DocumentStatsResponse(BaseModel):
     """Document statistics response"""
     total_documents: int
+    processed_documents: int
+    pending_documents: int
+    processing_documents: int
+    error_documents: int
+    downloadable_documents: int
     total_chunks: int
-    documents_by_status: Dict[str, int]
-    documents_by_type: Dict[str, int]
-    total_size_bytes: int
-    processing_jobs: Dict[str, int]
-    average_chunks_per_document: float
-    documents_with_errors: int
 
 
 class DeleteDocumentResponse(BaseModel):
@@ -88,3 +90,11 @@ class DeleteDocumentResponse(BaseModel):
     document_id: int
     chunks_deleted: int
     files_deleted: List[str]
+
+
+class DocumentContentResponse(BaseModel):
+    """Document content response"""
+    title: str
+    content: str
+    metadata: Optional[Dict[str, Any]] = None
+    chunks_count: int

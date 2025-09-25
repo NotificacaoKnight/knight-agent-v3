@@ -34,10 +34,9 @@ class BackgroundTaskManager:
         self.chunking_service = ChunkingService()
         self.embedding_service = get_embedding_service()
 
-    async def get_db_session(self) -> AsyncSession:
-        """Get async database session"""
-        async for session in get_async_db():
-            return session
+    def get_db_session(self):
+        """Get async database session generator"""
+        return get_async_db()
 
 
 async def process_document_async(
@@ -57,7 +56,7 @@ async def process_document_async(
     manager = BackgroundTaskManager()
 
     try:
-        async with manager.get_db_session() as db:
+        async for db in manager.get_db_session():
             # Get document
             result = await db.execute(
                 select(Document).where(Document.id == document_id)
@@ -69,14 +68,19 @@ async def process_document_async(
 
             logger.info(f"🔄 Starting processing for document {document_id}")
 
-            # Update processing status
+            # Update document status
+            document.status = 'processing'
+            document.processing_started_at = datetime.utcnow()
+            document.error_message = None
+            await db.commit()
+
+            # Update processing job status
             await db.execute(
                 update(ProcessingJob)
                 .where(ProcessingJob.document_id == document_id)
                 .values(
                     status="processing",
-                    started_at=datetime.utcnow(),
-                    updated_at=datetime.utcnow()
+                    started_at=datetime.utcnow()
                 )
             )
             await db.commit()
@@ -102,26 +106,35 @@ async def process_document_async(
                 chunks
             )
 
-            # Update completion status
+            # Update document status
+            document.status = 'processed'
+            document.processing_completed_at = datetime.utcnow()
+            document.chunk_count = len(chunks)
+            document.markdown_content = markdown_content  # Save the markdown content
+            document.document_metadata = document.document_metadata or {}
+            document.document_metadata['embeddings_count'] = embeddings_results.get("embeddings_count", 0)
+            await db.commit()
+
+            # Update processing job status
             await db.execute(
                 update(ProcessingJob)
                 .where(ProcessingJob.document_id == document_id)
                 .values(
                     status="completed",
                     completed_at=datetime.utcnow(),
-                    updated_at=datetime.utcnow(),
                     result={
                         "chunks_count": len(chunks),
                         "embeddings_count": embeddings_results.get("embeddings_count", 0),
-                        "processing_time": str(datetime.utcnow() - document.created_at)
+                        "processing_time": str(datetime.utcnow() - document.uploaded_at)
                     }
                 )
             )
             await db.commit()
 
             logger.info(f"✅ Document {document_id} processed successfully")
+            break  # Exit the async for loop
 
-            return {
+        return {
                 "status": "success",
                 "document_id": document_id,
                 "chunks_created": len(chunks),
@@ -133,18 +146,30 @@ async def process_document_async(
 
         # Update error status
         try:
-            async with manager.get_db_session() as db:
+            async for db in manager.get_db_session():
+                # Update document status
+                result = await db.execute(
+                    select(Document).where(Document.id == document_id)
+                )
+                document = result.scalar_one_or_none()
+                if document:
+                    document.status = 'error'
+                    document.error_message = str(e)
+                    document.processing_completed_at = datetime.utcnow()
+                    await db.commit()
+
+                # Update job status
                 await db.execute(
                     update(ProcessingJob)
                     .where(ProcessingJob.document_id == document_id)
                     .values(
                         status="failed",
                         completed_at=datetime.utcnow(),
-                        updated_at=datetime.utcnow(),
                         error_message=str(e)
                     )
                 )
                 await db.commit()
+                break  # Exit the async for loop
         except Exception as update_error:
             logger.error(f"Failed to update error status: {update_error}")
 
@@ -180,7 +205,7 @@ async def generate_embeddings_async(
         # Generate embeddings
         embeddings = await manager.embedding_service.generate_embeddings_async(texts)
 
-        async with manager.get_db_session() as db:
+        async for db in manager.get_db_session():
             chunks_created = 0
 
             for i, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
@@ -188,10 +213,12 @@ async def generate_embeddings_async(
                 chunk_obj = DocumentChunk(
                     document_id=document_id,
                     chunk_index=i,
-                    text=chunk["text"],
+                    content=chunk["text"],
                     embedding=embedding.tolist() if hasattr(embedding, 'tolist') else embedding,
-                    metadata=chunk.get("metadata", {}),
-                    created_at=datetime.utcnow()
+                    chunk_size=len(chunk["text"]),
+                    page_number=chunk.get("page_number"),
+                    section_title=chunk.get("section_title"),
+                    embedding_json=chunk.get("metadata", {})  # Store metadata in embedding_json
                 )
 
                 db.add(chunk_obj)
@@ -200,8 +227,9 @@ async def generate_embeddings_async(
             await db.commit()
 
             logger.info(f"✅ Created {chunks_created} chunks with embeddings")
+            break  # Exit the async for loop
 
-            return {
+        return {
                 "status": "success",
                 "embeddings_count": chunks_created,
                 "document_id": document_id
@@ -235,7 +263,7 @@ async def chunk_document_async(
     manager = BackgroundTaskManager()
 
     try:
-        async with manager.get_db_session() as db:
+        async for db in manager.get_db_session():
             # Get document
             result = await db.execute(
                 select(Document).where(Document.id == document_id)
@@ -261,8 +289,9 @@ async def chunk_document_async(
             )
 
             logger.info(f"✅ Created {len(chunks)} chunks for document {document_id}")
+            break  # Exit the async for loop
 
-            return {
+        return {
                 "status": "success",
                 "document_id": document_id,
                 "chunks_count": len(chunks),
@@ -293,7 +322,7 @@ async def cleanup_expired_downloads_async() -> Dict[str, Any]:
         # Calculate expiry date (7 days ago)
         expiry_date = datetime.utcnow() - timedelta(days=7)
 
-        async with manager.get_db_session() as db:
+        async for db in manager.get_db_session():
             # Get expired records
             result = await db.execute(
                 select(DownloadRecord).where(DownloadRecord.created_at < expiry_date)
@@ -317,8 +346,9 @@ async def cleanup_expired_downloads_async() -> Dict[str, Any]:
             await db.commit()
 
             logger.info(f"✅ Cleaned up {cleaned_count} expired download records")
+            break  # Exit the async for loop
 
-            return {
+        return {
                 "status": "success",
                 "cleaned_count": cleaned_count
             }

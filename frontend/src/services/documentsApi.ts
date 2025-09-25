@@ -4,15 +4,22 @@ import api from './api';
 interface Document {
   id: number;
   title: string;
-  original_filename: string;
+  filename: string;
   file_type: string;
   file_size: number;
   status: 'pending' | 'processing' | 'processed' | 'error';
-  processing_error?: string;
-  uploaded_at: string;
-  processed_at?: string;
+  error_message?: string;
+  created_at: string;
+  updated_at: string;
+  processing_started_at?: string;
+  processing_completed_at?: string;
+  page_count?: number;
+  chunk_count?: number;
+  document_metadata?: any;
+  tags: string[];
   access_count: number;
-  is_downloadable: boolean;
+  uploaded_by_name?: string;
+  uploaded_by_email?: string;
 }
 
 interface DocumentStats {
@@ -42,6 +49,10 @@ export const documentsApi = {
   // Listar documentos
   list: async (): Promise<Document[]> => {
     const response = await api.get('/documents');
+    // Se a resposta tem documents (FastAPI), retornar documents
+    if (response.data && response.data.documents) {
+      return response.data.documents;
+    }
     // Se a resposta tem paginação (DRF), retornar apenas os results
     if (response.data && response.data.results) {
       return response.data.results;

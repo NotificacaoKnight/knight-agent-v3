@@ -362,3 +362,57 @@ class ChunkingService:
         self.text_splitter.chunk_overlap = original_overlap
 
         return chunks
+
+    async def chunk_text_async(
+        self,
+        text: str,
+        chunk_size: Optional[int] = None,
+        chunk_overlap: Optional[int] = None,
+        document_id: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Async wrapper for text chunking
+        Returns list of dicts for use in background tasks
+
+        Args:
+            text: Text to chunk
+            chunk_size: Size of chunks (optional)
+            chunk_overlap: Overlap between chunks (optional)
+            document_id: ID of the document being chunked
+
+        Returns:
+            List of chunk dictionaries
+        """
+        import asyncio
+
+        # Update chunking parameters if provided
+        if chunk_size:
+            self.chunk_size = chunk_size
+            self.text_splitter.chunk_size = chunk_size
+        if chunk_overlap:
+            self.chunk_overlap = chunk_overlap
+            self.text_splitter.chunk_overlap = chunk_overlap
+
+        # Run the sync method in a thread pool
+        loop = asyncio.get_event_loop()
+        chunks = await loop.run_in_executor(
+            None,
+            self.chunk_text,
+            text,
+            {"document_id": document_id} if document_id else None
+        )
+
+        # Convert Chunk objects to dicts for serialization
+        return [
+            {
+                "text": chunk.content,
+                "chunk_index": chunk.chunk_index,
+                "chunk_size": chunk.chunk_size,
+                "start_position": chunk.start_position,
+                "end_position": chunk.end_position,
+                "page_number": chunk.page_number,
+                "section_title": chunk.section_title,
+                "metadata": chunk.metadata or {}
+            }
+            for chunk in chunks
+        ]

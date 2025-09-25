@@ -23,28 +23,42 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { documentsApi } from '../services/documentsApi';
-import { knowledgeResourcesApi, UsefulLink, DownloadableDocument } from '../services/knowledgeResourcesApi';
+import { knowledgeResourcesApi, UsefulLink, DownloadableDocument, ResourceCategory, categoriesApi } from '../services/knowledgeResourcesApi';
 import { DataTable } from '../components/DataTable';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { Card } from '../components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Input } from '../components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../components/ui/select';
 import { PopularityRankingBadge } from '../components/PopularityRankingBadge';
 
 // Tipos
 interface Document {
   id: number;
   title: string;
-  original_filename: string;
+  filename: string;
   file_type: string;
   file_size: number;
   status: 'pending' | 'processing' | 'processed' | 'error';
-  processing_error?: string;
-  uploaded_at: string;
-  processed_at?: string;
+  error_message?: string;
+  created_at: string;
+  updated_at: string;
+  processing_started_at?: string;
+  processing_completed_at?: string;
+  page_count?: number;
+  chunk_count?: number;
+  document_metadata?: any;
+  tags: string[];
   access_count: number;
-  is_downloadable: boolean;
+  uploaded_by_name?: string;
+  uploaded_by_email?: string;
 }
 
 interface DocumentStats {
@@ -78,7 +92,7 @@ export const DocumentsPage: React.FC = () => {
   const [linkDescription, setLinkDescription] = useState('');
   const [linkAiGuidance, setLinkAiGuidance] = useState('');
   const [linkCategory, setLinkCategory] = useState('');
-  
+
   // States para Documentos Baixáveis
   const [downloadableDocDialogOpen, setDownloadableDocDialogOpen] = useState(false);
   const [editingDownloadableDoc, setEditingDownloadableDoc] = useState<DownloadableDocument | null>(null);
@@ -87,6 +101,10 @@ export const DocumentsPage: React.FC = () => {
   const [downloadableDocAiGuidance, setDownloadableDocAiGuidance] = useState('');
   const [downloadableDocCategory, setDownloadableDocCategory] = useState('');
   const [downloadableDocFile, setDownloadableDocFile] = useState<File | null>(null);
+
+  // State for new category creation
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [isCreatingCategory, setIsCreatingCategory] = useState(false);
 
   // Configuração dinâmica dos títulos baseado na aba ativa
   const getTabConfig = () => {
@@ -152,6 +170,12 @@ export const DocumentsPage: React.FC = () => {
   const { data: downloadableDocuments, isLoading: docsLoading, error: docsError } = useQuery<DownloadableDocument[]>({
     queryKey: ['downloadableDocuments'],
     queryFn: () => knowledgeResourcesApi.downloadableDocuments.list({ active: true }),
+  });
+
+  // Query for categories
+  const { data: categories = [], isLoading: categoriesLoading } = useQuery<ResourceCategory[]>({
+    queryKey: ['resourceCategories'],
+    queryFn: () => categoriesApi.list(true),
   });
 
   // Mutations
@@ -268,8 +292,15 @@ export const DocumentsPage: React.FC = () => {
   };
 
   const formatFileSize = (bytes: number) => {
-    const mb = bytes / (1024 * 1024);
-    return `${mb.toFixed(2)} MB`;
+    if (bytes < 1024) {
+      return `${bytes} bytes`;
+    } else if (bytes < 1024 * 1024) {
+      const kb = bytes / 1024;
+      return `${kb.toFixed(1)} KB`;
+    } else {
+      const mb = bytes / (1024 * 1024);
+      return `${mb.toFixed(2)} MB`;
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -473,6 +504,21 @@ export const DocumentsPage: React.FC = () => {
       cell: ({ row }: { row: { getValue: (key: string) => any } }) => getStatusBadge(row.getValue('status')),
     },
     {
+      accessorKey: 'uploaded_by_name',
+      header: 'Enviado por',
+      cell: ({ row }: { row: { original: Document } }) => {
+        const name = row.original.uploaded_by_name;
+        const email = row.original.uploaded_by_email;
+        if (!name && !email) return <span className="text-muted-foreground">-</span>;
+        return (
+          <div className="text-sm">
+            <div className="font-medium">{name || email?.split('@')[0]}</div>
+            {email && <div className="text-xs text-muted-foreground">{email}</div>}
+          </div>
+        );
+      },
+    },
+    {
       accessorKey: 'access_count',
       header: 'Popularidade',
       cell: ({ row }: { row: { original: Document } }) => {
@@ -486,10 +532,17 @@ export const DocumentsPage: React.FC = () => {
       },
     },
     {
-      accessorKey: 'uploaded_at',
+      accessorKey: 'created_at',
       header: 'Data Upload',
       cell: ({ row }: { row: { getValue: (key: string) => any } }) => (
-        <span className="text-sm">{formatDate(row.getValue('uploaded_at'))}</span>
+        <span className="text-sm">{formatDate(row.getValue('created_at'))}</span>
+      ),
+    },
+    {
+      accessorKey: 'updated_at',
+      header: 'Última Atualização',
+      cell: ({ row }: { row: { getValue: (key: string) => any } }) => (
+        <span className="text-sm">{formatDate(row.getValue('updated_at'))}</span>
       ),
     },
     {
@@ -519,8 +572,22 @@ export const DocumentsPage: React.FC = () => {
                 <Eye className="h-4 w-4" />
               </button>
             )}
-            <a
-              href={`${process.env.REACT_APP_API_URL}/api/documents/${doc.id}/download/`}
+            <button
+              onClick={async () => {
+                try {
+                  // Use direct window.open for file download with cookies
+                  const downloadUrl = `${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/documents/${doc.id}/download`;
+                  const link = document.createElement('a');
+                  link.href = downloadUrl;
+                  link.download = doc.filename || `document-${doc.id}`;
+                  link.target = '_blank';
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                } catch (error) {
+                  toast.error('Erro ao baixar documento');
+                }
+              }}
               title="Download"
               className="inline-flex items-center justify-center h-8 w-8 rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               style={{
@@ -536,7 +603,7 @@ export const DocumentsPage: React.FC = () => {
               }}
             >
               <Download className="h-4 w-4" />
-            </a>
+            </button>
             <button
               onClick={() => {
                 setSelectedDocument(doc);
@@ -569,14 +636,31 @@ export const DocumentsPage: React.FC = () => {
     {
       accessorKey: 'title',
       header: 'Link',
+      className: 'w-[300px] max-w-[300px]',
       cell: ({ row }: { row: { original: UsefulLink } }) => {
         const link = row.original;
+        const truncateUrl = (url: string, maxLength: number = 40) => {
+          if (url.length <= maxLength) return url;
+
+          // Try to show domain and some path
+          const urlParts = url.split('://');
+          if (urlParts.length > 1) {
+            const afterProtocol = urlParts[1];
+            if (afterProtocol.length > maxLength - 8) {
+              return `${urlParts[0]}://${afterProtocol.substring(0, maxLength - 8)}...`;
+            }
+          }
+          return url.substring(0, maxLength - 3) + '...';
+        };
+
         return (
-          <div className="space-y-1">
+          <div className="space-y-1 max-w-xs">
             <div className="font-medium">{link.title}</div>
             <div className="text-sm text-muted-foreground flex items-center gap-1">
-              <ExternalLink className="h-3 w-3" />
-              {link.url}
+              <ExternalLink className="h-3 w-3 flex-shrink-0" />
+              <span className="truncate" title={link.url}>
+                {truncateUrl(link.url, 35)}
+              </span>
             </div>
           </div>
         );
@@ -1445,13 +1529,42 @@ export const DocumentsPage: React.FC = () => {
                 <label className="block text-sm font-medium text-foreground mb-2">
                   Categoria
                 </label>
-                <Input
-                  type="text"
+                <Select
                   value={linkCategory}
-                  onChange={(e) => setLinkCategory(e.target.value)}
-                  placeholder="Ex: RH, TI, Compliance, Financeiro"
-                  className="w-full"
-                />
+                  onValueChange={setLinkCategory}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Selecione uma categoria" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map(category => (
+                      <SelectItem key={category.id} value={category.name}>
+                        {category.name}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value="__create_new__">
+                      <span className="text-muted-foreground">+ Criar nova categoria</span>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+
+                {linkCategory === '__create_new__' && (
+                  <div className="mt-2">
+                    <Input
+                      type="text"
+                      value={newCategoryName}
+                      onChange={(e) => setNewCategoryName(e.target.value)}
+                      placeholder="Digite o nome da nova categoria"
+                      className="w-full"
+                      onBlur={() => {
+                        if (newCategoryName.trim()) {
+                          setLinkCategory(newCategoryName.trim());
+                          setNewCategoryName('');
+                        }
+                      }}
+                    />
+                  </div>
+                )}
               </div>
 
               <div>
@@ -1552,13 +1665,42 @@ export const DocumentsPage: React.FC = () => {
                 <label className="block text-sm font-medium text-foreground mb-2">
                   Categoria
                 </label>
-                <Input
-                  type="text"
+                <Select
                   value={downloadableDocCategory}
-                  onChange={(e) => setDownloadableDocCategory(e.target.value)}
-                  placeholder="Ex: RH, Financeiro, Vendas, Operações"
-                  className="w-full"
-                />
+                  onValueChange={setDownloadableDocCategory}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Selecione uma categoria" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map(category => (
+                      <SelectItem key={category.id} value={category.name}>
+                        {category.name}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value="__create_new__">
+                      <span className="text-muted-foreground">+ Criar nova categoria</span>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+
+                {downloadableDocCategory === '__create_new__' && (
+                  <div className="mt-2">
+                    <Input
+                      type="text"
+                      value={newCategoryName}
+                      onChange={(e) => setNewCategoryName(e.target.value)}
+                      placeholder="Digite o nome da nova categoria"
+                      className="w-full"
+                      onBlur={() => {
+                        if (newCategoryName.trim()) {
+                          setDownloadableDocCategory(newCategoryName.trim());
+                          setNewCategoryName('');
+                        }
+                      }}
+                    />
+                  </div>
+                )}
               </div>
 
               <div>

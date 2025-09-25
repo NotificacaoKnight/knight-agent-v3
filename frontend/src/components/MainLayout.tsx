@@ -146,12 +146,33 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, title, subtitl
     { id: 'settings', label: 'Configurações', icon: Settings, path: '/settings' },
   ];
 
+  // Helper function to parse timestamps correctly
+  const parseTimestamp = (dateStr: string | undefined): Date => {
+    if (!dateStr) return new Date();
+
+    // Adiciona 'Z' se não tiver timezone (assume UTC)
+    const isoStr = dateStr.includes('Z') || dateStr.includes('+') || dateStr.includes('-', 10)
+      ? dateStr
+      : dateStr + 'Z';
+
+    const date = new Date(isoStr);
+
+    // Fallback para data atual se parsing falhar
+    return isNaN(date.getTime()) ? new Date() : date;
+  };
+
+  // Helper function to format message count using i18n translations
+  const formatMessageCount = (count: number): string => {
+    const key = count === 1 ? 'sidebar.message_singular' : 'sidebar.message_plural';
+    return `${count} ${t(key)}`;
+  };
+
   // Convert chat sessions to chat history format
   const chatHistory: ChatHistory[] = chatSessions.map(session => ({
     id: session.id,
     title: session.title || `Chat ${session.id}`,
-    timestamp: new Date(session.last_message_at || session.created_at),
-    preview: `${session.message_count} mensagens`
+    timestamp: parseTimestamp(session.last_message_at || session.created_at),
+    preview: formatMessageCount(session.message_count)
   }));
 
   const handleMenuClick = (path: string) => {
@@ -160,13 +181,42 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, title, subtitl
   };
 
   const formatTimeAgo = (date: Date) => {
-    const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
-    if (seconds < 60) return 'agora';
+    const now = new Date().getTime();
+    const then = date.getTime();
+    const seconds = Math.floor((now - then) / 1000);
+
+    // Use Intl.RelativeTimeFormat for language-responsive formatting
+    const rtf = new Intl.RelativeTimeFormat(navigator.language, {
+      numeric: 'auto',
+      style: 'short'
+    });
+
+    if (seconds < 60) {
+      return rtf.format(-seconds, 'second');
+    }
+
     const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes}min atrás`;
+    if (minutes < 60) {
+      return rtf.format(-minutes, 'minute');
+    }
+
     const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `${hours}h atrás`;
-    return `${Math.floor(hours / 24)}d atrás`;
+    if (hours < 24) {
+      return rtf.format(-hours, 'hour');
+    }
+
+    const days = Math.floor(hours / 24);
+    if (days < 7) {
+      return rtf.format(-days, 'day');
+    }
+
+    const weeks = Math.floor(days / 7);
+    if (weeks < 4) {
+      return rtf.format(-weeks, 'week');
+    }
+
+    const months = Math.floor(days / 30);
+    return rtf.format(-months, 'month');
   };
 
   return (
