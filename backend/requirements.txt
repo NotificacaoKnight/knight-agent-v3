@@ -85,3 +85,4 @@ babel
 # Additional FastAPI dependencies
 jinja2
 python-json-logger
+bleach
