@@ -9,7 +9,7 @@ import logging
 from typing import Optional, BinaryIO
 from pathlib import Path
 from fastapi import UploadFile, HTTPException
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.core.config import settings
 
@@ -83,7 +83,7 @@ class FileUploadService:
             user_dir.mkdir(exist_ok=True)
 
             # Generate unique filename
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
             original_name = Path(file.filename).stem
             extension = Path(file.filename).suffix
 
@@ -190,7 +190,7 @@ class FileUploadService:
         """
         try:
             deleted_count = 0
-            cutoff_time = datetime.now().timestamp() - (days * 86400)
+            cutoff_time = datetime.now(timezone.utc).timestamp() - (days * 86400)
 
             for file_path in self.upload_dir.rglob('*'):
                 if file_path.is_file():

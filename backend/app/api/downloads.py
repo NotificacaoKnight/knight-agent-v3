@@ -6,7 +6,7 @@ import os
 import uuid
 import logging
 from typing import Optional, List
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,6 +16,7 @@ from app.core.database import get_async_db
 from app.api.deps import get_current_user
 from app.models.user import User
 from app.models.downloads import DownloadRecord, DownloadSession
+from app.core.timezone_utils import utc_now
 from app.schemas.downloads import (
     DownloadRequestCreate,
     DownloadRecordResponse,
@@ -53,7 +54,7 @@ async def create_download_link(
         download_key = str(uuid.uuid4())
 
         # Calculate expiration
-        expires_at = datetime.utcnow() + timedelta(days=download_request.expires_in_days)
+        expires_at = utc_now() + timedelta(days=download_request.expires_in_days)
 
         # Create download record
         download = DownloadRecord(
@@ -85,7 +86,7 @@ async def create_download_link(
             created_at=download.created_at,
             expires_at=download.expires_at,
             download_count=download.download_count,
-            is_expired=download.expires_at < datetime.utcnow(),
+            is_expired=download.expires_at < utc_now(),
             is_active=download.is_active
         )
 
@@ -121,7 +122,7 @@ async def download_file(
             raise HTTPException(status_code=404, detail="Download link not found")
 
         # Check expiration
-        if download.expires_at < datetime.utcnow():
+        if download.expires_at < utc_now():
             download.is_active = False
             await db.commit()
             raise HTTPException(status_code=410, detail="Download link has expired")
@@ -176,7 +177,7 @@ async def list_downloads(
         if active_only:
             query = query.where(
                 DownloadRecord.is_active == True,
-                DownloadRecord.expires_at > datetime.utcnow()
+                DownloadRecord.expires_at > utc_now()
             )
 
         query = query.order_by(DownloadRecord.created_at.desc())
@@ -199,7 +200,7 @@ async def list_downloads(
                 created_at=dl.created_at,
                 expires_at=dl.expires_at,
                 download_count=dl.download_count,
-                is_expired=dl.expires_at < datetime.utcnow(),
+                is_expired=dl.expires_at < utc_now(),
                 is_active=dl.is_active
             ))
 
@@ -265,7 +266,7 @@ async def get_download_stats(
             .where(
                 DownloadRecord.created_by == current_user.id,
                 DownloadRecord.is_active == True,
-                DownloadRecord.expires_at > datetime.utcnow()
+                DownloadRecord.expires_at > utc_now()
             )
         )
         active_downloads = active_result.scalar()
@@ -326,7 +327,7 @@ async def cleanup_expired_downloads(
         # Find expired downloads
         result = await db.execute(
             select(DownloadRecord).where(
-                DownloadRecord.expires_at < datetime.utcnow(),
+                DownloadRecord.expires_at < utc_now(),
                 DownloadRecord.is_active == True
             )
         )

@@ -369,50 +369,77 @@ export const LLMManagement: React.FC = () => {
               <h4 className="text-md font-medium mb-3">{t('llmManagement.available_providers')}</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {providers.map((provider) => (
-                  <Card key={provider.key} className="p-3 border bg-gray-50 dark:bg-[#181818] shadow-sm">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
-                        <img 
-                          src={provider.icon} 
+                  <Card key={provider.key} className="p-4 border bg-gray-50 dark:bg-[#181818] hover:shadow-md transition-shadow duration-200">
+                    {/* Layout vertical com melhor hierarquia visual */}
+                    <div className="flex flex-col h-full space-y-4">
+                      {/* Topo: Logo + Nome (hierarquia primária) */}
+                      <div className="flex items-center justify-center space-x-3 pb-3 border-b">
+                        <img
+                          src={provider.icon}
                           alt={provider.name}
-                          className={`w-5 h-5 object-contain ${(provider.key === 'openai' || provider.key === 'groq') ? 'dark:invert' : ''}`}
+                          className={`w-8 h-8 object-contain ${(provider.key === 'openai' || provider.key === 'groq') ? 'dark:invert' : ''}`}
                           onError={(e) => {
                             // Fallback para ícone emoji quando imagem falhar
                             const target = e.target as HTMLImageElement;
-                            target.src = `data:image/svg+xml;base64,${btoa(`<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><text x="8" y="12" text-anchor="middle" font-size="12">🔧</text></svg>`)}`
+                            target.src = `data:image/svg+xml;base64,${btoa(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><text x="12" y="18" text-anchor="middle" font-size="18">🤖</text></svg>`)}`
                           }}
                         />
-                        <div>
-                          <p className="font-medium text-sm">{provider.name}</p>
-                          <p className="text-xs text-muted-foreground">{provider.description}</p>
+                        <h4 className="font-semibold text-base">{provider.name}</h4>
+                      </div>
+
+                      {/* Centro: Status (informação secundária) */}
+                      <div className="flex flex-col items-center space-y-2 flex-1">
+                        {/* Status de conexão */}
+                        <div className="flex items-center justify-center">
+                          {provider.is_available ? (
+                            <Badge
+                              variant="outline"
+                              className="px-3 py-1 text-sm border-green-500 bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-400"
+                            >
+                              <CheckCircle className="h-4 w-4 mr-1.5" />
+                              {t('llmManagement.online')}
+                            </Badge>
+                          ) : (
+                            <Badge
+                              variant="outline"
+                              className="px-3 py-1 text-sm border-red-500 bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-400"
+                            >
+                              <XCircle className="h-4 w-4 mr-1.5" />
+                              {t('llmManagement.offline')}
+                            </Badge>
+                          )}
                         </div>
-                      </div>
-                      <div className="flex flex-col space-y-1">
+
+                        {/* Badge de ativo (se aplicável) */}
                         {provider.is_current && (
-                          <Badge variant="default" className="text-xs">{t('llmManagement.active')}</Badge>
+                          <Badge
+                            variant="default"
+                            className="px-3 py-1 text-sm bg-primary text-primary-foreground"
+                          >
+                            {t('llmManagement.active')}
+                          </Badge>
                         )}
-                        {provider.is_available ? (
-                          <Badge variant="outline" className="text-xs text-green-600">
-                            <CheckCircle className="h-3 w-3 mr-1" />
-                            {t('llmManagement.online')}
-                          </Badge>
-                        ) : (
-                          <Badge variant="destructive" className="text-xs">
-                            <XCircle className="h-3 w-3 mr-1" />
-                            {t('llmManagement.offline')}
-                          </Badge>
+
+                        {/* Indicador de configuração de API */}
+                        {!provider.api_key_configured && (
+                          <p className="text-xs text-muted-foreground text-center">
+                            {t('llmManagement.no_api_key')}
+                          </p>
                         )}
                       </div>
+
+                      {/* Base: Ação (call-to-action) */}
+                      <Button
+                        variant={provider.is_available ? "outline" : "ghost"}
+                        size="sm"
+                        className="w-full transition-colors duration-200"
+                        onClick={() => handleTestProvider(provider.key)}
+                        disabled={!provider.is_available || testing === provider.key}
+                      >
+                        <TestTube className="h-4 w-4 mr-1.5" />
+                        {testing === provider.key ? t('llmManagement.testing') : t('llmManagement.test_connection')}
+                      </Button>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="w-full mt-2"
-                      onClick={() => handleTestProvider(provider.key)}
-                      disabled={!provider.is_available || testing === provider.key}
-                    >
-                      {testing === provider.key ? t('llmManagement.testing') : t('llmManagement.test_connection')}
-                    </Button>
                   </Card>
                 ))}
               </div>

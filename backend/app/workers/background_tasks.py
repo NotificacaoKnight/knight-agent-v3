@@ -5,7 +5,7 @@ Replaces Celery with native FastAPI background tasks
 import os
 import logging
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List, Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,6 +19,7 @@ from app.models import (
 from app.services.document_processor import DocumentProcessorService
 from app.services.chunking_service import ChunkingService
 from app.services.embedding_service import get_embedding_service
+from app.core.timezone_utils import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +71,7 @@ async def process_document_async(
 
             # Update document status
             document.status = 'processing'
-            document.processing_started_at = datetime.utcnow()
+            document.processing_started_at = utc_now()
             document.error_message = None
             await db.commit()
 
@@ -80,7 +81,7 @@ async def process_document_async(
                 .where(ProcessingJob.document_id == document_id)
                 .values(
                     status="processing",
-                    started_at=datetime.utcnow()
+                    started_at=utc_now()
                 )
             )
             await db.commit()
@@ -108,7 +109,7 @@ async def process_document_async(
 
             # Update document status
             document.status = 'processed'
-            document.processing_completed_at = datetime.utcnow()
+            document.processing_completed_at = utc_now()
             document.chunk_count = len(chunks)
             document.markdown_content = markdown_content  # Save the markdown content
             document.document_metadata = document.document_metadata or {}
@@ -121,11 +122,11 @@ async def process_document_async(
                 .where(ProcessingJob.document_id == document_id)
                 .values(
                     status="completed",
-                    completed_at=datetime.utcnow(),
+                    completed_at=utc_now(),
                     result={
                         "chunks_count": len(chunks),
                         "embeddings_count": embeddings_results.get("embeddings_count", 0),
-                        "processing_time": str(datetime.utcnow() - document.uploaded_at)
+                        "processing_time": str(utc_now() - document.uploaded_at)
                     }
                 )
             )
@@ -155,7 +156,7 @@ async def process_document_async(
                 if document:
                     document.status = 'error'
                     document.error_message = str(e)
-                    document.processing_completed_at = datetime.utcnow()
+                    document.processing_completed_at = utc_now()
                     await db.commit()
 
                 # Update job status
@@ -164,7 +165,7 @@ async def process_document_async(
                     .where(ProcessingJob.document_id == document_id)
                     .values(
                         status="failed",
-                        completed_at=datetime.utcnow(),
+                        completed_at=utc_now(),
                         error_message=str(e)
                     )
                 )
@@ -320,7 +321,7 @@ async def cleanup_expired_downloads_async() -> Dict[str, Any]:
         logger.info("🧹 Starting cleanup of expired downloads")
 
         # Calculate expiry date (7 days ago)
-        expiry_date = datetime.utcnow() - timedelta(days=7)
+        expiry_date = utc_now() - timedelta(days=7)
 
         async for db in manager.get_db_session():
             # Get expired records

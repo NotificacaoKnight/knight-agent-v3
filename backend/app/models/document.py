@@ -3,7 +3,7 @@ Document models for document processing and RAG system
 """
 import os
 import shutil
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Dict, List, Any
 from sqlalchemy import (
     Column, String, Integer, BigInteger, Boolean, DateTime,
@@ -24,6 +24,7 @@ except ImportError:
 import logging
 
 from app.core.database import Base
+from app.core.timezone_utils import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -57,12 +58,12 @@ class Document(Base):
     uploaded_by_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
 
     # Timestamps
-    uploaded_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)  # Alias for uploaded_at
-    processed_at = Column(DateTime, nullable=True)
-    processing_started_at = Column(DateTime, nullable=True)
-    processing_completed_at = Column(DateTime, nullable=True)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    uploaded_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)  # Alias for uploaded_at
+    processed_at = Column(DateTime(timezone=True), nullable=True)
+    processing_started_at = Column(DateTime(timezone=True), nullable=True)
+    processing_completed_at = Column(DateTime(timezone=True), nullable=True)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
 
     # Metadata extracted from document (renamed from 'metadata' which is reserved in SQLAlchemy)
     document_metadata = Column(JSON, default=dict)
@@ -124,7 +125,7 @@ class DocumentChunk(Base):
     page_number = Column(Integer, nullable=True)
     section_title = Column(String(255), default="")
 
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
 
     # Relationships
     document = relationship("Document", back_populates="chunks")
@@ -161,8 +162,8 @@ class ProcessingJob(Base):
     job_type = Column(String(50), nullable=False)
     status = Column(String(20), default=STATUS_QUEUED, nullable=False)
 
-    started_at = Column(DateTime, nullable=True)
-    completed_at = Column(DateTime, nullable=True)
+    started_at = Column(DateTime(timezone=True), nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
     error_message = Column(Text, default="")
 
     # Job configuration
@@ -171,7 +172,7 @@ class ProcessingJob(Base):
     # Job results
     result = Column(JSON, default=dict)
 
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
 
     # Relationships
     document = relationship("Document", back_populates="processing_jobs")

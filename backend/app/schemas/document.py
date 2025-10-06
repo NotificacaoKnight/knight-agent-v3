@@ -5,6 +5,13 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 from pydantic import BaseModel, Field
 
+from app.schemas.base import (
+    TimezoneResponseModel,
+    PaginatedResponse,
+    TimezoneAwareDatetime,
+    OptionalTimezoneAwareDatetime
+)
+
 
 class DocumentUpload(BaseModel):
     """Document upload request"""
@@ -16,8 +23,8 @@ class DocumentUpload(BaseModel):
     tags: Optional[List[str]] = Field(None, description="Document tags")
 
 
-class DocumentResponse(BaseModel):
-    """Document response"""
+class DocumentResponse(TimezoneResponseModel):
+    """Document response with timezone-aware timestamps"""
     id: int
     title: str
     filename: str
@@ -26,10 +33,10 @@ class DocumentResponse(BaseModel):
     status: str
     page_count: Optional[int] = None
     chunk_count: Optional[int] = None
-    created_at: datetime
-    updated_at: datetime
-    processing_started_at: Optional[datetime] = None
-    processing_completed_at: Optional[datetime] = None
+    created_at: datetime = TimezoneAwareDatetime
+    updated_at: datetime = TimezoneAwareDatetime
+    processing_started_at: Optional[datetime] = OptionalTimezoneAwareDatetime
+    processing_completed_at: Optional[datetime] = OptionalTimezoneAwareDatetime
     error_message: Optional[str] = None
     document_metadata: Optional[Dict[str, Any]] = None
     tags: List[str] = []
@@ -38,12 +45,17 @@ class DocumentResponse(BaseModel):
     uploaded_by_email: Optional[str] = None
 
 
-class DocumentListResponse(BaseModel):
-    """Document list response"""
+class DocumentListResponse(PaginatedResponse):
+    """Document list response with pagination and timezone support"""
     documents: List[DocumentResponse]
-    total: int
-    page: int
-    page_size: int
+
+    def __init__(self, **data):
+        # Ensure 'items' is set to same as 'documents' for PaginatedResponse
+        if 'documents' in data and 'items' not in data:
+            data['items'] = data['documents']
+        elif 'items' in data and 'documents' not in data:
+            data['documents'] = data['items']
+        super().__init__(**data)
 
 
 class ChunkResponse(BaseModel):
@@ -58,16 +70,16 @@ class ChunkResponse(BaseModel):
     chunk_metadata: Optional[Dict[str, Any]] = None
 
 
-class ProcessingJobResponse(BaseModel):
-    """Processing job response"""
+class ProcessingJobResponse(TimezoneResponseModel):
+    """Processing job response with timezone-aware timestamps"""
     id: int
     document_id: int
     job_type: str
     status: str
     progress: Optional[float] = None
-    created_at: datetime
-    started_at: Optional[datetime] = None
-    completed_at: Optional[datetime] = None
+    created_at: datetime = TimezoneAwareDatetime
+    started_at: Optional[datetime] = OptionalTimezoneAwareDatetime
+    completed_at: Optional[datetime] = OptionalTimezoneAwareDatetime
     error_message: Optional[str] = None
     result: Optional[Dict[str, Any]] = None
 

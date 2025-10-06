@@ -3,10 +3,10 @@ Chat interface API endpoints for FastAPI
 """
 import logging
 from typing import Optional, List, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_, or_
+from sqlalchemy import select, func, and_, or_, case
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_async_db
@@ -30,6 +30,7 @@ from app.schemas.chat import (
 from app.services.rag.rag_service import rag_service
 from app.services.rag.multi_agent_service import multi_agent_service
 from app.core.config import settings
+from app.core.timezone_utils import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +47,7 @@ async def create_chat_session(
     try:
         session = ChatSession(
             user_id=current_user.id,
-            title=session_data.title or f"Chat {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+            title=session_data.title or f"Chat {utc_now().strftime('%Y-%m-%d %H:%M')}",
             context=session_data.context,
             language=session_data.language,
             agent_type=session_data.agent_type,
@@ -270,7 +271,7 @@ async def chat_query(
             # Create new session
             session = ChatSession(
                 user_id=current_user.id,
-                title=f"Chat {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+                title=f"Chat {utc_now().strftime('%Y-%m-%d %H:%M')}",
                 language=query.language,
                 is_active=True
             )
@@ -294,7 +295,7 @@ async def chat_query(
             first_words = query.query[:30].strip()
             if len(query.query) > 30:
                 first_words += "..."
-            current_date = datetime.now().strftime('%d/%m/%Y')
+            current_date = utc_now().strftime('%d/%m/%Y')
             session.title = f"{first_words} [{current_date}]"
             await db.commit()
 
@@ -354,8 +355,8 @@ async def chat_query(
         db.add(assistant_message)
 
         # Update session
-        session.updated_at = datetime.utcnow()
-        session.last_message_at = datetime.utcnow()
+        session.updated_at = utc_now()
+        session.last_message_at = utc_now()
 
         await db.commit()
         await db.refresh(assistant_message)
@@ -377,7 +378,7 @@ async def chat_query(
                 "id": str(assistant_message.id),
                 "type": "assistant",
                 "content": assistant_message.content,
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": utc_now().isoformat()
             },
             user_message={
                 "id": str(user_message.id),
@@ -476,7 +477,7 @@ async def delete_chat_session(
 
         # Soft delete (mark as inactive)
         session.is_active = False
-        session.updated_at = datetime.utcnow()
+        session.updated_at = utc_now()
 
         await db.commit()
 
@@ -518,7 +519,7 @@ async def chat_websocket(
             response = {
                 "type": "message",
                 "content": f"Echo: {data.get('message', '')}",
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": utc_now().isoformat()
             }
 
             # Send response
@@ -557,7 +558,7 @@ async def clear_chat_history(
         )
 
         # Update session
-        session.updated_at = datetime.utcnow()
+        session.updated_at = utc_now()
 
         await db.commit()
 
@@ -620,7 +621,7 @@ async def update_session_title(
 
         # Update title
         session.title = title_data.get('title', session.title)
-        session.updated_at = datetime.utcnow()
+        session.updated_at = utc_now()
 
         await db.commit()
         await db.refresh(session)
@@ -672,9 +673,9 @@ async def get_chat_stats(
         )
         total_messages = messages_result.scalar()
 
-        # Messages today
+        # Messages today (in UTC)
         from datetime import date
-        today = date.today()
+        today = utc_now().date()
         today_result = await db.execute(
             select(func.count()).select_from(ChatMessage)
             .join(ChatSession)
@@ -689,12 +690,22 @@ async def get_chat_stats(
         feedback_result = await db.execute(
             select(
                 func.count().label('total'),
-                func.avg(ChatFeedback.score).label('avg_score')
+                func.sum(
+                    case(
+                        (ChatFeedback.rating == ChatFeedback.RATING_POSITIVE, 1),
+                        else_=0
+                    )
+                ).label('positive_count')
             )
             .select_from(ChatFeedback)
             .where(ChatFeedback.user_id == current_user.id)
         )
         feedback = feedback_result.first()
+
+        # Calculate satisfaction rate (percentage of positive feedback)
+        satisfaction_rate = None
+        if feedback and feedback.total > 0:
+            satisfaction_rate = (feedback.positive_count / feedback.total) * 100
 
         return {
             "total_sessions": total_sessions,
@@ -702,7 +713,7 @@ async def get_chat_stats(
             "total_messages": total_messages,
             "messages_today": messages_today,
             "feedback_count": feedback.total if feedback else 0,
-            "average_score": float(feedback.avg_score) if feedback and feedback.avg_score else None
+            "average_score": satisfaction_rate  # Now returns percentage of positive feedback
         }
 
     except Exception as e:
@@ -718,38 +729,73 @@ async def get_activity_chart_data(
 ):
     """Get chat activity data for charts"""
     try:
-        from datetime import timedelta
+        from datetime import timedelta, date as date_type
         from sqlalchemy import text
 
-        end_date = datetime.now()
+        end_date = utc_now()
         start_date = end_date - timedelta(days=days)
 
         # Query daily message counts
-        query = text("""
+        messages_query = text("""
             SELECT
-                DATE(created_at) as date,
-                COUNT(*) as message_count
+                DATE(cm.created_at) as date,
+                COUNT(DISTINCT cs.id) as session_count
             FROM chat_messages cm
             JOIN chat_sessions cs ON cm.session_id = cs.id
             WHERE cs.user_id = :user_id
                 AND cm.created_at >= :start_date
                 AND cm.created_at <= :end_date
-            GROUP BY DATE(created_at)
+            GROUP BY DATE(cm.created_at)
             ORDER BY date
         """)
 
-        result = await db.execute(query, {
+        messages_result = await db.execute(messages_query, {
             'user_id': current_user.id,
             'start_date': start_date,
             'end_date': end_date
         })
 
+        # Query daily document uploads
+        documents_query = text("""
+            SELECT
+                DATE(created_at) as date,
+                COUNT(*) as document_count
+            FROM documents
+            WHERE uploaded_by_id = :user_id
+                AND created_at >= :start_date
+                AND created_at <= :end_date
+            GROUP BY DATE(created_at)
+            ORDER BY date
+        """)
+
+        documents_result = await db.execute(documents_query, {
+            'user_id': current_user.id,
+            'start_date': start_date,
+            'end_date': end_date
+        })
+
+        # Create dicts of actual activity
+        messages_dict = {}
+        for row in messages_result:
+            messages_dict[row.date.isoformat()] = row.session_count
+
+        documents_dict = {}
+        for row in documents_result:
+            documents_dict[row.date.isoformat()] = row.document_count
+
+        # Generate complete date range with zeros for missing days
         activity_data = []
-        for row in result:
+        current_date = start_date.date()
+        end_date_only = end_date.date()
+
+        while current_date <= end_date_only:
+            date_str = current_date.isoformat()
             activity_data.append({
-                'date': row.date.isoformat(),
-                'messages': row.message_count
+                'date': date_str,
+                'messages': messages_dict.get(date_str, 0),  # 0 for days without messages
+                'documents': documents_dict.get(date_str, 0)  # 0 for days without documents
             })
+            current_date += timedelta(days=1)
 
         return {
             "start_date": start_date.isoformat(),

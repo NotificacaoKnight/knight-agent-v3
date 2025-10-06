@@ -51,7 +51,7 @@ interface MainLayoutProps {
 
 export const MainLayout: React.FC<MainLayoutProps> = ({ children, title, subtitle }) => {
   const { user, logout } = useAuth();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const { chatSessions, refreshChatSessions, isProcessingMessage, setIsProcessingMessage } = useChatContext();
@@ -185,8 +185,9 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, title, subtitl
     const then = date.getTime();
     const seconds = Math.floor((now - then) / 1000);
 
-    // Use Intl.RelativeTimeFormat for language-responsive formatting
-    const rtf = new Intl.RelativeTimeFormat(navigator.language, {
+    // Use Intl.RelativeTimeFormat with the current app language
+    const locale = i18n.language || 'pt-BR';
+    const rtf = new Intl.RelativeTimeFormat(locale, {
       numeric: 'auto',
       style: 'short'
     });

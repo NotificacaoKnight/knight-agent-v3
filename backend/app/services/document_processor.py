@@ -7,7 +7,7 @@ import hashlib
 import logging
 from pathlib import Path
 from typing import Optional, Dict, Any, List
-from datetime import datetime
+from datetime import datetime, timezone
 
 # Docling imports
 from docling.document_converter import DocumentConverter
@@ -70,7 +70,7 @@ class DocumentProcessorService:
             logger.info(f"Processing document: {file_path}")
 
             # Convert document
-            start_time = datetime.utcnow()
+            start_time = datetime.now(timezone.utc)
 
             # Check if format is supported by Docling
             if file_ext in ['.txt', '.text']:
@@ -112,7 +112,7 @@ class DocumentProcessorService:
             with open(markdown_file, 'w', encoding='utf-8') as f:
                 f.write(markdown_content)
 
-            processing_time = (datetime.utcnow() - start_time).total_seconds()
+            processing_time = (datetime.now(timezone.utc) - start_time).total_seconds()
 
             # Prepare result
             result_dict = {

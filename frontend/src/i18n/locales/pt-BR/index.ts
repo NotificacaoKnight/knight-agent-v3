@@ -430,7 +430,7 @@ const llmManagement = {
   test: 'Testar',
   test_connection: 'Testar Conexão',
   refresh: 'Atualizar',
-  available_providers: 'Providers Disponíveis',
+  available_providers: 'Providers disponíveis',
   active: 'Ativo',
   online: 'Online',
   offline: 'Offline',

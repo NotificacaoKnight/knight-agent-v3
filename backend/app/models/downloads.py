@@ -1,7 +1,7 @@
 """
 Downloads models for temporary file distribution system
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from sqlalchemy import (
     Column, String, Integer, BigInteger, Boolean, DateTime,
@@ -12,6 +12,7 @@ import os
 
 from app.core.database import Base
 from app.core.config import settings
+from app.core.timezone_utils import utc_now
 
 
 class DownloadRecord(Base):
@@ -27,9 +28,9 @@ class DownloadRecord(Base):
     file_size = Column(BigInteger, nullable=False)
 
     # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    expires_at = Column(DateTime, nullable=False)
-    downloaded_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    downloaded_at = Column(DateTime(timezone=True), nullable=True)
 
     # Status
     is_active = Column(Boolean, default=True)
@@ -55,7 +56,7 @@ class DownloadRecord(Base):
         # Set expiry date if not provided
         if not self.expires_at:
             retention_days = settings.DOWNLOADS_RETENTION_DAYS
-            self.expires_at = datetime.utcnow() + timedelta(days=retention_days)
+            self.expires_at = utc_now() + timedelta(days=retention_days)
 
     def __repr__(self):
         return f"<DownloadRecord(id={self.id}, user_id={self.user_id}, file_name='{self.file_name}')>"
@@ -63,14 +64,14 @@ class DownloadRecord(Base):
     @property
     def is_expired(self) -> bool:
         """Check if download link has expired"""
-        return datetime.utcnow() > self.expires_at
+        return utc_now() > self.expires_at
 
     @property
     def time_remaining(self) -> timedelta:
         """Get time remaining until expiry"""
         if self.is_expired:
             return timedelta(0)
-        return self.expires_at - datetime.utcnow()
+        return self.expires_at - utc_now()
 
     @property
     def time_remaining_str(self) -> str:
@@ -101,8 +102,8 @@ class DownloadSession(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     session_token = Column(String(64), unique=True, nullable=False, index=True)
 
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    last_access = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    last_access = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
 
     # Metadata
     downloads_count = Column(Integer, default=0)
@@ -125,5 +126,5 @@ class DownloadSession(Base):
 
     def update_access(self):
         """Update last access time and increment download count"""
-        self.last_access = datetime.utcnow()
+        self.last_access = utc_now()
         self.downloads_count += 1

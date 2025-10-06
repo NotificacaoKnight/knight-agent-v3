@@ -8,7 +8,7 @@ import pickle
 import logging
 from functools import lru_cache, wraps
 from typing import Any, Optional, Dict, Callable, Union
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import asyncio
 
 from app.core.redis_service import redis_service
@@ -229,7 +229,7 @@ def cache_l1(maxsize: int = 128, ttl_seconds: int = 300):
             # Check if cached and not expired
             if key in cache_data:
                 value, timestamp = cache_data[key]
-                if datetime.now() - timestamp < timedelta(seconds=ttl_seconds):
+                if datetime.now(timezone.utc) - timestamp < timedelta(seconds=ttl_seconds):
                     cache_service.stats['l1_hits'] += 1
                     logger.debug(f"L1 cache hit for {func.__name__}")
                     return value
@@ -239,7 +239,7 @@ def cache_l1(maxsize: int = 128, ttl_seconds: int = 300):
             value = func(*args, **kwargs)
 
             # Store in cache with timestamp
-            cache_data[key] = (value, datetime.now())
+            cache_data[key] = (value, datetime.now(timezone.utc))
 
             # Limit cache size
             if len(cache_data) > maxsize:

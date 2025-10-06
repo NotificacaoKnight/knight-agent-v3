@@ -41,31 +41,8 @@ interface ChartAreaInteractiveProps {
   }> | null
 }
 
-// Gerar dados simulados para os últimos 3 meses
-const generateMockData = () => {
-  const data = []
-  const today = new Date()
-  
-  for (let i = 90; i >= 0; i--) {
-    const date = new Date()
-    date.setDate(today.getDate() - i)
-    
-    // Simular padrão de uso do Knight Agent - dados mais consistentes para teste
-    const baseConversas = Math.floor(Math.random() * 20) + 5
-    const baseDocumentos = Math.floor(Math.random() * 5) + 1
-    
-    data.push({
-      date: date.toISOString().split('T')[0],
-      conversas: baseConversas,
-      documentos: baseDocumentos,
-    })
-  }
-  
-  console.log('generateMockData - Generated', data.length, 'data points')
-  return data
-}
-
-const chartData = generateMockData()
+// Placeholder para dados vazios
+const emptyData: Array<{ date: string; conversas: number; documentos: number }> = []
 
 const chartConfig = {
   visitors: {
@@ -95,11 +72,25 @@ export function ChartAreaInteractive({
     }
   }, [isMobile])
 
-  // Usar dados reais se fornecidos, caso contrário usar dados simulados  
-  // Se data for null ou array vazio, usar dados simulados
-  const sourceData = (data && data.length > 0) ? data : chartData
+  // Usar dados reais se fornecidos, caso contrário array vazio
+  const sourceData = data || emptyData
   
-  // Debug removido - dados chegam corretamente
+  // Se não houver dados, mostrar mensagem apropriada
+  if (sourceData.length === 0) {
+    return (
+      <Card className="@container/card bg-gradient-to-br from-card to-card/45 border border-border">
+        <CardHeader>
+          <CardTitle>{title}</CardTitle>
+          <CardDescription>{description}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-center h-[300px] text-muted-foreground">
+            <p>Carregando dados de atividade...</p>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
 
   const filteredData = sourceData.filter((item) => {
     // Corrigir timezone: forçar parsing como data local, não UTC

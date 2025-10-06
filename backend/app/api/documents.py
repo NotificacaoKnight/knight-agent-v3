@@ -286,11 +286,15 @@ async def list_documents(
                 uploaded_by_email=uploaded_by_email
             ))
 
+        # Calculate pages for pagination
+        pages = (total + page_size - 1) // page_size
+
         return DocumentListResponse(
             documents=document_list,
             total=total,
             page=page,
-            page_size=page_size
+            page_size=page_size,
+            pages=pages
         )
 
     except Exception as e:

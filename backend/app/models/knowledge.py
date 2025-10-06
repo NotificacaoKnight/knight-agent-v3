@@ -2,7 +2,7 @@
 Knowledge Resources models for contextual links and documents
 """
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List
 from sqlalchemy import (
     Column, String, Integer, BigInteger, Boolean, DateTime,
@@ -11,6 +11,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
+from app.core.timezone_utils import utc_now
 
 
 class UsefulLink(Base):
@@ -32,8 +33,8 @@ class UsefulLink(Base):
 
     # Metadata
     created_by_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
 
     # Tags for better organization
     tags = Column(JSON, default=list)  # Tags for search and organization
@@ -78,15 +79,15 @@ class DownloadableDocument(Base):
 
     # Metadata
     created_by_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
 
     # Tags for better organization
     tags = Column(JSON, default=list)  # Tags for search and organization
 
     # Access configurations
     requires_approval = Column(Boolean, default=False)  # If requires approval before download
-    expiry_date = Column(DateTime, nullable=True)  # Document expiry date
+    expiry_date = Column(DateTime(timezone=True), nullable=True)  # Document expiry date
 
     # Relationships
     created_by = relationship("User")
@@ -126,7 +127,7 @@ class ResourceCategory(Base):
     order = Column(Integer, default=0)  # Display order (lower value appears first)
 
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
 
     # Relationships
     useful_links = relationship("UsefulLink", back_populates="resource_category")
@@ -167,7 +168,7 @@ class ResourceUsage(Base):
     ip_address = Column(String(45), nullable=True)
     user_agent = Column(Text, default="")
 
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
 
     # Relationships
     user = relationship("User")

@@ -48,7 +48,7 @@ export const DashboardPage: React.FC = () => {
 
         // Fazer chamadas paralelas para todas as APIs de estatísticas
         const [documentsRes, chatRes, activityRes] = await Promise.all([
-          fetch('http://localhost:8000/api/documents/stats/overview', {
+          fetch('http://localhost:8000/api/documents/stats', {
             credentials: 'include'
           }),
           fetch('http://localhost:8000/api/chat/stats', {
@@ -67,12 +67,11 @@ export const DashboardPage: React.FC = () => {
         // Processar respostas
         const documentsData = documentsRes.ok ? await documentsRes.json() : {};
         const chatData = chatRes.ok ? await chatRes.json() : {};
-        const activityDataRes = activityRes.ok ? await activityRes.json() : [];
-        
+        const activityResponse = activityRes.ok ? await activityRes.json() : { data: [] };
+
         // Tratar erros da API de atividade
         if (!activityRes.ok) {
-          const errorText = await activityRes.text();
-          console.error('DashboardPage - activity endpoint error:', errorText);
+          console.error('DashboardPage - activity endpoint error');
         }
 
         // Calcular estatísticas dinâmicas
@@ -92,8 +91,13 @@ export const DashboardPage: React.FC = () => {
           systemUptime: 99.8 // TODO: Implementar monitoramento real
         });
 
-        // Definir dados do gráfico de atividade
-        setActivityData(activityDataRes);
+        // Definir dados do gráfico de atividade - transformar para o formato esperado pelo componente
+        const transformedActivityData = (activityResponse.data || []).map((item: { date: string; messages: number; documents?: number }) => ({
+          date: item.date,
+          conversas: item.messages || 0,
+          documentos: item.documents || 0 // Agora recebemos dados reais de documentos
+        }));
+        setActivityData(transformedActivityData);
       } catch (error) {
         console.error('Erro ao carregar estatísticas:', error);
         setError('Erro ao carregar dados do dashboard');

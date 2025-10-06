@@ -175,6 +175,9 @@ class Settings(BaseSettings):
         default=["pt-br", "en", "es", "sv"]
     )
 
+    # Timezone Configuration
+    TIME_ZONE: str = Field(default="America/Sao_Paulo")
+
     # Logging Configuration
     LOG_LEVEL: str = Field(default="INFO")
     LOG_FORMAT: str = Field(

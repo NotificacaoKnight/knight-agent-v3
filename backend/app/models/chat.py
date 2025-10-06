@@ -1,7 +1,7 @@
 """
 Chat models for conversation management and AI interactions
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 from sqlalchemy import (
     Column, String, Integer, Boolean, DateTime, Float,
@@ -10,6 +10,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
+from app.core.timezone_utils import utc_now
 
 
 class ChatSession(Base):
@@ -24,13 +25,13 @@ class ChatSession(Base):
     language = Column(String(10), default="pt")  # Session language (pt, en, es)
     agent_type = Column(String(20), nullable=True)  # Preferred agent (knight, wizard, bard)
 
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
     is_active = Column(Boolean, default=True)
 
     # Session metadata
     message_count = Column(Integer, default=0)
-    last_message_at = Column(DateTime, nullable=True)
+    last_message_at = Column(DateTime(timezone=True), nullable=True)
 
     # Relationships
     user = relationship("User", back_populates="chat_sessions")
@@ -96,7 +97,7 @@ class ChatMessage(Base):
     # Message status
     is_helpful = Column(Boolean, nullable=True)  # User feedback
 
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
 
     # Generic metadata (for additional information like language, provider details, etc.)
     message_metadata = Column(JSON, nullable=True)
@@ -164,7 +165,7 @@ class DocumentRequest(Base):
 
     status = Column(String(20), default=STATUS_REQUESTED)
 
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
 
     # Relationships
     session = relationship("ChatSession", back_populates="document_requests")
@@ -215,8 +216,8 @@ class LinkRequest(Base):
     ai_confidence = Column(Float, nullable=True)  # AI confidence in link relevance (0-1)
     user_feedback = Column(String(20), nullable=True)
 
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    clicked_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    clicked_at = Column(DateTime(timezone=True), nullable=True)
 
     # Relationships
     session = relationship("ChatSession", back_populates="link_requests")
@@ -263,7 +264,7 @@ class ChatFeedback(Base):
     # Reference to RAG search if applicable
     search_query_id = Column(Integer, nullable=True)
 
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
 
     # Relationships
     message = relationship("ChatMessage", back_populates="feedback")
