@@ -71,7 +71,7 @@ class User(Base):
 
 class UserSession(Base):
     """
-    User session model for token-based authentication
+    User session model for token-based authentication with refresh token rotation
     """
     __tablename__ = "user_sessions"
 
@@ -83,14 +83,21 @@ class UserSession(Base):
     # Session tokens
     session_token = Column(String(255), unique=True, index=True, nullable=False)
     microsoft_token = Column(Text, nullable=True)  # Microsoft access token
-    refresh_token = Column(Text, nullable=True)  # Microsoft refresh token
+    refresh_token = Column(Text, nullable=True)  # JWT refresh token (rotated on use)
+    refresh_token_family = Column(String(36), nullable=True, index=True)  # Token family for rotation detection
 
-    # Session metadata
+    # Device fingerprinting for security
+    device_fingerprint = Column(String(64), nullable=True, index=True)  # SHA-256 hash of device info
     ip_address = Column(String(45), nullable=True)
     user_agent = Column(String(500), nullable=True)
 
+    # Refresh token rotation tracking
+    refresh_count = Column(Integer, default=0)  # Number of times token was refreshed
+    last_refresh_at = Column(DateTime(timezone=True), nullable=True)  # Last refresh timestamp
+
     # Expiration
     expires_at = Column(DateTime(timezone=True), nullable=False)
+    refresh_expires_at = Column(DateTime(timezone=True), nullable=True)  # Refresh token expiration
 
     # Status
     is_active = Column(Boolean, default=True, index=True)

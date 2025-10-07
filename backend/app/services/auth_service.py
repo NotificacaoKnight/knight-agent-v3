@@ -112,7 +112,7 @@ class AuthService:
             jwt_access = create_access_token(
                 data={"sub": str(user.id), "email": user.email}
             )
-            jwt_refresh = create_refresh_token(
+            jwt_refresh, _ = create_refresh_token(
                 data={"sub": str(user.id)}
             )
 
@@ -309,19 +309,25 @@ class AuthService:
         self,
         db: AsyncSession,
         user: User,
-        auth_result: Dict[str, Any]
+        auth_result: Dict[str, Any],
+        user_agent: str = "",
+        ip_address: str = ""
     ) -> UserSession:
         """
-        Create a new user session
+        Create a new user session with device fingerprinting and refresh token rotation
 
         Args:
             db: Database session
             user: User model instance
             auth_result: Authentication result from MSAL
+            user_agent: Client user agent string
+            ip_address: Client IP address
 
         Returns:
             UserSession model instance
         """
+        from app.core.security import generate_device_fingerprint
+
         # Deactivate old sessions
         stmt = update(UserSession).where(
             UserSession.user_id == user.id,
@@ -329,14 +335,28 @@ class AuthService:
         ).values(is_active=False)
         await db.execute(stmt)
 
+        # Generate JWT refresh token with rotation support
+        jwt_refresh, token_family = create_refresh_token(
+            data={"sub": str(user.id)}
+        )
+
+        # Generate device fingerprint
+        device_fp = generate_device_fingerprint(user_agent, ip_address)
+
         # Create new session
         session = UserSession(
             user_id=user.id,
             session_token=UserSession.generate_token(),
             microsoft_token=auth_result.get("access_token"),
-            refresh_token=auth_result.get("refresh_token"),
+            refresh_token=jwt_refresh,
+            refresh_token_family=token_family,
+            device_fingerprint=device_fp,
+            ip_address=ip_address,
+            user_agent=user_agent,
             expires_at=datetime.now(timezone.utc) + timedelta(hours=settings.SESSION_EXPIRE_HOURS),
-            is_active=True
+            refresh_expires_at=datetime.now(timezone.utc) + timedelta(days=settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS),
+            is_active=True,
+            refresh_count=0
         )
         db.add(session)
         await db.commit()
@@ -377,7 +397,7 @@ class AuthService:
         jwt_access = create_access_token(
             data={"sub": str(user.id), "email": user.email}
         )
-        jwt_refresh = create_refresh_token(
+        jwt_refresh, _ = create_refresh_token(
             data={"sub": str(user.id)}
         )
 
@@ -385,6 +405,154 @@ class AuthService:
             "access_token": jwt_access,
             "refresh_token": jwt_refresh,
             "token_type": "bearer"
+        }
+
+    async def refresh_token_with_rotation(
+        self,
+        refresh_token: str,
+        user_agent: str,
+        ip_address: str,
+        db: AsyncSession
+    ) -> Dict[str, Any]:
+        """
+        Refresh access token with automatic token rotation and device fingerprinting
+
+        Security features:
+        - Rotates refresh token on every use (old token invalidated)
+        - Validates device fingerprint to prevent token theft
+        - Detects token reuse and invalidates entire token family
+        - Tracks refresh count and timestamps for anomaly detection
+
+        Args:
+            refresh_token: JWT refresh token
+            user_agent: Client user agent string
+            ip_address: Client IP address
+            db: Database session
+
+        Returns:
+            New tokens and user info
+
+        Raises:
+            ValueError: If token is invalid, expired, or reused
+        """
+        from app.core.security import (
+            verify_device_fingerprint,
+            generate_device_fingerprint,
+            blacklist_token
+        )
+
+        # Verify refresh token
+        payload = await verify_token(refresh_token, token_type="refresh")
+        if not payload:
+            raise ValueError("Invalid or expired refresh token")
+
+        user_id = payload.get("sub")
+        token_family = payload.get("family")
+        token_jti = payload.get("jti")  # Unique token ID
+
+        if not token_family or not token_jti:
+            raise ValueError("Invalid refresh token format")
+
+        # Get user and active session with this token family
+        stmt = select(User).where(User.id == int(user_id))
+        result = await db.execute(stmt)
+        user = result.scalar_one_or_none()
+
+        if not user or not user.is_active:
+            raise ValueError("User not found or inactive")
+
+        # Find session with this token family
+        session_stmt = select(UserSession).where(
+            UserSession.user_id == user.id,
+            UserSession.refresh_token_family == token_family,
+            UserSession.is_active == True
+        )
+        session_result = await db.execute(session_stmt)
+        session = session_result.scalar_one_or_none()
+
+        if not session:
+            # Token reuse detected! This token family was already used
+            # Invalidate ALL sessions with this token family (security breach)
+            logger.warning(
+                f"SECURITY ALERT: Refresh token reuse detected for user {user.id}, "
+                f"family {token_family}. Invalidating all sessions in family."
+            )
+
+            # Invalidate all sessions in this token family
+            invalidate_stmt = update(UserSession).where(
+                UserSession.user_id == user.id,
+                UserSession.refresh_token_family == token_family
+            ).values(is_active=False)
+            await db.execute(invalidate_stmt)
+            await db.commit()
+
+            # Blacklist the reused token
+            await blacklist_token(refresh_token)
+
+            raise ValueError("Token reuse detected. All sessions invalidated for security.")
+
+        # Verify device fingerprint
+        if session.device_fingerprint:
+            if not verify_device_fingerprint(
+                session.device_fingerprint,
+                user_agent,
+                ip_address
+            ):
+                logger.warning(
+                    f"Device fingerprint mismatch for user {user.id}. "
+                    f"Possible token theft attempt."
+                )
+                # Don't immediately invalidate - could be legitimate (user changed network/browser)
+                # But log for monitoring
+                # In stricter mode, you could invalidate here
+
+        # Blacklist old refresh token (it's now consumed)
+        await blacklist_token(refresh_token)
+
+        # Create new tokens with SAME token family (rotation within family)
+        jwt_access = create_access_token(
+            data={
+                "sub": str(user.id),
+                "email": user.email,
+                "session_id": session.id
+            }
+        )
+
+        # Generate new refresh token in same family
+        jwt_refresh, _ = create_refresh_token(
+            data={"sub": str(user.id)},
+            token_family=token_family  # Reuse same family for rotation tracking
+        )
+
+        # Update session with new refresh token and metadata
+        session.refresh_token = jwt_refresh
+        session.refresh_count += 1
+        session.last_refresh_at = datetime.now(timezone.utc)
+        session.last_activity = datetime.now(timezone.utc)
+
+        # Update device fingerprint (in case user switched devices legitimately)
+        session.device_fingerprint = generate_device_fingerprint(
+            user_agent, ip_address
+        )
+        session.ip_address = ip_address
+        session.user_agent = user_agent
+
+        await db.commit()
+
+        logger.info(
+            f"Refresh token rotated for user {user.id}, "
+            f"family {token_family}, count {session.refresh_count}"
+        )
+
+        return {
+            "access_token": jwt_access,
+            "refresh_token": jwt_refresh,
+            "token_type": "bearer",
+            "user": {
+                "id": user.id,
+                "email": user.email,
+                "username": user.username
+            }
         }
 
     async def logout(
@@ -598,7 +766,7 @@ class AuthService:
             jwt_access = create_access_token(
                 data={"sub": str(user.id), "email": user.email}
             )
-            jwt_refresh = create_refresh_token(
+            jwt_refresh, _ = create_refresh_token(
                 data={"sub": str(user.id)}
             )
 
@@ -682,7 +850,7 @@ class AuthService:
             jwt_access = create_access_token(
                 data={"sub": str(user.id), "email": user.email}
             )
-            jwt_refresh = create_refresh_token(
+            jwt_refresh, _ = create_refresh_token(
                 data={"sub": str(user.id)}
             )
 

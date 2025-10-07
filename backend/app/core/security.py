@@ -1,6 +1,6 @@
 """
 Security utilities for authentication and authorization
-JWT handling, password hashing, and token validation
+JWT handling, password hashing, token validation, and refresh token rotation
 """
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any
@@ -8,6 +8,8 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 import secrets
 import logging
+import hashlib
+import uuid
 
 from app.core.config import settings
 
@@ -68,19 +70,25 @@ def create_access_token(
 
 def create_refresh_token(
     data: Dict[str, Any],
-    expires_delta: Optional[timedelta] = None
-) -> str:
+    expires_delta: Optional[timedelta] = None,
+    token_family: Optional[str] = None
+) -> tuple[str, str]:
     """
-    Create a JWT refresh token
+    Create a JWT refresh token with rotation support
 
     Args:
         data: The data to encode in the token
         expires_delta: Optional custom expiration time
+        token_family: Token family ID for rotation tracking (creates new if None)
 
     Returns:
-        Encoded JWT refresh token
+        Tuple of (encoded JWT refresh token, token_family)
     """
     to_encode = data.copy()
+
+    # Generate or reuse token family for rotation detection
+    if not token_family:
+        token_family = str(uuid.uuid4())
 
     if expires_delta:
         expire = datetime.now(timezone.utc) + expires_delta
@@ -92,11 +100,13 @@ def create_refresh_token(
     to_encode.update({
         "exp": expire,
         "iat": datetime.now(timezone.utc),
-        "type": "refresh"
+        "type": "refresh",
+        "family": token_family,  # Track token family for rotation
+        "jti": str(uuid.uuid4())  # Unique token ID for revocation
     })
 
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
+    return encoded_jwt, token_family
 
 def decode_token(token: str) -> Optional[Dict[str, Any]]:
     """
@@ -236,6 +246,61 @@ def verify_csrf_token(token: str, expected_token: str) -> bool:
     if not token or not expected_token:
         return False
     return secrets.compare_digest(token, expected_token)
+
+def generate_device_fingerprint(
+    user_agent: str,
+    ip_address: str,
+    additional_data: Optional[Dict[str, str]] = None
+) -> str:
+    """
+    Generate a device fingerprint hash for session validation
+
+    Args:
+        user_agent: Browser user agent string
+        ip_address: Client IP address
+        additional_data: Optional additional fingerprint data
+
+    Returns:
+        SHA-256 hash of device fingerprint
+    """
+    # Normalize inputs
+    user_agent = (user_agent or "").strip().lower()
+    ip_address = (ip_address or "").strip()
+
+    # Build fingerprint string
+    fingerprint_parts = [user_agent, ip_address]
+
+    if additional_data:
+        for key in sorted(additional_data.keys()):
+            fingerprint_parts.append(f"{key}:{additional_data[key]}")
+
+    fingerprint_string = "|".join(fingerprint_parts)
+
+    # Generate SHA-256 hash
+    return hashlib.sha256(fingerprint_string.encode()).hexdigest()
+
+def verify_device_fingerprint(
+    stored_fingerprint: str,
+    user_agent: str,
+    ip_address: str,
+    additional_data: Optional[Dict[str, str]] = None
+) -> bool:
+    """
+    Verify device fingerprint matches stored value
+
+    Args:
+        stored_fingerprint: The stored device fingerprint hash
+        user_agent: Current request user agent
+        ip_address: Current request IP address
+        additional_data: Optional additional fingerprint data
+
+    Returns:
+        True if fingerprints match
+    """
+    current_fingerprint = generate_device_fingerprint(
+        user_agent, ip_address, additional_data
+    )
+    return secrets.compare_digest(stored_fingerprint, current_fingerprint)
 
 # Token blacklist functions (async wrappers for Redis service)
 async def blacklist_token(token: str) -> bool:

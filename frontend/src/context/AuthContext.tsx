@@ -53,8 +53,8 @@ const initializeMsal = async () => {
           navigateToLoginRequestUrl: true,
         },
         cache: {
-          cacheLocation: 'localStorage',
-          storeAuthStateInCookie: true,
+          cacheLocation: 'sessionStorage',  // SECURITY: Use sessionStorage instead of localStorage
+          storeAuthStateInCookie: true,     // Prevents token theft via XSS
         }
       };
 

@@ -207,24 +207,52 @@ async def process_callback(
         )
 
 @router.post("/refresh", response_model=TokenResponse)
+@limiter.limit("10/minute")  # Rate limit: 10 refresh attempts per minute
 async def refresh_token(
+    request: Request,
+    response: Response,
     refresh_request: RefreshTokenRequest,
     db: DatabaseSession = None
 ):
     """
-    Refresh access token using refresh token
+    Refresh access token using refresh token with rotation and device fingerprinting
+
+    This endpoint implements:
+    - Refresh token rotation (old token invalidated, new one issued)
+    - Device fingerprinting validation
+    - Rate limiting (10/minute per IP)
+    - Automatic reuse detection (invalidates entire token family if reuse detected)
 
     Args:
-        request: Refresh token request
+        request: FastAPI request object (for device fingerprint)
+        response: FastAPI response object (for setting cookies)
+        refresh_request: Refresh token request
         db: Database session
 
     Returns:
         New access and refresh tokens
     """
     try:
-        result = await auth_service.refresh_token(refresh_request.refresh_token, db)
+        # Get device fingerprint data
+        user_agent = request.headers.get("user-agent", "")
+        ip_address = request.client.host if request.client else ""
+
+        # Call refresh service with device fingerprinting
+        result = await auth_service.refresh_token_with_rotation(
+            refresh_token=refresh_request.refresh_token,
+            user_agent=user_agent,
+            ip_address=ip_address,
+            db=db
+        )
+
+        # Set new tokens in httpOnly cookies
+        set_jwt_cookies(response, result["access_token"], result["refresh_token"])
+
         return TokenResponse(**result)
+
     except ValueError as e:
+        # Invalid token, expired, or reuse detected
+        logger.warning(f"Token refresh failed: {e}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=str(e)
