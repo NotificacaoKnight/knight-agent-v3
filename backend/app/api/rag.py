@@ -25,6 +25,8 @@ from app.schemas.rag import (
 )
 from app.services.rag.rag_service import rag_service
 from app.services.rag.llm_providers import ProviderType
+from app.services.rag.streaming_service import streaming_service
+from fastapi.responses import StreamingResponse
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +108,14 @@ async def generate_answer(
     """
     Generate answer using RAG (Retrieval-Augmented Generation)
 
+    **Nova Versão 2025** - Pipeline Unificado:
+    - Sem distinção de modo (fast/deep) - sistema decide automaticamente
+    - Prompts naturalizados em português brasileiro
+    - Contexto otimizado com MMR (Maximum Marginal Relevance)
+    - Knowledge resources (links e documentos) integrados naturalmente
+
     - **query**: User question
+    - **session_id**: Session ID for conversational context (optional)
     - **context_size**: Number of context chunks to use
     - **max_tokens**: Maximum tokens in response
     - **temperature**: Generation temperature (0.0-1.0)
@@ -115,12 +124,12 @@ async def generate_answer(
     - **llm_provider**: Specific LLM provider to use
     """
     try:
-        logger.info(f"Generate request: query='{query.query}', mode={query.mode}, context_size={query.context_size}")
+        logger.info(f"Generate request: query='{query.query}', session={query.session_id}, context_size={query.context_size}")
 
         # Generate answer with unified service
         result = await rag_service.generate_answer(
             query=query.query,
-            mode=query.mode,
+            session_id=query.session_id,
             context_size=query.context_size,
             max_tokens=query.max_tokens,
             temperature=query.temperature,
@@ -136,11 +145,11 @@ async def generate_answer(
             sources = []
             for s in result['sources']:
                 source = ChunkResult(
-                    chunk_id=s['chunk_id'],
-                    document_id=s['document_id'],
+                    chunk_id=s.get('chunk_id', s.get('id', 0)),
+                    document_id=s.get('document_id', 0),
                     document_title=s.get('document_title'),
-                    content=s['content'],
-                    chunk_index=s['chunk_index'],
+                    content=s.get('content', ''),
+                    chunk_index=s.get('chunk_index', 0),
                     similarity=s.get('similarity'),
                     score=s.get('score'),
                     page_number=s.get('page_number'),
@@ -153,10 +162,12 @@ async def generate_answer(
             query=result['query'],
             answer=result['answer'],
             sources=sources,
-            mode=result.get('mode', 'fast'),
-            search_attempts=result.get('search_attempts', 1),
             llm_provider=result.get('llm_provider', 'unknown'),
             response_time_ms=result['response_time_ms'],
+            chunks_used=result.get('chunks_used', 0),
+            context_length=result.get('context_length', 0),
+            useful_links=result.get('useful_links'),
+            downloadable_documents=result.get('downloadable_documents'),
             tokens_used=result.get('tokens_used'),
             metadata=result.get('metadata')
         )
@@ -166,9 +177,50 @@ async def generate_answer(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# Removed agentic endpoint - use /generate with mode="deep" instead
-# The agentic functionality is now integrated in the main generate endpoint
-# Use mode="deep" for multi-step reasoning with refinement
+@router.post("/stream")
+async def stream_rag_answer(
+    query: RAGQuery,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Stream RAG answer using Server-Sent Events
+
+    **Streaming em Tempo Real**:
+    - Respostas aparecem token por token conforme são geradas
+    - Reduz drasticamente a percepção de latência
+    - Melhor experiência do usuário
+
+    Retorna stream de eventos SSE:
+    - `start`: Início do processamento
+    - `status`: Atualizações de status
+    - `search_complete`: Busca concluída
+    - `token`: Token individual da resposta
+    - `sources`: Fontes encontradas
+    - `links`: Links úteis relacionados
+    - `documents`: Documentos para download
+    - `done`: Streaming completo
+    - `error`: Erro durante processamento
+    """
+    try:
+        logger.info(f"Stream request: query='{query.query}', session={query.session_id}")
+
+        return await streaming_service.create_streaming_response(
+            query=query.query,
+            session_id=query.session_id,
+            context_size=query.context_size,
+            max_tokens=query.max_tokens,
+            temperature=query.temperature,
+            language=query.language,
+            llm_provider=query.llm_provider,
+            db=db,
+            stream_delay=query.stream_delay,
+            user_id=current_user.id
+        )
+
+    except Exception as e:
+        logger.error(f"Streaming error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/stats", response_model=VectorStatsResponse)

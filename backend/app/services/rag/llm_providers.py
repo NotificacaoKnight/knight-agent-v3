@@ -71,6 +71,22 @@ class LLMProvider(ABC):
         """Get provider information"""
         pass
 
+    async def stream_generate(
+        self,
+        prompt: str,
+        context: str = "",
+        max_tokens: int = 1000,
+        temperature: float = 0.7,
+        **kwargs
+    ):
+        """
+        Stream text generation token by token (optional)
+
+        Not all providers need to implement this.
+        Default implementation returns None.
+        """
+        return None
+
 
 class OpenAIProvider(LLMProvider):
     """OpenAI/GPT provider implementation"""
@@ -151,6 +167,41 @@ class OpenAIProvider(LLMProvider):
             "initialized": self.initialized
         }
 
+    async def stream_generate(
+        self,
+        prompt: str,
+        context: str = "",
+        max_tokens: int = 1000,
+        temperature: float = 0.7,
+        **kwargs
+    ):
+        """Stream generation for OpenAI"""
+        if not self.initialized:
+            self.initialize()
+
+        try:
+            messages = []
+            if context:
+                messages.append({"role": "system", "content": context})
+            messages.append({"role": "user", "content": prompt})
+
+            stream = await self.client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                stream=True,
+                **kwargs
+            )
+
+            async for chunk in stream:
+                if chunk.choices[0].delta.content:
+                    yield chunk.choices[0].delta.content
+
+        except Exception as e:
+            logger.error(f"OpenAI streaming error: {e}")
+            raise
+
 
 class CohereProvider(LLMProvider):
     """Cohere provider implementation"""
@@ -228,6 +279,70 @@ class CohereProvider(LLMProvider):
             "initialized": self.initialized
         }
 
+    async def stream_generate(
+        self,
+        prompt: str,
+        context: str = "",
+        max_tokens: int = 1000,
+        temperature: float = 0.7,
+        **kwargs
+    ):
+        """
+        Stream generation for Cohere
+
+        Uses Cohere's streaming API if available, otherwise simulates streaming.
+        """
+        if not self.initialized:
+            self.initialize()
+
+        try:
+            # Try native streaming with Cohere's chat endpoint
+            if context:
+                # Use chat endpoint with documents for better RAG
+                stream = await self.client.chat_stream(
+                    message=prompt,
+                    documents=[{"text": context}],
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    model=self.model,
+                    **kwargs
+                )
+            else:
+                # Use chat endpoint without documents
+                stream = await self.client.chat_stream(
+                    message=prompt,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    model=self.model,
+                    **kwargs
+                )
+
+            # Stream tokens as they arrive
+            async for event in stream:
+                if event.event_type == "text-generation":
+                    yield event.text
+
+        except AttributeError:
+            # Fallback if streaming not available - simulate it
+            logger.info("Cohere streaming not available, simulating...")
+
+            if context:
+                response = await self.generate_with_context(prompt, context, max_tokens, temperature, **kwargs)
+            else:
+                response = await self.generate(prompt, max_tokens, temperature, **kwargs)
+
+            # Simulate streaming by yielding words
+            words = response.split(' ')
+            for i, word in enumerate(words):
+                if i > 0:
+                    yield ' '
+                yield word
+                await asyncio.sleep(0.01)
+
+        except Exception as e:
+            logger.error(f"Cohere streaming error: {e}")
+            raise
+
 
 class GroqProvider(LLMProvider):
     """Groq provider implementation"""
@@ -294,6 +409,41 @@ class GroqProvider(LLMProvider):
             "model": self.model,
             "initialized": self.initialized
         }
+
+    async def stream_generate(
+        self,
+        prompt: str,
+        context: str = "",
+        max_tokens: int = 1000,
+        temperature: float = 0.7,
+        **kwargs
+    ):
+        """
+        Simulated streaming for Groq
+
+        Note: Groq's sync client doesn't support native streaming,
+        so we simulate it by chunking the response.
+        """
+        if not self.initialized:
+            self.initialize()
+
+        try:
+            # Generate complete response
+            full_prompt = f"Context:\n{context}\n\nQuestion: {prompt}" if context else prompt
+            response = await self.generate(full_prompt, max_tokens, temperature, **kwargs)
+
+            # Simulate streaming by yielding words
+            words = response.split(' ')
+            for i, word in enumerate(words):
+                if i > 0:
+                    yield ' '
+                yield word
+                # Small delay to simulate streaming
+                await asyncio.sleep(0.01)
+
+        except Exception as e:
+            logger.error(f"Groq streaming simulation error: {e}")
+            raise
 
 
 class DeepSeekProvider(LLMProvider):
@@ -379,6 +529,41 @@ class DeepSeekProvider(LLMProvider):
             "initialized": self.initialized
         }
 
+    async def stream_generate(
+        self,
+        prompt: str,
+        context: str = "",
+        max_tokens: int = 1000,
+        temperature: float = 0.7,
+        **kwargs
+    ):
+        """Stream generation for DeepSeek (OpenAI-compatible)"""
+        if not self.initialized:
+            self.initialize()
+
+        try:
+            messages = []
+            if context:
+                messages.append({"role": "system", "content": context})
+            messages.append({"role": "user", "content": prompt})
+
+            stream = await self.client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                stream=True,
+                **kwargs
+            )
+
+            async for chunk in stream:
+                if chunk.choices[0].delta.content:
+                    yield chunk.choices[0].delta.content
+
+        except Exception as e:
+            logger.error(f"DeepSeek streaming error: {e}")
+            raise
+
 
 class GeminiProvider(LLMProvider):
     """Google Gemini provider implementation"""
@@ -446,6 +631,48 @@ class GeminiProvider(LLMProvider):
             "model": settings.GEMINI_MODEL or "gemini-1.5-flash",
             "initialized": self.initialized
         }
+
+    async def stream_generate(
+        self,
+        prompt: str,
+        context: str = "",
+        max_tokens: int = 1000,
+        temperature: float = 0.7,
+        **kwargs
+    ):
+        """Stream generation for Gemini"""
+        if not self.initialized:
+            self.initialize()
+
+        try:
+            # Combine context and prompt
+            full_prompt = f"{context}\n\n{prompt}" if context else prompt
+
+            # Gemini uses sync streaming, wrap in executor
+            loop = asyncio.get_event_loop()
+
+            # Create streaming response
+            response = await loop.run_in_executor(
+                None,
+                lambda: self.model.generate_content(
+                    full_prompt,
+                    generation_config=genai.GenerationConfig(
+                        max_output_tokens=max_tokens,
+                        temperature=temperature,
+                        **kwargs
+                    ),
+                    stream=True
+                )
+            )
+
+            # Stream chunks
+            for chunk in response:
+                if chunk.text:
+                    yield chunk.text
+
+        except Exception as e:
+            logger.error(f"Gemini streaming error: {e}")
+            raise
 
 
 class LLMProviderManager:

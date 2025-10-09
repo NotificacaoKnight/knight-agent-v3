@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 from sqlalchemy import (
     Column, String, Integer, Boolean, DateTime, Float,
-    Text, JSON, ForeignKey, Index, event
+    Text, JSON, ForeignKey, Index, CheckConstraint, event
 )
 from sqlalchemy.orm import relationship
 
@@ -108,10 +108,14 @@ class ChatMessage(Base):
     link_requests = relationship("LinkRequest", back_populates="message", cascade="all, delete-orphan")
     feedback = relationship("ChatFeedback", back_populates="message", uselist=False, cascade="all, delete-orphan")
 
-    # Indexes
+    # Indexes and Constraints
     __table_args__ = (
         Index('ix_chat_messages_session_id', 'session_id'),
         Index('ix_chat_messages_created_at', 'created_at'),
+        Index('ix_chat_messages_session_message_type', 'session_id', 'message_type'),
+        Index('ix_chat_messages_session_created', 'session_id', 'created_at'),
+        CheckConstraint("message_type IN ('user', 'assistant', 'system')", name='check_message_type'),
+        CheckConstraint("content_type IN ('text', 'audio')", name='check_content_type'),
     )
 
     def __repr__(self):

@@ -13,10 +13,7 @@ import {
   Link,
   Download,
   FileText,
-  ExternalLink,
-  Rocket,
-  Brain,
-  Zap
+  ExternalLink
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { chatApi } from '../services/api';
@@ -25,6 +22,14 @@ import { AudioPlayer } from '../components/AudioPlayer';
 import { useChatContext } from '../context/ChatContext';
 import { KnightIcon } from '../components/KnightIcon';
 import { useTranslation } from 'react-i18next';
+import { useStreamingChat } from '../hooks/useStreamingChat';
+
+enum LoadingState {
+  IDLE = 'idle',
+  LOADING_HISTORY = 'loading_history',
+  SENDING_MESSAGE = 'sending_message',
+  STREAMING = 'streaming'
+}
 
 interface Message {
   id: string;
@@ -64,15 +69,15 @@ export const ChatPage: React.FC = () => {
   const { t } = useTranslation();
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [loadingState, setLoadingState] = useState<LoadingState>(LoadingState.IDLE);
   const [sessionId, setSessionId] = useState<string | null>(urlSessionId || null);
-  const [responseMode, setResponseMode] = useState<'fast' | 'deep' | 'auto'>('auto');
   const pendingRequestRef = useRef<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [recordingTime, setRecordingTime] = useState(0);
   const [animationKey, setAnimationKey] = useState(0);
+  const [streamingMessage, setStreamingMessage] = useState<Message | null>(null);
+  const streamingDataRef = useRef<{ links?: any[], documents?: any[] }>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -81,6 +86,118 @@ export const ChatPage: React.FC = () => {
   const isCancellingRef = useRef<boolean>(false);
   const previousUrlSessionIdRef = useRef<string | undefined>(urlSessionId);
 
+  // Memoize messages to prevent unnecessary re-renders
+  const memoizedMessages = useMemo(() => messages, [messages]);
+
+  // Loading state helpers
+  const isLoading = loadingState !== LoadingState.IDLE;
+  const isLoadingHistory = loadingState === LoadingState.LOADING_HISTORY;
+
+  // Initialize streaming hook
+  const {
+    sendStreamingMessage,
+  } = useStreamingChat({
+    onSessionCreated: (sessionId, title) => {
+      console.log('🆕 Session created:', sessionId, title);
+      const newSessionId = String(sessionId);
+      setSessionId(newSessionId);
+      // Atualizar histórico imediatamente quando sessão é criada
+      if (refreshChatSessions) {
+        refreshChatSessions();
+      }
+    },
+    onStart: () => {
+      console.log('🚀 Streaming started');
+      // Bloquear navegação durante geração da resposta
+      setIsProcessingMessage(true);
+
+      // Clear previous data
+      streamingDataRef.current = {};
+
+      const assistantMessage: Message = {
+        id: Date.now().toString(),
+        type: 'assistant',
+        content: '',
+        timestamp: new Date(),
+        isLoading: true,
+      };
+      setStreamingMessage(assistantMessage);
+    },
+    onToken: (token) => {
+      setStreamingMessage(prev => prev ? {
+        ...prev,
+        content: prev.content + token,
+        isLoading: false,
+      } : null);
+    },
+    onSources: (sources) => {
+      console.log('📚 Sources received:', sources);
+    },
+    onLinks: (links) => {
+      console.log('🔗 Links received:', links);
+      streamingDataRef.current.links = links;
+      setStreamingMessage(prev => prev ? {
+        ...prev,
+        usefulLinks: links,
+      } : null);
+    },
+    onDocuments: (documents) => {
+      console.log('📄 Documents received:', documents);
+      streamingDataRef.current.documents = documents;
+      setStreamingMessage(prev => prev ? {
+        ...prev,
+        downloadableDocuments: documents,
+      } : null);
+    },
+    onComplete: (fullResponse, metadata) => {
+      console.log('✅ Streaming complete:', metadata);
+      console.log('📦 Saved links:', streamingDataRef.current.links);
+      console.log('📄 Saved documents:', streamingDataRef.current.documents);
+
+      // Create final message preserving accumulated data
+      const finalMessage: Message = {
+        id: Date.now().toString(),
+        type: 'assistant',
+        content: fullResponse,
+        timestamp: new Date(),
+        isLoading: false,
+        usefulLinks: streamingDataRef.current.links || [],
+        downloadableDocuments: streamingDataRef.current.documents || [],
+      };
+
+      console.log('✉️ Final message with links:', finalMessage);
+
+      // Add to messages and clear streaming state
+      setMessages(prev => [...prev, finalMessage]);
+      setStreamingMessage(null);
+      setLoadingState(LoadingState.IDLE);
+      setIsProcessingMessage(false);
+
+      // Clear the ref for next message
+      streamingDataRef.current = {};
+
+      // Update session if needed (fallback case)
+      if (!sessionId && metadata.session_id) {
+        const newSessionId = String(metadata.session_id);
+        setSessionId(newSessionId);
+      }
+
+      // Sempre atualizar histórico no final para pegar título atualizado
+      if (refreshChatSessions) {
+        refreshChatSessions();
+      }
+    },
+    onError: (error) => {
+      console.error('❌ Streaming error:', error);
+      toast.error(`Erro no streaming: ${error}`);
+      setStreamingMessage(null);
+      setLoadingState(LoadingState.IDLE);
+      setIsProcessingMessage(false);
+    },
+    onStatus: (status) => {
+      console.log('📊 Status:', status);
+    },
+  });
 
   // Use static page title
   usePageTitle('Knight - Assistente IA');
@@ -93,8 +210,7 @@ export const ChatPage: React.FC = () => {
         setMessages([]);
         setSessionId(null);
         setInputMessage('');
-        setIsLoading(false);
-        setIsLoadingHistory(false);
+        setLoadingState(LoadingState.IDLE);
         setAnimationKey(prev => prev + 1);
       }
     });
@@ -110,10 +226,9 @@ export const ChatPage: React.FC = () => {
       setMessages([]);
       setSessionId(null);
       setInputMessage('');
-      setIsLoading(false);
-      setIsLoadingHistory(false);
+      setLoadingState(LoadingState.IDLE);
       setAnimationKey(prev => prev + 1);
-      
+
       // Force a complete reset
       if (pendingRequestRef.current) {
         pendingRequestRef.current = null;
@@ -221,12 +336,12 @@ export const ChatPage: React.FC = () => {
       // Cancel any pending request when switching sessions
       if (pendingRequestRef.current) {
         pendingRequestRef.current = null;
-        setIsLoading(false);
+        setLoadingState(LoadingState.IDLE);
         setIsProcessingMessage(false);
       }
 
       if (urlSessionId) {
-        setIsLoadingHistory(true);
+        setLoadingState(LoadingState.LOADING_HISTORY);
         // Title is now static, no need to update
         
         try {
@@ -245,8 +360,10 @@ export const ChatPage: React.FC = () => {
               audioUrl: msg.audio_file ? msg.audio_file : undefined,
               agent_type: msg.agent_type,
               agent_emoji: msg.agent_emoji,
+              usefulLinks: msg.useful_links || msg.usefulLinks, // Mapear links úteis
+              downloadableDocuments: msg.downloadable_documents || msg.downloadableDocuments, // Mapear documentos
             }));
-            
+
             setMessages(convertedMessages);
             setSessionId(urlSessionId);
             
@@ -257,15 +374,14 @@ export const ChatPage: React.FC = () => {
           toast.error(t('chat.session_load_error'));
           setMessages([]);
         } finally {
-          setIsLoadingHistory(false);
+          setLoadingState(LoadingState.IDLE);
         }
       } else {
         // Reset for new session
         setMessages([]);
         setSessionId(null);
         setInputMessage('');
-        setIsLoading(false);
-        setIsLoadingHistory(false);
+        setLoadingState(LoadingState.IDLE);
         // Force re-render of greeting
         setAnimationKey(prev => prev + 1);
       }
@@ -274,40 +390,19 @@ export const ChatPage: React.FC = () => {
     loadSessionHistory();
   }, [urlSessionId, setIsProcessingMessage]);
 
-  const handleSendMessage = async () => {
-    if ((!inputMessage.trim() && !audioBlob) || isLoading) return;
-
-    const isAudioMessage = audioBlob !== null;
-    const requestId = Date.now().toString();
-    const userMessage: Message = {
-      id: requestId,
-      type: 'user',
-      content: isAudioMessage
-        ? (inputMessage.trim() ? inputMessage : t('chat.audio_message'))
-        : inputMessage,
-      timestamp: new Date(),
-      messageType: isAudioMessage ? 'audio' : 'text',
-      audioUrl: isAudioMessage ? URL.createObjectURL(audioBlob) : undefined,
-      audioDuration: isAudioMessage ? recordingTime : undefined,
-      isProcessingTranscription: isAudioMessage,
-    };
-
-    const messageContent = inputMessage;
-    setMessages(prev => [...prev, userMessage]);
-    setInputMessage('');
-    setAudioBlob(null);
-    setRecordingTime(0);
-    setIsLoading(true);
-    pendingRequestRef.current = requestId;
-    setIsProcessingMessage(true);
-
+  // Helper function for regular (non-streaming) message sending
+  const sendRegularMessage = useCallback(async (
+    messageContent: string,
+    userMessage: Message,
+    requestId: string,
+    audioFile?: Blob | null
+  ) => {
     try {
       const response = await chatApi.sendMessage({
         message: messageContent,
         session_id: sessionId || undefined,
-        audio_file: audioBlob || undefined,
-        content_type: audioBlob ? 'audio' : 'text',
-        mode: responseMode,
+        audio_file: audioFile || undefined,
+        content_type: audioFile ? 'audio' : 'text',
       });
 
       // Check if this request is still valid (user hasn't switched sessions)
@@ -333,18 +428,18 @@ export const ChatPage: React.FC = () => {
           originalDuration: userMessage.audioDuration,
           transcription: response.user_message.transcription
         });
-        
+
         setMessages(prev => prev.map(msg => {
           if (msg.type === 'user' && msg.timestamp.getTime() === userMessage.timestamp.getTime()) {
             // SEMPRE manter a duração original do frontend (mais precisa que a estimativa do backend)
             const finalDuration = msg.audioDuration;
-              
+
             console.log('🎵 Final duration choice:', {
               backend: response.user_message!.audio_duration,
               original: msg.audioDuration,
               final: finalDuration
             });
-            
+
             return {
               ...msg,
               transcription: response.user_message!.transcription,
@@ -369,14 +464,14 @@ export const ChatPage: React.FC = () => {
       };
 
       setMessages(prev => [...prev, botMessage]);
-      
+
       if (response.context_used) {
         toast.success(t('chat.response_with_documents'));
       }
-      
+
     } catch (error: any) {
       console.error('Erro ao enviar mensagem:', error);
-      
+
       // Extrair mensagem de erro específica se disponível
       let errorContent = t('chat.processing_message_error');
       let toastMessage = t('chat.send_error');
@@ -395,9 +490,9 @@ export const ChatPage: React.FC = () => {
           toastMessage = t('chat.unsupported_format');
         }
       }
-      
+
       toast.error(toastMessage);
-      
+
       // Mensagem de erro
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -405,24 +500,76 @@ export const ChatPage: React.FC = () => {
         content: errorContent,
         timestamp: new Date(),
       };
-      
+
       setMessages(prev => [...prev, errorMessage]);
     } finally {
       // Always reset processing state, but only reset loading if this is still the current request
       setIsProcessingMessage(false);
       if (pendingRequestRef.current === requestId) {
-        setIsLoading(false);
+        setLoadingState(LoadingState.IDLE);
         pendingRequestRef.current = null;
       }
     }
-  };
+  }, [sessionId, refreshChatSessions, t, setIsProcessingMessage]);
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleSendMessage = useCallback(async () => {
+    if ((!inputMessage.trim() && !audioBlob) || isLoading) return;
+
+    const isAudioMessage = audioBlob !== null;
+    const currentAudioBlob = audioBlob; // Save before clearing
+    const requestId = Date.now().toString();
+    const userMessage: Message = {
+      id: requestId,
+      type: 'user',
+      content: isAudioMessage
+        ? (inputMessage.trim() ? inputMessage : t('chat.audio_message'))
+        : inputMessage,
+      timestamp: new Date(),
+      messageType: isAudioMessage ? 'audio' : 'text',
+      audioUrl: isAudioMessage ? URL.createObjectURL(audioBlob) : undefined,
+      audioDuration: isAudioMessage ? recordingTime : undefined,
+      isProcessingTranscription: isAudioMessage,
+    };
+
+    const messageContent = inputMessage;
+    setMessages(prev => [...prev, userMessage]);
+    setInputMessage('');
+    setAudioBlob(null);
+    setRecordingTime(0);
+    setLoadingState(LoadingState.SENDING_MESSAGE);
+    pendingRequestRef.current = requestId;
+
+    // Use streaming for text messages, regular mode for audio
+    if (!isAudioMessage) {
+      try {
+        await sendStreamingMessage(
+          messageContent,
+          sessionId || undefined,
+          5,  // context_size
+          1000,  // max_tokens
+          0.7,  // temperature
+          'pt',  // language
+          undefined,  // llm_provider
+          0.05  // stream_delay - velocidade normal (50ms)
+        );
+      } catch (error) {
+        console.error('Streaming failed, falling back to regular mode:', error);
+        // Fallback to regular mode if streaming fails
+        await sendRegularMessage(messageContent, userMessage, requestId, currentAudioBlob);
+      }
+      return;
+    }
+
+    // Regular mode for audio messages
+    await sendRegularMessage(messageContent, userMessage, requestId, currentAudioBlob);
+  }, [inputMessage, audioBlob, isLoading, sessionId, recordingTime, t, sendStreamingMessage, sendRegularMessage]);
+
+  const handleKeyPress = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
     }
-  };
+  }, [handleSendMessage]);
 
   const startRecording = async () => {
     try {
@@ -554,7 +701,7 @@ export const ChatPage: React.FC = () => {
                 )}
               </div>
             ) : (
-              messages.map((message) => (
+              memoizedMessages.map((message) => (
                 <div
                   key={message.id}
                   className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
@@ -689,22 +836,73 @@ export const ChatPage: React.FC = () => {
                 </div>
               ))
             )}
-            
-            {isLoading && (
+
+            {/* Streaming message */}
+            {streamingMessage && (
               <div className="flex justify-start">
-                <div className="flex flex-row">
+                <div className="flex max-w-xs lg:max-w-md xl:max-w-lg flex-row">
                   <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-muted text-muted-foreground mr-2">
                     <span className="text-sm">🤖</span>
                   </div>
                   <div className="px-4 py-2 rounded-lg bg-card text-card-foreground border border-border">
-                    {responseMode === 'deep' ? (
-                      <div className="flex items-center gap-2">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        <span className="text-xs text-muted-foreground">Analisando profundamente...</span>
-                      </div>
+                    {streamingMessage.content ? (
+                      <>
+                        <div className="text-sm prose dark:prose-invert max-w-none">
+                          <ReactMarkdown>{streamingMessage.content}</ReactMarkdown>
+                        </div>
+
+                        {/* Render Links if already received */}
+                        {streamingMessage.usefulLinks && streamingMessage.usefulLinks.length > 0 && (
+                          <div className="mt-4 space-y-2">
+                            <div className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
+                              <Link className="h-3 w-3" />
+                              <span>Links Úteis</span>
+                            </div>
+                            <div className="space-y-1">
+                              {streamingMessage.usefulLinks.map((link: any) => (
+                                <a
+                                  key={link.id}
+                                  href={link.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center gap-2 p-2 text-xs rounded-lg bg-secondary/50 hover:bg-secondary transition-colors group"
+                                >
+                                  <ExternalLink className="h-3 w-3 text-muted-foreground group-hover:text-primary" />
+                                  <div className="flex-1">
+                                    <div className="font-medium">{link.title}</div>
+                                    {link.description && (
+                                      <div className="text-muted-foreground line-clamp-1">{link.description}</div>
+                                    )}
+                                  </div>
+                                  <span className="text-[10px] px-1.5 py-0.5 bg-primary/10 text-primary rounded">
+                                    {link.category}
+                                  </span>
+                                </a>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </>
                     ) : (
-                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <div className="flex items-center">
+                        <span className="animate-pulse">•••</span>
+                      </div>
                     )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {isLoading && !streamingMessage && (
+              <div className="flex justify-start">
+                <div className="flex max-w-xs lg:max-w-md xl:max-w-lg flex-row">
+                  <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-muted text-muted-foreground mr-2">
+                    <span className="text-sm">🤖</span>
+                  </div>
+                  <div className="px-4 py-2 rounded-lg bg-card text-card-foreground border border-border">
+                    <div className="flex items-center">
+                      <span className="animate-pulse">•••</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -716,22 +914,6 @@ export const ChatPage: React.FC = () => {
 
         {/* Input */}
         <div className="flex-shrink-0 p-4">
-          {/* Loading overlay for navigation warning */}
-          {isLoading && (
-            <div className="max-w-4xl mx-auto mb-3">
-              <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
-                <div className="flex items-center space-x-2">
-                  <Loader2 className="h-4 w-4 animate-spin text-yellow-600 dark:text-yellow-400" />
-                  <span className="text-sm text-yellow-800 dark:text-yellow-200">
-                    {responseMode === 'deep'
-                      ? '🧠 Analisando profundamente... Isso pode levar alguns segundos.'
-                      : 'Aguardando resposta da IA... Evite alternar conversas para não perder a resposta.'}
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
-
           <div className="max-w-4xl mx-auto">
             <div className={`relative border border-border rounded-lg bg-secondary focus-within:border-ring transition-colors ${
               isLoading ? 'opacity-60 pointer-events-none' : ''
@@ -817,46 +999,6 @@ export const ChatPage: React.FC = () => {
                 </div>
 
                 <div className="flex items-center space-x-2">
-                  {/* Mode buttons */}
-                  <button
-                    onClick={() => setResponseMode('fast')}
-                    disabled={isLoading}
-                    className={`w-8 h-8 rounded-lg transition-all duration-200 flex items-center justify-center ${
-                      responseMode === 'fast'
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground'
-                    }`}
-                    title="Resposta rápida (~2s)"
-                  >
-                    <Rocket className="h-4 w-4" />
-                  </button>
-
-                  <button
-                    onClick={() => setResponseMode('deep')}
-                    disabled={isLoading}
-                    className={`w-8 h-8 rounded-lg transition-all duration-200 flex items-center justify-center ${
-                      responseMode === 'deep'
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground'
-                    }`}
-                    title="Análise profunda (~5-10s)"
-                  >
-                    <Brain className="h-4 w-4" />
-                  </button>
-
-                  <button
-                    onClick={() => setResponseMode('auto')}
-                    disabled={isLoading}
-                    className={`w-8 h-8 rounded-lg transition-all duration-200 flex items-center justify-center ${
-                      responseMode === 'auto'
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground'
-                    }`}
-                    title="Detecção automática"
-                  >
-                    <Zap className="h-4 w-4" />
-                  </button>
-
                   {/* Send button */}
                   <button
                     onClick={handleSendMessage}

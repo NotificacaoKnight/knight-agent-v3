@@ -44,14 +44,16 @@ class SearchResponse(BaseModel):
 
 class RAGQuery(BaseModel):
     """RAG query for answer generation"""
-    query: str = Field(..., description="User question")
-    mode: str = Field("auto", description="Response mode: fast, deep, auto")
+    query: str = Field(..., min_length=1, max_length=2000, description="User question")
+    mode: Optional[str] = Field(None, description="[DEPRECATED] Response mode - system now uses unified pipeline")
+    session_id: Optional[int] = Field(None, description="Session ID for conversational context")
     context_size: int = Field(5, description="Number of context chunks to use")
     max_tokens: int = Field(1000, description="Maximum tokens in response")
     temperature: float = Field(0.7, description="Response temperature", ge=0.0, le=1.0)
     include_sources: bool = Field(True, description="Include source references")
     language: str = Field("pt", description="Response language (pt, en)")
     llm_provider: Optional[str] = Field(None, description="Specific LLM provider to use")
+    stream_delay: float = Field(0.03, description="Delay between streaming tokens in seconds", ge=0.0, le=1.0)
 
 
 class RAGResponse(BaseModel):
@@ -60,10 +62,12 @@ class RAGResponse(BaseModel):
     query: str
     answer: str
     sources: Optional[List[ChunkResult]] = None
-    mode: str = Field("fast", description="Mode used for generation")
-    search_attempts: int = Field(1, description="Number of search attempts made")
     llm_provider: str
     response_time_ms: int
+    chunks_used: int = Field(0, description="Number of chunks used in context")
+    context_length: int = Field(0, description="Length of formatted context")
+    useful_links: Optional[List[Dict[str, Any]]] = Field(None, description="Relevant useful links")
+    downloadable_documents: Optional[List[Dict[str, Any]]] = Field(None, description="Relevant documents")
     tokens_used: Optional[int] = None
     metadata: Optional[Dict[str, Any]] = None
 

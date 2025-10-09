@@ -4,6 +4,7 @@ Implementação FastAPI com SQLAlchemy
 """
 import os
 import re
+import random
 import unicodedata
 import logging
 from typing import List, Dict, Any, Optional
@@ -19,7 +20,7 @@ class KnowledgeResourcesService:
 
     def __init__(self):
         self.embedding_model = None
-        self.similarity_threshold = 0.8
+        self.similarity_threshold = 0.85  # Aumentado de 0.8 para 0.85 (mais restritivo)
         self.max_links_per_response = 3
         self.max_documents_per_response = 2
         self._load_embedding_model()
@@ -222,16 +223,18 @@ class KnowledgeResourcesService:
                 desc_match = any(kw in self._normalize_text(item.description or '') for kw in keywords)
                 guidance_match = any(kw in self._normalize_text(item.ai_guidance or '') for kw in keywords)
 
-                # Calcular score
+                # Calcular score com pesos ajustados
                 score = 0.0
                 if title_match:
                     score += 0.4
                 if desc_match:
                     score += 0.3
                 if guidance_match:
-                    score += 0.3
+                    score += 0.4  # ai_guidance é mais importante
 
-                if score >= 0.3:  # Threshold mínimo
+                # Threshold mais alto para evitar falsos positivos
+                # Precisa ter pelo menos 2 matches (title+guidance OU desc+guidance)
+                if score >= 0.5:  # Aumentado de 0.3 para 0.5
                     result = self._format_resource(item, resource_type, score)
                     if result:
                         results.append(result)
@@ -426,38 +429,91 @@ class KnowledgeResourcesService:
 
     def format_resources_for_llm(
         self,
-        resources: Dict[str, List[Dict[str, Any]]]
+        resources: Dict[str, List[Dict[str, Any]]],
+        language: str = "pt"
     ) -> str:
-        """Formata recursos para inclusão no prompt do LLM"""
+        """
+        Formata recursos de forma natural para o prompt do LLM
+
+        Args:
+            resources: Dict com useful_links e downloadable_documents
+            language: Idioma (pt ou en)
+
+        Returns:
+            String formatada naturalmente
+        """
         try:
             if not resources['useful_links'] and not resources['downloadable_documents']:
                 return ""
 
             parts = []
 
-            # Links úteis
+            # Links úteis com introdução natural
             if resources['useful_links']:
-                parts.append("LINKS ÚTEIS DISPONÍVEIS:")
+                if language == "pt":
+                    intro = random.choice([
+                        "Recursos disponíveis que podem ajudar:",
+                        "Links úteis relacionados:",
+                        "Você pode acessar:",
+                        "Recursos online disponíveis:"
+                    ])
+                else:
+                    intro = random.choice([
+                        "Available resources that can help:",
+                        "Useful related links:",
+                        "You can access:",
+                        "Available online resources:"
+                    ])
+
+                parts.append(intro)
+
                 for link in resources['useful_links']:
-                    parts.append(
-                        f"- [{link['title']}]({link['url']}) - {link['description']}"
-                    )
+                    # Contextualizar POR QUE o link é útil
+                    description = link.get('description', '')
+                    parts.append(f"- {link['title']} ({link['url']}): {description}")
+
                 parts.append("")
 
-            # Documentos
+            # Documentos com introdução natural
             if resources['downloadable_documents']:
-                parts.append("DOCUMENTOS PARA DOWNLOAD:")
-                for doc in resources['downloadable_documents']:
-                    parts.append(
-                        f"- {doc['title']} - {doc['description']}"
-                    )
-                parts.append("")
+                if language == "pt":
+                    intro = random.choice([
+                        "Documentos disponíveis para download:",
+                        "Preparei estes documentos que podem ajudar:",
+                        "Arquivos úteis disponíveis:",
+                        "Você pode baixar:"
+                    ])
+                else:
+                    intro = random.choice([
+                        "Documents available for download:",
+                        "I prepared these documents that can help:",
+                        "Useful files available:",
+                        "You can download:"
+                    ])
 
+                parts.append(intro)
+
+                for doc in resources['downloadable_documents']:
+                    description = doc.get('description', '')
+                    file_name = doc.get('file_name', '')
+                    parts.append(f"- {doc['title']} ({file_name}): {description}")
+
+            # Instrução natural para o LLM
             if parts:
-                parts.insert(0, "RECURSOS ADICIONAIS:\n")
-                parts.append(
-                    "INSTRUÇÃO: Inclua estes recursos na resposta quando relevantes."
-                )
+                if language == "pt":
+                    instruction = (
+                        "\nQuando relevante, mencione estes recursos naturalmente na sua resposta. "
+                        "Por exemplo: 'Você pode conferir mais detalhes no Portal RH' ou "
+                        "'Preparei o Formulário de Férias para você baixar'."
+                    )
+                else:
+                    instruction = (
+                        "\nWhen relevant, mention these resources naturally in your response. "
+                        "For example: 'You can check more details on the HR Portal' or "
+                        "'I prepared the Vacation Form for you to download'."
+                    )
+
+                parts.append(instruction)
 
             return "\n".join(parts)
 

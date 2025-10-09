@@ -98,14 +98,29 @@ async def list_chat_sessions(
                 page_size=page_size,
                 total_pages=0
             )
-        # Build query
-        query = select(ChatSession).where(ChatSession.user_id == current_user.id)
+        # Build query with message count using LEFT JOIN and GROUP BY (avoids N+1)
+        query = (
+            select(
+                ChatSession,
+                func.coalesce(func.count(ChatMessage.id), 0).label('message_count')
+            )
+            .outerjoin(ChatMessage, ChatMessage.session_id == ChatSession.id)
+            .where(ChatSession.user_id == current_user.id)
+            .group_by(ChatSession.id)
+        )
 
         if active_only:
             query = query.where(ChatSession.is_active == True)
 
-        # Count total
-        count_query = select(func.count()).select_from(query.subquery())
+        # Count total sessions (before pagination)
+        count_query = (
+            select(func.count(func.distinct(ChatSession.id)))
+            .select_from(ChatSession)
+            .where(ChatSession.user_id == current_user.id)
+        )
+        if active_only:
+            count_query = count_query.where(ChatSession.is_active == True)
+
         total_result = await db.execute(count_query)
         total = total_result.scalar()
 
@@ -115,18 +130,11 @@ async def list_chat_sessions(
 
         # Execute query
         result = await db.execute(query)
-        sessions = result.scalars().all()
+        sessions_with_counts = result.all()
 
-        # Count messages for each session
-        session_list = []
-        for session in sessions:
-            msg_count_result = await db.execute(
-                select(func.count()).select_from(ChatMessage)
-                .where(ChatMessage.session_id == session.id)
-            )
-            message_count = msg_count_result.scalar()
-
-            session_list.append(ChatSessionResponse(
+        # Build response list (no extra queries needed!)
+        session_list = [
+            ChatSessionResponse(
                 id=session.id,
                 user_id=session.user_id,
                 title=session.title,
@@ -138,7 +146,9 @@ async def list_chat_sessions(
                 last_message_at=session.last_message_at,
                 message_count=message_count,
                 is_active=session.is_active
-            ))
+            )
+            for session, message_count in sessions_with_counts
+        ]
 
         return ChatSessionListResponse(
             sessions=session_list,
@@ -184,10 +194,14 @@ async def get_chat_history(
         )
         total_messages = count_result.scalar()
 
-        # Get messages with feedback eager loading
+        # Get messages with eager loading of all relationships
         messages_result = await db.execute(
             select(ChatMessage)
-            .options(selectinload(ChatMessage.feedback))
+            .options(
+                selectinload(ChatMessage.feedback),
+                selectinload(ChatMessage.link_requests),
+                selectinload(ChatMessage.document_requests)
+            )
             .where(ChatMessage.session_id == session_id)
             .order_by(ChatMessage.created_at.desc())
             .offset(offset)
@@ -214,7 +228,11 @@ async def get_chat_history(
                 created_at=msg.created_at,
                 metadata=msg.message_metadata,
                 feedback_score=feedback_score,
-                feedback_text=feedback_text
+                feedback_text=feedback_text,
+                useful_links=getattr(msg, 'useful_links', None),
+                downloadable_documents=getattr(msg, 'downloadable_documents', None),
+                agent_type=getattr(msg, 'agent_type', None),
+                agent_emoji=getattr(msg, 'agent_emoji', None)
             ))
 
         return ChatHistoryResponse(

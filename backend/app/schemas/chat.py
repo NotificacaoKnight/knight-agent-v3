@@ -23,6 +23,10 @@ class ChatMessageResponse(BaseModel):
     metadata: Optional[Dict[str, Any]] = None
     feedback_score: Optional[int] = None
     feedback_text: Optional[str] = None
+    useful_links: Optional[List[Dict[str, Any]]] = None
+    downloadable_documents: Optional[List[Dict[str, Any]]] = None
+    agent_type: Optional[str] = None
+    agent_emoji: Optional[str] = None
 
 
 class ChatSessionCreate(BaseModel):
