@@ -30,7 +30,8 @@ class PromptTemplates:
         context: str = "",
         conversation_history: str = "",
         knowledge_resources: str = "",
-        language: str = "pt"
+        language: str = "pt",
+        current_time: str = ""
     ) -> str:
         """
         Cria o prompt principal para geração de resposta
@@ -41,17 +42,18 @@ class PromptTemplates:
             conversation_history: Histórico de mensagens recentes
             knowledge_resources: Links e documentos disponíveis (já formatados)
             language: Idioma da resposta
+            current_time: Horário atual do sistema (formato: "HH:MM - Período")
 
         Returns:
             Prompt completo para o LLM
         """
         if language == "pt":
             return self._create_portuguese_prompt(
-                query, context, conversation_history, knowledge_resources
+                query, context, conversation_history, knowledge_resources, current_time
             )
         else:
             return self._create_english_prompt(
-                query, context, conversation_history, knowledge_resources
+                query, context, conversation_history, knowledge_resources, current_time
             )
 
     def _create_portuguese_prompt(
@@ -59,7 +61,8 @@ class PromptTemplates:
         query: str,
         context: str,
         conversation_history: str,
-        knowledge_resources: str
+        knowledge_resources: str,
+        current_time: str = ""
     ) -> str:
         """Cria prompt em português brasileiro natural"""
 
@@ -73,6 +76,15 @@ class PromptTemplates:
             "",
             behavior_instructions
         ]
+
+        # Adicionar informação de horário se disponível
+        if current_time:
+            sections.extend([
+                "",
+                "# Contexto temporal",
+                f"Horário atual: {current_time}",
+                ""
+            ])
 
         # Adicionar contexto conversacional se disponível
         if conversation_history:
@@ -120,7 +132,8 @@ class PromptTemplates:
         query: str,
         context: str,
         conversation_history: str,
-        knowledge_resources: str
+        knowledge_resources: str,
+        current_time: str = ""
     ) -> str:
         """Cria prompt em inglês natural"""
 
@@ -138,6 +151,15 @@ class PromptTemplates:
             "",
             behavior_en
         ]
+
+        # Add time context if available
+        if current_time:
+            sections.extend([
+                "",
+                "# Time context",
+                f"Current time: {current_time}",
+                ""
+            ])
 
         if conversation_history:
             sections.extend([
@@ -179,19 +201,44 @@ class PromptTemplates:
     def _get_behavior_instructions_pt(self) -> str:
         """Instruções de comportamento em português (naturais e implícitas)"""
         return """
-## Como você deve agir
+## Diretrizes de Resposta
 
-- Seja **objetivo e direto**, mas sempre prestativo
-- Use uma linguagem **natural e conversacional**, como se estivesse conversando com um colega
-- **PRIORIDADE MÁXIMA**: Use TODAS as informações disponíveis antes de sugerir contato com RH ou qualquer setor
-- Explore completamente o contexto e informações fornecidas para dar respostas detalhadas e completas
-- **Só sugira "entrar em contato com RH/setor X" como ÚLTIMA ALTERNATIVA**, quando realmente não houver nenhuma informação disponível
-- Quando houver links ou documentos úteis E forem relevantes para a pergunta, mencione-os **naturalmente** na resposta
-- Cite as fontes quando for relevante, mas de forma natural (exemplo: "Segundo o Manual do Colaborador...")
-- Se a pergunta for ambígua, peça esclarecimentos de forma amigável
-- Mantenha um tom **profissional mas acessível** - não seja formal demais nem informal demais
-- Priorize a **clareza**: se precisar explicar algo complexo, divida em passos
-- Evite usar emojis a menos que o contexto seja muito informal
+**Saudações e interações iniciais:**
+- APENAS quando o usuário cumprimentar com "Olá", "Oi", "Bom dia", "Boa tarde" ou "Boa noite", responda com uma saudação natural
+- Varie as saudações: "Oi!", "Olá!", "E aí!", "Boa noite!", "Como posso ajudar?", "No que posso te ajudar?", "Diga!"
+- Seja casual e amigável, como um colega de trabalho prestativo
+- Em todas as outras respostas, vá direto ao assunto SEM usar saudações de horário
+
+**Formato de saída:**
+- Respostas devem ter 2-5 sentenças para perguntas simples
+- Para tópicos complexos, use parágrafos curtos e objetivos
+- NÃO repita a pergunta do usuário
+- NÃO termine com perguntas genéricas de acompanhamento ("Posso ajudar com mais alguma coisa?", "Tem mais dúvidas?")
+- NÃO liste exemplos ou detalhes extras a menos que seja explicitamente solicitado
+
+**Uso de informações da base de conhecimento:**
+- Baseie suas respostas APENAS nas informações fornecidas na seção "Informações disponíveis"
+- Use TODAS as informações relevantes disponíveis antes de sugerir contato com setores
+- Cite fontes naturalmente quando relevante (ex: "Segundo o Manual do Colaborador...")
+- Só sugira "entrar em contato com RH/setor X" como ÚLTIMA alternativa, quando realmente não houver informações suficientes
+
+**Lacunas de informação:**
+- Se as informações forem insuficientes: seja direto, admita a limitação, e sugira especificamente qual setor pode ajudar
+- NUNCA invente ou assuma informações que não estejam nos documentos
+
+**Recursos adicionais:**
+- Se houver links/documentos na seção "Recursos úteis", mencione os mais relevantes naturalmente no texto
+- Só mencione recursos diretamente relacionados à pergunta
+
+**Tom e estilo:**
+- Linguagem natural e descontraída, como uma conversa informal entre colegas
+- Seja direto e objetivo, mas humano e acessível
+- Use contrações quando natural ("tá", "pra", "você pode" ao invés de "pode-se")
+- Evite formalismo corporativo excessivo ("prezado", "cordialmente", "à disposição")
+- NÃO use emojis
+
+**Esclarecimentos:**
+- Se a pergunta for ambígua, faça UMA pergunta breve e direta para esclarecer
         """.strip()
 
     def _get_behavior_instructions_en(self) -> str:

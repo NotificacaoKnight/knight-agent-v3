@@ -56,15 +56,33 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"⚠️ Redis initialization failed: {e}")
 
+    # Start background scheduler
+    try:
+        from app.core.scheduler import start_scheduler
+        start_scheduler()
+        logger.info("✅ Background scheduler started")
+    except Exception as e:
+        logger.warning(f"⚠️ Scheduler initialization failed: {e}")
+
     yield
 
     # Shutdown
     logger.info("👋 Knight Agent FastAPI shutting down...")
+
+    # Shutdown scheduler
+    try:
+        from app.core.scheduler import shutdown_scheduler
+        shutdown_scheduler()
+    except Exception:
+        pass
+
+    # Shutdown Redis
     try:
         from app.core.redis_service import redis_service
         await redis_service.disconnect()
     except Exception:
         pass
+
     await close_database()
 
 # Criar instância FastAPI

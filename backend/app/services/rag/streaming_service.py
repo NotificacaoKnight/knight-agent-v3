@@ -5,6 +5,7 @@ Implementação FastAPI com suporte a streaming de LLM
 import json
 import asyncio
 import logging
+import pytz
 from typing import AsyncIterator, Dict, Any, Optional, List
 from datetime import datetime
 
@@ -175,13 +176,30 @@ class StreamingRAGService:
                 language=language
             )
 
+            # Obter horário atual para saudações contextuais
+            # Configurar timezone (ajuste conforme necessário - usando America/Sao_Paulo como padrão)
+            tz = pytz.timezone('America/Sao_Paulo')
+            now = datetime.now(tz)
+            hour = now.hour
+
+            # Determinar período do dia
+            if 5 <= hour < 12:
+                period = "manhã"
+            elif 12 <= hour < 18:
+                period = "tarde"
+            else:
+                period = "noite"
+
+            current_time = f"{now.strftime('%H:%M')} - {period}"
+
             # Criar prompt naturalizado
             full_prompt = prompt_templates.create_main_prompt(
                 query=query,
                 context=optimized_context,
                 conversation_history="",  # TODO: implementar conversation_memory
                 knowledge_resources=resources_formatted,
-                language=language
+                language=language,
+                current_time=current_time
             )
 
             # ===== 6. STREAM DE GERAÇÃO =====
@@ -270,10 +288,31 @@ class StreamingRAGService:
                     "data": sources_data
                 })
 
-            # ===== 8. CALCULAR TEMPO DE RESPOSTA =====
+            # ===== 8. INCREMENTAR ACCESS_COUNT DOS DOCUMENTOS USADOS =====
+            # Incrementar apenas se contexto foi usado (não vazio)
+            if chunks and optimized_context and db:
+                try:
+                    # Extrair IDs únicos dos documentos que foram efetivamente usados na resposta
+                    used_doc_ids = list(set(chunk.get('document_id') for chunk in chunks[:context_size] if chunk.get('document_id')))
+
+                    if used_doc_ids:
+                        from sqlalchemy import text
+                        await db.execute(
+                            text(
+                                "UPDATE documents SET access_count = access_count + 1 "
+                                "WHERE id = ANY(:doc_ids)"
+                            ),
+                            {"doc_ids": used_doc_ids}
+                        )
+                        await db.commit()
+                        logger.info(f"Access count incremented for documents: {used_doc_ids}")
+                except Exception as e:
+                    logger.error(f"Error incrementing access count: {e}")
+
+            # ===== 9. CALCULAR TEMPO DE RESPOSTA =====
             response_time_ms = int((datetime.now() - start_time).total_seconds() * 1000)
 
-            # ===== 9. SALVAR MENSAGENS NO BANCO =====
+            # ===== 10. SALVAR MENSAGENS NO BANCO =====
             if session_id and db:
                 # Criar mensagem do usuário
                 user_message = ChatMessage(

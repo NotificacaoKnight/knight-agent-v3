@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../components/MainLayout';
 import {
   MessageSquare,
@@ -31,6 +32,7 @@ interface ActivityData {
 }
 
 export const DashboardPage: React.FC = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [activityData, setActivityData] = useState<ActivityData[] | null>(null);
@@ -47,6 +49,7 @@ export const DashboardPage: React.FC = () => {
         // Cookies são enviados automaticamente com credentials: 'include'
 
         // Fazer chamadas paralelas para todas as APIs de estatísticas
+        // Request 365 days of activity data to support up to 1 year view
         const [documentsRes, chatRes, activityRes] = await Promise.all([
           fetch('http://localhost:8000/api/documents/stats', {
             credentials: 'include'
@@ -54,7 +57,7 @@ export const DashboardPage: React.FC = () => {
           fetch('http://localhost:8000/api/chat/stats', {
             credentials: 'include'
           }),
-          fetch('http://localhost:8000/api/chat/activity', {
+          fetch('http://localhost:8000/api/chat/activity?days=365', {
             credentials: 'include'
           })
         ]);
@@ -100,7 +103,7 @@ export const DashboardPage: React.FC = () => {
         setActivityData(transformedActivityData);
       } catch (error) {
         console.error('Erro ao carregar estatísticas:', error);
-        setError('Erro ao carregar dados do dashboard');
+        setError(t('dashboard.error_loading_data'));
         // Fallback para dados padrão em caso de erro
         setStats({
           totalChats: 0,
@@ -128,8 +131,8 @@ export const DashboardPage: React.FC = () => {
   };
 
   const handleDownloads = () => {
-    // TODO: Implementar página de downloads
-    alert('Funcionalidade de Downloads será implementada em breve');
+    // TODO: Implement downloads page
+    alert(t('dashboard.downloads_coming_soon'));
   };
 
   if (loading) {
@@ -138,7 +141,7 @@ export const DashboardPage: React.FC = () => {
         <div className="h-full flex items-center justify-center">
           <div className="flex flex-col items-center space-y-4">
             <Loader2 className="h-8 w-8 animate-spin text-accent" />
-            <p className="text-muted-foreground">Carregando dashboard...</p>
+            <p className="text-muted-foreground">{t('dashboard.loading_dashboard')}</p>
           </div>
         </div>
       </MainLayout>
@@ -146,7 +149,7 @@ export const DashboardPage: React.FC = () => {
   }
 
   return (
-    <MainLayout title="Dashboard" subtitle="Visão geral do sistema">
+    <MainLayout title={t('dashboard.title')} subtitle={t('dashboard.subtitle')}>
       <div className="h-full overflow-y-auto custom-scrollbar">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
           {error && (
@@ -167,16 +170,16 @@ export const DashboardPage: React.FC = () => {
                 </div>
                 <div className="flex-1">
                   <h3 className="font-semibold text-card-foreground group-hover:text-accent transition-colors">
-                    Novo Chat
+                    {t('dashboard.new_chat')}
                   </h3>
                   <p className="text-sm text-muted-foreground">
-                    Converse com o Knight
+                    {t('dashboard.chat_with_knight')}
                   </p>
                 </div>
               </div>
             </Card>
 
-            <Card 
+            <Card
               className="p-4 sm:p-6 cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] group bg-gradient-to-br from-card to-card/50 border border-border hover:border-accent/50"
               onClick={handleDocuments}
             >
@@ -186,16 +189,16 @@ export const DashboardPage: React.FC = () => {
                 </div>
                 <div className="flex-1">
                   <h3 className="font-semibold text-card-foreground group-hover:text-accent transition-colors">
-                    Documentos
+                    {t('dashboard.documents')}
                   </h3>
                   <p className="text-sm text-muted-foreground">
-                    Gerenciar conhecimento
+                    {t('dashboard.manage_knowledge')}
                   </p>
                 </div>
               </div>
             </Card>
 
-            <Card 
+            <Card
               className="p-4 sm:p-6 cursor-pointer hover:shadow-lg transition-all duration-300 hover:scale-[1.02] group bg-gradient-to-br from-card to-card/50 border border-border hover:border-accent/50"
               onClick={handleDownloads}
             >
@@ -205,10 +208,10 @@ export const DashboardPage: React.FC = () => {
                 </div>
                 <div className="flex-1">
                   <h3 className="font-semibold text-card-foreground group-hover:text-accent transition-colors">
-                    Downloads
+                    {t('dashboard.downloads')}
                   </h3>
                   <p className="text-sm text-muted-foreground">
-                    Arquivos temporários
+                    {t('dashboard.temporary_files')}
                   </p>
                 </div>
               </div>
@@ -220,7 +223,7 @@ export const DashboardPage: React.FC = () => {
             <Card className="p-4 sm:p-6 bg-gradient-to-br from-card to-card/45 border border-border relative group cursor-pointer transition-all duration-300 hover:shadow-xl overflow-hidden">
               <div className="flex items-center justify-between relative z-10">
                 <div>
-                  <p className="text-sm font-medium text-foreground">Total de conversas</p>
+                  <p className="text-sm font-medium text-foreground">{t('dashboard.total_conversations')}</p>
                   <p className="text-2xl font-bold text-muted-foreground">{stats?.totalChats.toLocaleString()}</p>
                 </div>
                 <div className="relative -mt-5">
@@ -311,7 +314,7 @@ export const DashboardPage: React.FC = () => {
             <Card className="p-4 sm:p-6 bg-gradient-to-br from-card to-card/45 border border-border relative group cursor-pointer transition-all duration-300 hover:shadow-xl overflow-hidden">
               <div className="flex items-center justify-between relative z-10">
                 <div>
-                  <p className="text-sm font-medium text-foreground">Documentos ativos</p>
+                  <p className="text-sm font-medium text-foreground">{t('dashboard.active_documents')}</p>
                   <p className="text-2xl font-bold text-muted-foreground">{stats?.totalDocuments}</p>
                 </div>
                 <div className="relative -mt-5">
@@ -402,7 +405,7 @@ export const DashboardPage: React.FC = () => {
             <Card className="p-4 sm:p-6 bg-gradient-to-br from-card to-card/45 border border-border relative group cursor-pointer transition-all duration-300 hover:shadow-xl overflow-hidden">
               <div className="flex items-center justify-between relative z-10">
                 <div>
-                  <p className="text-sm font-medium text-foreground">Usuários ativos</p>
+                  <p className="text-sm font-medium text-foreground">{t('dashboard.active_users')}</p>
                   <p className="text-2xl font-bold text-muted-foreground">{stats?.activeUsers}</p>
                 </div>
                 <div className="relative -mt-5">
@@ -421,7 +424,7 @@ export const DashboardPage: React.FC = () => {
               </div>
               <div className="mt-4 flex items-center text-sm relative z-10">
                 <Clock className="h-4 w-4 text-accent mr-2" />
-                <span className="text-accent">Tempo médio de sessão: {stats?.avgSessionDuration}m</span>
+                <span className="text-accent">{t('dashboard.average_session_time')}: {stats?.avgSessionDuration}m</span>
               </div>
               
               {/* Shine Effect */}
@@ -497,7 +500,7 @@ export const DashboardPage: React.FC = () => {
             <Card className="p-4 sm:p-6 bg-gradient-to-br from-card to-card/45 border border-border relative group cursor-pointer transition-all duration-300 hover:shadow-xl overflow-hidden">
               <div className="flex items-center justify-between relative z-10">
                 <div>
-                  <p className="text-sm font-medium text-foreground">Tempo de resposta</p>
+                  <p className="text-sm font-medium text-foreground">{t('dashboard.response_time')}</p>
                   <p className="text-2xl font-bold text-muted-foreground">{stats?.avgResponseTime}s</p>
                 </div>
                 <div className="relative -mt-5">
@@ -516,7 +519,7 @@ export const DashboardPage: React.FC = () => {
               </div>
               <div className="mt-4 flex items-center text-sm relative z-10">
                 <TrendingUp className="h-4 w-4 text-accent mr-1" />
-                <span className="text-accent">Performance IA otimizada</span>
+                <span className="text-accent">{t('dashboard.optimized_ai_performance')}</span>
               </div>
               
               {/* Shine Effect */}
@@ -592,10 +595,10 @@ export const DashboardPage: React.FC = () => {
 
           {/* Chart Section */}
           <div className="w-full">
-            <ChartAreaInteractive 
+            <ChartAreaInteractive
               data={activityData && activityData.length > 0 ? activityData : null}
-              title="Atividade do Knight"
-              description="Conversas iniciadas e documentos consultados"
+              title={t('dashboard.knight_activity')}
+              description={t('dashboard.conversations_and_documents')}
             />
           </div>
 

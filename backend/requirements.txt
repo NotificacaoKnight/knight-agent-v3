@@ -56,8 +56,9 @@ groq
 google-generativeai
 together
 
-# Background Tasks (using FastAPI native BackgroundTasks)
+# Background Tasks & Scheduling
 redis
+APScheduler
 
 # Utilities
 httpx

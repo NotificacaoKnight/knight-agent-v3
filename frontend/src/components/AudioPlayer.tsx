@@ -175,13 +175,13 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({ audioUrl, transcriptio
   };
 
   return (
-    <div className="bg-card border border-border rounded-lg p-3 max-w-xs">
+    <div className="max-w-xs">
       <audio ref={audioRef} src={audioUrl} preload="metadata" />
-      
+
       <div className="flex items-center space-x-3">
         <button
           onClick={togglePlayback}
-          className="flex-shrink-0 w-8 h-8 bg-primary text-primary-foreground rounded-full flex items-center justify-center hover:bg-primary/90 transition-colors"
+          className="flex-shrink-0 w-8 h-8 bg-primary-foreground/10 hover:bg-primary-foreground/20 text-primary-foreground rounded-full flex items-center justify-center transition-colors"
         >
           {isPlaying ? (
             <Pause className="h-4 w-4" />
@@ -192,18 +192,18 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({ audioUrl, transcriptio
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center space-x-2 mb-1">
-            <Volume2 className="h-3 w-3 text-muted-foreground" />
-            <span className="text-xs text-muted-foreground">
+            <Volume2 className="h-3 w-3 text-primary-foreground/70" />
+            <span className="text-xs text-primary-foreground/70">
               {formatTime(currentTime)} / {formatTime(duration)}
             </span>
           </div>
-          
+
           <div
-            className="w-full h-1 bg-muted rounded-full cursor-pointer"
+            className="w-full h-1 bg-primary-foreground/20 rounded-full cursor-pointer"
             onClick={handleProgressClick}
           >
             <div
-              className="h-full bg-primary rounded-full transition-all duration-150"
+              className="h-full bg-primary-foreground/60 rounded-full transition-all duration-150"
               style={{
                 width: `${getProgressPercentage()}%`
               }}
@@ -213,13 +213,13 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({ audioUrl, transcriptio
       </div>
 
       {(transcription || isProcessingTranscription) && (
-        <div className="mt-3 pt-3 border-t border-border">
+        <div className="mt-3 pt-3 border-t border-primary-foreground/20">
           {transcription ? (
-            <p className="text-sm text-muted-foreground italic">
+            <p className="text-sm text-primary-foreground/80 italic">
               "{transcription}"
             </p>
           ) : isProcessingTranscription ? (
-            <p className="text-sm text-muted-foreground italic">
+            <p className="text-sm text-primary-foreground/60 italic">
               "Carregando..."
             </p>
           ) : null}

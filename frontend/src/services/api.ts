@@ -132,41 +132,30 @@ export interface SendMessageResponse {
 export const chatApi = {
   // Enviar mensagem
   sendMessage: async (data: SendMessageRequest): Promise<SendMessageResponse> => {
-    // Mapear para o formato esperado pelo backend
-    const backendPayload = {
-      query: data.message,  // backend espera 'query', não 'message'
-      session_id: data.session_id ? parseInt(data.session_id) : null,  // converter para number
-      use_rag: true,
-      use_agentic: data.mode === 'deep',  // Use agentic for deep mode
-      mode: data.mode || 'auto',  // Pass mode to backend
-      stream: false,
-      language: 'pt',
-      max_tokens: 1000,
-      temperature: 0.7
-    };
+    // Backend now uses Form parameters for all messages (text and audio)
+    const formData = new FormData();
+    formData.append('message', data.message || '');
+    formData.append('content_type', data.audio_file ? 'audio' : 'text');
+    if (data.session_id) {
+      formData.append('session_id', data.session_id);
+    }
+    formData.append('use_rag', 'true');
+    formData.append('use_agentic', String(data.mode === 'deep'));
+    formData.append('mode', data.mode || 'auto');
+    formData.append('language', 'pt');
+    formData.append('max_tokens', '1000');
+    formData.append('temperature', '0.7');
 
     if (data.audio_file) {
-      // Para mensagens com áudio, usar FormData
-      const formData = new FormData();
-      formData.append('query', data.message);  // usar 'query' em vez de 'message'
-      formData.append('session_id', data.session_id || '');
-      formData.append('use_rag', 'true');
-      formData.append('use_agentic', String(data.mode === 'deep'));
-      formData.append('mode', data.mode || 'auto');
-      formData.append('language', 'pt');
       formData.append('audio_file', data.audio_file);
-
-      const response = await api.post('/chat/query', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-      return response.data;
-    } else {
-      // Para mensagens de texto, usar JSON normal
-      const response = await api.post('/chat/query', backendPayload);
-      return response.data;
     }
+
+    const response = await api.post('/chat/query', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
   },
 
   // Criar nova sessão
@@ -211,7 +200,7 @@ export const chatApi = {
 
   // Download de documentos
   async downloadDocument(documentId: number) {
-    const response = await api.get(`/knowledge/documents/${documentId}/download`, {
+    const response = await api.get(`/knowledge/downloadable-documents/${documentId}/download`, {
       responseType: 'blob' // Importante para download de arquivos
     });
     return response;

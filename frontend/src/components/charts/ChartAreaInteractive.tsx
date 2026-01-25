@@ -3,6 +3,7 @@
 import * as React from "react"
 // @ts-ignore
 import { Area, AreaChart, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts"
+import { useTranslation } from "react-i18next"
 
 import { useIsMobile } from "../../hooks/use-mobile"
 import {
@@ -58,13 +59,23 @@ const chartConfig = {
   },
 } satisfies ChartConfig
 
-export function ChartAreaInteractive({ 
-  title = "Atividade do Knight",
-  description = "Conversas e consultas de documentos",
+export function ChartAreaInteractive({
+  title,
+  description,
   data
 }: ChartAreaInteractiveProps) {
+  const { t, i18n } = useTranslation()
   const isMobile = useIsMobile()
   const [timeRange, setTimeRange] = React.useState("30d")
+
+  // Get current locale for date formatting
+  const currentLocale = i18n.language?.startsWith('pt') ? 'pt-BR' :
+                        i18n.language?.startsWith('es') ? 'es-ES' :
+                        i18n.language?.startsWith('sv') ? 'sv-SE' : 'en-US'
+
+  // Use translated defaults if not provided
+  const displayTitle = title || t('dashboard.knight_activity')
+  const displayDescription = description || t('dashboard.conversations_and_documents')
 
   React.useEffect(() => {
     if (isMobile) {
@@ -72,20 +83,20 @@ export function ChartAreaInteractive({
     }
   }, [isMobile])
 
-  // Usar dados reais se fornecidos, caso contrário array vazio
+  // Use real data if provided, otherwise empty array
   const sourceData = data || emptyData
-  
-  // Se não houver dados, mostrar mensagem apropriada
+
+  // If no data, show appropriate message
   if (sourceData.length === 0) {
     return (
       <Card className="@container/card bg-gradient-to-br from-card to-card/45 border border-border">
         <CardHeader>
-          <CardTitle>{title}</CardTitle>
-          <CardDescription>{description}</CardDescription>
+          <CardTitle>{displayTitle}</CardTitle>
+          <CardDescription>{displayDescription}</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-center h-[300px] text-muted-foreground">
-            <p>Carregando dados de atividade...</p>
+            <p>{t('dashboard.loading_activity_data')}</p>
           </div>
         </CardContent>
       </Card>
@@ -93,43 +104,58 @@ export function ChartAreaInteractive({
   }
 
   const filteredData = sourceData.filter((item) => {
-    // Corrigir timezone: forçar parsing como data local, não UTC
+    // Fix timezone: force parsing as local date, not UTC
     const [year, month, day] = item.date.split('-').map(Number)
-    const date = new Date(year, month - 1, day) // month é 0-indexed
-    
+    const date = new Date(year, month - 1, day) // month is 0-indexed
+
     const referenceDate = new Date()
     let daysToSubtract = 30
-    if (timeRange === "30d") {
-      daysToSubtract = 30
-    } else if (timeRange === "7d") {
+    if (timeRange === "7d") {
       daysToSubtract = 7
+    } else if (timeRange === "30d") {
+      daysToSubtract = 30
     } else if (timeRange === "90d") {
       daysToSubtract = 90
+    } else if (timeRange === "180d") {
+      daysToSubtract = 180
+    } else if (timeRange === "365d") {
+      daysToSubtract = 365
     }
-    
-    // Garantir que a data de referência está no final do dia para incluir hoje
+
+    // Ensure reference date is at end of day to include today
     const endDate = new Date(referenceDate)
     endDate.setHours(23, 59, 59, 999)
-    
+
     const startDate = new Date(referenceDate)
     startDate.setDate(startDate.getDate() - daysToSubtract)
     startDate.setHours(0, 0, 0, 0)
-    
+
     return date >= startDate && date <= endDate
   })
+
+  // Helper function to get time range label
+  const getTimeRangeLabel = (range: string): string => {
+    switch (range) {
+      case "7d": return t('dashboard.seven_days')
+      case "30d": return t('dashboard.thirty_days')
+      case "90d": return t('dashboard.three_months')
+      case "180d": return t('dashboard.six_months')
+      case "365d": return t('dashboard.one_year')
+      default: return t('dashboard.thirty_days')
+    }
+  }
   
 
   return (
     <Card className="@container/card bg-gradient-to-br from-card to-card/45 border border-border">
       <CardHeader>
-        <CardTitle>{title}</CardTitle>
+        <CardTitle>{displayTitle}</CardTitle>
         <CardDescription>
           <span className="hidden @[540px]/card:block">
-            {description} - Total dos últimos{" "}
-            {timeRange === "30d" ? "30 dias" : timeRange === "7d" ? "7 dias" : "3 meses"}
+            {displayDescription} - {t('dashboard.total_of_last')} {getTimeRangeLabel(timeRange)}
           </span>
           <span className="@[540px]/card:hidden">
-            Últimos {timeRange === "30d" ? "30 dias" : timeRange === "7d" ? "7 dias" : "3 meses"}
+            {getTimeRangeLabel(timeRange)}
           </span>
         </CardDescription>
         <CardAction>
@@ -140,27 +166,35 @@ export function ChartAreaInteractive({
             variant="outline"
             className="hidden *:data-[slot=toggle-group-item]:!px-4 @[767px]/card:flex"
           >
-            <ToggleGroupItem value="90d">3 meses</ToggleGroupItem>
-            <ToggleGroupItem value="30d">30 dias</ToggleGroupItem>
-            <ToggleGroupItem value="7d">7 dias</ToggleGroupItem>
+            <ToggleGroupItem value="365d">{t('dashboard.one_year')}</ToggleGroupItem>
+            <ToggleGroupItem value="180d">{t('dashboard.six_months')}</ToggleGroupItem>
+            <ToggleGroupItem value="90d">{t('dashboard.three_months')}</ToggleGroupItem>
+            <ToggleGroupItem value="30d">{t('dashboard.thirty_days')}</ToggleGroupItem>
+            <ToggleGroupItem value="7d">{t('dashboard.seven_days')}</ToggleGroupItem>
           </ToggleGroup>
           <Select value={timeRange} onValueChange={setTimeRange}>
             <SelectTrigger
               className="flex w-40 @[767px]/card:hidden"
               size="sm"
-              aria-label="Selecionar período"
+              aria-label={t('dashboard.select_period')}
             >
-              <SelectValue placeholder="Últimos 30 dias" />
+              <SelectValue placeholder={t('dashboard.last_30_days')} />
             </SelectTrigger>
             <SelectContent className="rounded-xl bg-card border-border shadow-lg">
+              <SelectItem value="365d" className="rounded-lg">
+                {t('dashboard.one_year')}
+              </SelectItem>
+              <SelectItem value="180d" className="rounded-lg">
+                {t('dashboard.six_months')}
+              </SelectItem>
               <SelectItem value="90d" className="rounded-lg">
-                3 meses
+                {t('dashboard.three_months')}
               </SelectItem>
               <SelectItem value="30d" className="rounded-lg">
-                30 dias
+                {t('dashboard.thirty_days')}
               </SelectItem>
               <SelectItem value="7d" className="rounded-lg">
-                7 dias
+                {t('dashboard.seven_days')}
               </SelectItem>
             </SelectContent>
           </Select>
@@ -196,7 +230,7 @@ export function ChartAreaInteractive({
                   <stop offset="100%" stopColor="hsl(var(--chart-2))" stopOpacity={0.1} />
                 </linearGradient>
               </defs>
-              <XAxis 
+              <XAxis
                 dataKey="date"
                 axisLine={false}
                 tickLine={false}
@@ -204,25 +238,21 @@ export function ChartAreaInteractive({
                 type="category"
                 scale="point"
                 interval={
-                  timeRange === "90d" ? 5 : // 3 meses: pular de 6 em 6 dias
-                  timeRange === "30d" ? 1 : // 30 dias: pular de 2 em 2 dias  
-                  0 // 7 dias: mostrar todos os dias
+                  timeRange === "365d" ? 14 : // 1 year: skip every 15 days
+                  timeRange === "180d" ? 7 : // 6 months: skip every 8 days
+                  timeRange === "90d" ? 5 : // 3 months: skip every 6 days
+                  timeRange === "30d" ? 1 : // 30 days: skip every 2 days
+                  0 // 7 days: show all days
                 }
                 padding={{ left: 10, right: 10 }}
                 tickFormatter={(value: any) => {
-                  // Corrigir timezone: forçar parsing como data local
+                  // Fix timezone: force parsing as local date
                   const [year, month, day] = value.split('-').map(Number)
                   const date = new Date(year, month - 1, day)
-                  const formatted = date.toLocaleDateString("pt-BR", {
-                    month: "short", // Mês abreviado
-                    day: "numeric", // Dia sem zero à esquerda
-                  }).replace("de ", "")
-                  // Capitalizar primeira letra do mês e remover ponto
-                  const parts = formatted.split(" ")
-                  if (parts[1]) {
-                    parts[1] = parts[1].charAt(0).toUpperCase() + parts[1].slice(1).replace(".", "")
-                  }
-                  return parts.join(" ")
+                  return date.toLocaleDateString(currentLocale, {
+                    month: "short",
+                    day: "numeric",
+                  })
                 }}
               />
               <YAxis 
@@ -230,19 +260,18 @@ export function ChartAreaInteractive({
                 tickLine={false}
                 tick={false}
               />
-              <Tooltip 
+              <Tooltip
                 content={({ active, payload, label }) => {
                   if (active && payload && payload.length && label) {
-                    // Corrigir timezone: forçar parsing como data local
+                    // Fix timezone: force parsing as local date
                     const [year, month, day] = (label as string).split('-').map(Number)
                     const date = new Date(year, month - 1, day)
-                    const formattedDate = date.toLocaleDateString("pt-BR", {
+                    const formattedDate = date.toLocaleDateString(currentLocale, {
                       weekday: "long",
-                      day: "numeric", 
+                      day: "numeric",
                       month: "long"
-                    }).replace(" De ", " de ")
-                     .replace(/^./, (char) => char.toUpperCase()) // Capitalizar apenas primeira letra
-                    
+                    })
+
                     return (
                       <div className="bg-gradient-to-b from-muted/90 to-muted/60 backdrop-blur-sm border border-border rounded-lg p-3 shadow-lg">
                         <p className="text-sm font-medium text-muted-foreground mb-2">
@@ -250,12 +279,12 @@ export function ChartAreaInteractive({
                         </p>
                         {payload.map((entry: any, index: number) => (
                           <div key={index} className="flex items-center gap-2">
-                            <div 
-                              className="w-3 h-3 rounded-full" 
+                            <div
+                              className="w-3 h-3 rounded-full"
                               style={{ backgroundColor: entry.color }}
                             />
                             <span className="text-sm text-muted-foreground">
-                              {entry.name === 'conversas' ? 'Conversas' : 'Documentos'}: 
+                              {entry.name === 'conversas' ? t('dashboard.conversations') : t('dashboard.documents_consulted')}:
                             </span>
                             <span className="text-sm font-medium text-foreground">
                               {entry.value}

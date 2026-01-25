@@ -4,7 +4,9 @@ Pipeline unificado com prompts naturalizados e contexto otimizado
 """
 import time
 import logging
+import pytz
 from typing import List, Dict, Any, Optional
+from datetime import datetime
 import numpy as np
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -186,12 +188,29 @@ class RAGService:
             # Usar prompt templates naturalizados
             conversation_history = ""  # TODO: implementar com conversation_memory
 
+            # Obter horário atual para saudações contextuais
+            # Configurar timezone (ajuste conforme necessário - usando America/Sao_Paulo como padrão)
+            tz = pytz.timezone('America/Sao_Paulo')
+            now = datetime.now(tz)
+            hour = now.hour
+
+            # Determinar período do dia
+            if 5 <= hour < 12:
+                period = "manhã"
+            elif 12 <= hour < 18:
+                period = "tarde"
+            else:
+                period = "noite"
+
+            current_time = f"{now.strftime('%H:%M')} - {period}"
+
             full_prompt = prompt_templates.create_main_prompt(
                 query=query,
                 context=optimized_context,
                 conversation_history=conversation_history,
                 knowledge_resources=resources_formatted,
-                language=language
+                language=language,
+                current_time=current_time
             )
 
             # ===== 5. GERAR RESPOSTA COM LLM =====

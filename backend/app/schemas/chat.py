@@ -27,6 +27,11 @@ class ChatMessageResponse(BaseModel):
     downloadable_documents: Optional[List[Dict[str, Any]]] = None
     agent_type: Optional[str] = None
     agent_emoji: Optional[str] = None
+    # Audio fields
+    content_type: Optional[str] = "text"  # "text" or "audio"
+    audio_file: Optional[str] = None  # Relative path to audio file
+    audio_duration: Optional[float] = None  # Duration in seconds
+    transcription: Optional[str] = None  # Transcribed text for audio messages
 
 
 class ChatSessionCreate(BaseModel):
@@ -87,6 +92,9 @@ class ChatQueryResponse(BaseModel):
     agent_emoji: str = "⚔️"
     is_multi_agent: bool = False
     handoff_message: Optional[str] = None
+    # Audio response fields
+    audio_transcription: Optional[str] = None
+    audio_duration: Optional[float] = None
 
 
 class ChatFeedbackRequest(BaseModel):

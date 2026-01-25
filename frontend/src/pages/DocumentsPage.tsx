@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../components/MainLayout';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
@@ -74,6 +75,8 @@ interface DocumentStats {
 // UsefulLink e DownloadableDocument agora vêm do knowledgeResourcesApi
 
 export const DocumentsPage: React.FC = () => {
+  const { t } = useTranslation();
+
   // States para documentos (existente)
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
@@ -111,23 +114,23 @@ export const DocumentsPage: React.FC = () => {
     switch (activeTab) {
       case 'knowledge-base':
         return {
-          title: 'Base de conhecimento',
-          subtitle: 'Documentos que servem como fonte de informação para o Knight Agent'
+          title: t('documentsPage.knowledge_base'),
+          subtitle: t('documentsPage.knowledge_base_desc')
         };
       case 'useful-links':
         return {
-          title: 'Links Úteis',
-          subtitle: 'Links que o Knight Agent pode compartilhar com os colaboradores quando solicitado'
+          title: t('documentsPage.useful_links'),
+          subtitle: t('documentsPage.useful_links_desc')
         };
       case 'downloadable-docs':
         return {
-          title: 'Formulários e Documentos',
-          subtitle: 'Documentos que podem ser baixados pelos colaboradores (formulários, modelos, etc.)'
+          title: t('documentsPage.forms_and_docs'),
+          subtitle: t('documentsPage.forms_and_docs_desc')
         };
       default:
         return {
-          title: 'Gestão de conhecimento',
-          subtitle: 'Área administrativa para gerenciamento da base de conhecimento'
+          title: t('documentsPage.knowledge_management'),
+          subtitle: t('documentsPage.admin_area_desc')
         };
     }
   };
@@ -182,27 +185,27 @@ export const DocumentsPage: React.FC = () => {
   const uploadMutation = useMutation({
     mutationFn: documentsApi.upload,
     onSuccess: () => {
-      toast.success('Documento enviado para processamento');
+      toast.success(t('documentsPage.document_sent_processing'));
       queryClient.invalidateQueries({ queryKey: ['documents'] });
       queryClient.invalidateQueries({ queryKey: ['documentStats'] });
       setUploadDialogOpen(false);
       resetUploadForm();
     },
     onError: (error: any) => {
-      toast.error(error.response?.data?.error || 'Erro ao enviar documento');
+      toast.error(error.response?.data?.error || t('documentsPage.error_sending_document'));
     },
   });
 
   const deleteMutation = useMutation({
     mutationFn: documentsApi.delete,
     onSuccess: () => {
-      toast.success('Documento excluído com sucesso');
+      toast.success(t('documentsPage.document_deleted_success'));
       queryClient.invalidateQueries({ queryKey: ['documents'] });
       queryClient.invalidateQueries({ queryKey: ['documentStats'] });
       setDeleteDialogOpen(false);
     },
     onError: () => {
-      toast.error('Erro ao excluir documento');
+      toast.error(t('documentsPage.error_deleting_document'));
     },
   });
 
@@ -210,77 +213,77 @@ export const DocumentsPage: React.FC = () => {
   const createLinkMutation = useMutation({
     mutationFn: knowledgeResourcesApi.usefulLinks.create,
     onSuccess: () => {
-      toast.success('Link criado com sucesso');
+      toast.success(t('documentsPage.link_created_success'));
       queryClient.invalidateQueries({ queryKey: ['usefulLinks'] });
       setLinkDialogOpen(false);
       resetLinkForm();
     },
     onError: () => {
-      toast.error('Erro ao criar link');
+      toast.error(t('documentsPage.error_creating_link'));
     },
   });
 
   const updateLinkMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: Partial<UsefulLink> }) => 
+    mutationFn: ({ id, data }: { id: number; data: Partial<UsefulLink> }) =>
       knowledgeResourcesApi.usefulLinks.update(id, data),
     onSuccess: () => {
-      toast.success('Link atualizado com sucesso');
+      toast.success(t('documentsPage.link_updated_success'));
       queryClient.invalidateQueries({ queryKey: ['usefulLinks'] });
       setLinkDialogOpen(false);
       resetLinkForm();
     },
     onError: () => {
-      toast.error('Erro ao atualizar link');
+      toast.error(t('documentsPage.error_updating_link'));
     },
   });
 
   const deleteLinkMutation = useMutation({
     mutationFn: knowledgeResourcesApi.usefulLinks.delete,
     onSuccess: () => {
-      toast.success('Link excluído com sucesso');
+      toast.success(t('documentsPage.link_deleted_success'));
       queryClient.invalidateQueries({ queryKey: ['usefulLinks'] });
     },
     onError: () => {
-      toast.error('Erro ao excluir link');
+      toast.error(t('documentsPage.error_deleting_link'));
     },
   });
 
-  // Mutations para Documentos Baixáveis  
+  // Mutations para Documentos Baixáveis
   const createDownloadableDocMutation = useMutation({
     mutationFn: knowledgeResourcesApi.downloadableDocuments.create,
     onSuccess: () => {
-      toast.success('Documento criado com sucesso');
+      toast.success(t('documentsPage.document_created_success'));
       queryClient.invalidateQueries({ queryKey: ['downloadableDocuments'] });
       setDownloadableDocDialogOpen(false);
       resetDownloadableDocForm();
     },
     onError: () => {
-      toast.error('Erro ao criar documento');
+      toast.error(t('documentsPage.error_creating_document'));
     },
   });
 
   const updateDownloadableDocMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: FormData | Partial<DownloadableDocument> }) => 
+    mutationFn: ({ id, data }: { id: number; data: FormData | Partial<DownloadableDocument> }) =>
       knowledgeResourcesApi.downloadableDocuments.update(id, data),
     onSuccess: () => {
-      toast.success('Documento atualizado com sucesso');
+      toast.success(t('documentsPage.document_updated_success'));
       queryClient.invalidateQueries({ queryKey: ['downloadableDocuments'] });
       setDownloadableDocDialogOpen(false);
       resetDownloadableDocForm();
     },
     onError: () => {
-      toast.error('Erro ao atualizar documento');
+      toast.error(t('documentsPage.error_updating_document'));
     },
   });
 
   const deleteDownloadableDocMutation = useMutation({
     mutationFn: knowledgeResourcesApi.downloadableDocuments.delete,
     onSuccess: () => {
-      toast.success('Documento excluído com sucesso');
+      toast.success(t('documentsPage.document_deleted_success_modal'));
       queryClient.invalidateQueries({ queryKey: ['downloadableDocuments'] });
     },
     onError: () => {
-      toast.error('Erro ao excluir documento');
+      toast.error(t('documentsPage.error_deleting_document_modal'));
     },
   });
 
@@ -324,10 +327,10 @@ export const DocumentsPage: React.FC = () => {
 
   const getStatusBadge = (status: string) => {
     const statusConfig = {
-      pending: { variant: 'status-pending' as const, label: 'Pendente' },
-      processing: { variant: 'status-processing' as const, label: 'Processando' },
-      processed: { variant: 'status-processed' as const, label: 'Processado' },
-      error: { variant: 'status-error' as const, label: 'Erro' },
+      pending: { variant: 'status-pending' as const, label: t('documentsPage.pending') },
+      processing: { variant: 'status-processing' as const, label: t('documentsPage.processing_status') },
+      processed: { variant: 'status-processed' as const, label: t('documentsPage.processed_status') },
+      error: { variant: 'status-error' as const, label: t('documentsPage.error_status') },
     };
 
     const config = statusConfig[status as keyof typeof statusConfig];
@@ -356,7 +359,7 @@ export const DocumentsPage: React.FC = () => {
 
   const handleUpload = () => {
     if (!selectedFile) {
-      toast.error('Selecione um arquivo');
+      toast.error(t('documentsPage.select_file'));
       return;
     }
 
@@ -374,7 +377,7 @@ export const DocumentsPage: React.FC = () => {
       setSelectedDocument(doc);
       setViewDialogOpen(true);
     } catch (error) {
-      toast.error('Erro ao carregar conteúdo do documento');
+      toast.error(t('chatPage.error_loading_content'));
     }
   };
 
@@ -404,7 +407,7 @@ export const DocumentsPage: React.FC = () => {
 
   const handleSaveLink = () => {
     if (!linkTitle || !linkUrl) {
-      toast.error('Título e URL são obrigatórios');
+      toast.error(t('documentsPage.title_and_url_required'));
       return;
     }
 
@@ -449,7 +452,7 @@ export const DocumentsPage: React.FC = () => {
 
   const handleSaveDownloadableDoc = () => {
     if (!downloadableDocTitle || (!downloadableDocFile && !editingDownloadableDoc)) {
-      toast.error('Título e arquivo são obrigatórios');
+      toast.error(t('documentsPage.title_and_file_required'));
       return;
     }
 
@@ -485,7 +488,7 @@ export const DocumentsPage: React.FC = () => {
   const documentColumns = [
     {
       accessorKey: 'title',
-      header: 'Documento',
+      header: t('documentsPage.document'),
       cell: ({ row }: { row: { original: Document } }) => {
         const doc = row.original;
         return (
@@ -500,12 +503,12 @@ export const DocumentsPage: React.FC = () => {
     },
     {
       accessorKey: 'status',
-      header: 'Status',
+      header: t('documentsPage.status'),
       cell: ({ row }: { row: { getValue: (key: string) => any } }) => getStatusBadge(row.getValue('status')),
     },
     {
       accessorKey: 'uploaded_by_name',
-      header: 'Enviado por',
+      header: t('documentsPage.uploaded_by'),
       cell: ({ row }: { row: { original: Document } }) => {
         const name = row.original.uploaded_by_name;
         const email = row.original.uploaded_by_email;
@@ -520,7 +523,7 @@ export const DocumentsPage: React.FC = () => {
     },
     {
       accessorKey: 'access_count',
-      header: 'Popularidade',
+      header: t('documentsPage.popularity'),
       cell: ({ row }: { row: { original: Document } }) => {
         const doc = row.original;
         return (
@@ -533,21 +536,21 @@ export const DocumentsPage: React.FC = () => {
     },
     {
       accessorKey: 'created_at',
-      header: 'Data Upload',
+      header: t('documentsPage.upload_date'),
       cell: ({ row }: { row: { getValue: (key: string) => any } }) => (
         <span className="text-sm">{formatDate(row.getValue('created_at'))}</span>
       ),
     },
     {
       accessorKey: 'updated_at',
-      header: 'Última Atualização',
+      header: t('documentsPage.last_updated'),
       cell: ({ row }: { row: { getValue: (key: string) => any } }) => (
         <span className="text-sm">{formatDate(row.getValue('updated_at'))}</span>
       ),
     },
     {
       id: 'actions',
-      header: 'Ações',
+      header: t('documentsPage.actions'),
       cell: ({ row }: { row: { original: Document } }) => {
         const doc = row.original;
         return (
@@ -555,7 +558,7 @@ export const DocumentsPage: React.FC = () => {
             {doc.status === 'processed' && (
               <button
                 onClick={() => handleViewContent(doc)}
-                title="Ver conteúdo"
+                title={t('documentsPage.view_content')}
                 className="inline-flex items-center justify-center h-8 w-8 rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 style={{
                   backgroundColor: 'transparent'
@@ -585,10 +588,10 @@ export const DocumentsPage: React.FC = () => {
                   link.click();
                   document.body.removeChild(link);
                 } catch (error) {
-                  toast.error('Erro ao baixar documento');
+                  toast.error(t('documentsPage.download_error'));
                 }
               }}
-              title="Download"
+              title={t('documentsPage.download')}
               className="inline-flex items-center justify-center h-8 w-8 rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               style={{
                 backgroundColor: 'transparent'
@@ -609,7 +612,7 @@ export const DocumentsPage: React.FC = () => {
                 setSelectedDocument(doc);
                 setDeleteDialogOpen(true);
               }}
-              title="Excluir"
+              title={t('documentsPage.delete')}
               className="inline-flex items-center justify-center h-8 w-8 rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               style={{
                 backgroundColor: 'transparent'
@@ -635,7 +638,7 @@ export const DocumentsPage: React.FC = () => {
   const usefulLinksColumns = [
     {
       accessorKey: 'title',
-      header: 'Link',
+      header: t('documentsPage.link'),
       className: 'w-[300px] max-w-[300px]',
       cell: ({ row }: { row: { original: UsefulLink } }) => {
         const link = row.original;
@@ -668,7 +671,7 @@ export const DocumentsPage: React.FC = () => {
     },
     {
       accessorKey: 'category',
-      header: 'Categoria',
+      header: t('documentsPage.category'),
       cell: ({ row }: { row: { getValue: (key: string) => any } }) => (
         <Badge variant="secondary" className="whitespace-nowrap">
           {row.getValue('category')}
@@ -677,7 +680,7 @@ export const DocumentsPage: React.FC = () => {
     },
     {
       accessorKey: 'send_count',
-      header: 'Envios',
+      header: t('documentsPage.sends'),
       cell: ({ row }: { row: { getValue: (key: string) => any } }) => (
         <div className="flex items-center gap-2">
           <Activity className="h-4 w-4 text-muted-foreground" />
@@ -687,14 +690,14 @@ export const DocumentsPage: React.FC = () => {
     },
     {
       accessorKey: 'created_at',
-      header: 'Criado em',
+      header: t('documentsPage.created_at'),
       cell: ({ row }: { row: { getValue: (key: string) => any } }) => (
         <span className="text-sm">{formatDate(row.getValue('created_at'))}</span>
       ),
     },
     {
       id: 'actions',
-      header: 'Ações',
+      header: t('documentsPage.actions'),
       cell: ({ row }: { row: { original: UsefulLink } }) => {
         const link = row.original;
         return (
@@ -702,9 +705,9 @@ export const DocumentsPage: React.FC = () => {
             <button
               onClick={() => {
                 navigator.clipboard.writeText(link.url);
-                toast.success('URL copiada para a área de transferência');
+                toast.success(t('documentsPage.url_copied'));
               }}
-              title="Copiar URL"
+              title={t('documentsPage.copy_url')}
               className="inline-flex items-center justify-center h-8 w-8 rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
             >
               <Copy className="h-4 w-4" />
@@ -713,25 +716,25 @@ export const DocumentsPage: React.FC = () => {
               href={link.url}
               target="_blank"
               rel="noopener noreferrer"
-              title="Abrir link"
+              title={t('documentsPage.open_link')}
               className="inline-flex items-center justify-center h-8 w-8 rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
             >
               <ExternalLink className="h-4 w-4" />
             </a>
             <button
               onClick={() => handleOpenLinkDialog(link)}
-              title="Editar"
+              title={t('documentsPage.edit')}
               className="inline-flex items-center justify-center h-8 w-8 rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
             >
               <Edit2 className="h-4 w-4" />
             </button>
             <button
               onClick={() => {
-                if (window.confirm('Tem certeza que deseja excluir este link?')) {
+                if (window.confirm(t('documentsPage.confirm_delete_link'))) {
                   deleteLinkMutation.mutate(link.id);
                 }
               }}
-              title="Excluir"
+              title={t('documentsPage.delete')}
               className="inline-flex items-center justify-center h-8 w-8 rounded-md text-sm font-medium transition-colors hover:bg-destructive hover:text-destructive-foreground"
             >
               <Trash2 className="h-4 w-4" />
@@ -746,7 +749,7 @@ export const DocumentsPage: React.FC = () => {
   const downloadableDocumentsColumns = [
     {
       accessorKey: 'title',
-      header: 'Documento',
+      header: t('documentsPage.document'),
       cell: ({ row }: { row: { original: DownloadableDocument } }) => {
         const doc = row.original;
         return (
@@ -770,7 +773,7 @@ export const DocumentsPage: React.FC = () => {
     },
     {
       accessorKey: 'download_count',
-      header: 'Downloads',
+      header: t('documentsPage.downloads_count'),
       cell: ({ row }: { row: { getValue: (key: string) => any } }) => (
         <div className="flex items-center gap-2">
           <Download className="h-4 w-4 text-muted-foreground" />
@@ -795,27 +798,27 @@ export const DocumentsPage: React.FC = () => {
             <button
               onClick={() => {
                 // TODO: Implementar download do arquivo
-                toast.success('Download iniciado');
+                toast.success(t('documentsPage.download_started'));
               }}
-              title="Baixar arquivo"
+              title={t('documentsPage.download_file')}
               className="inline-flex items-center justify-center h-8 w-8 rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
             >
               <Download className="h-4 w-4" />
             </button>
             <button
               onClick={() => handleOpenDownloadableDocDialog(doc)}
-              title="Editar"
+              title={t('documentsPage.edit')}
               className="inline-flex items-center justify-center h-8 w-8 rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
             >
               <Edit2 className="h-4 w-4" />
             </button>
             <button
               onClick={() => {
-                if (window.confirm('Tem certeza que deseja excluir este documento?')) {
+                if (window.confirm(t('documentsPage.confirm_delete_document_modal'))) {
                   deleteDownloadableDocMutation.mutate(doc.id);
                 }
               }}
-              title="Excluir"
+              title={t('documentsPage.delete')}
               className="inline-flex items-center justify-center h-8 w-8 rounded-md text-sm font-medium transition-colors hover:bg-destructive hover:text-destructive-foreground"
             >
               <Trash2 className="h-4 w-4" />
@@ -827,7 +830,7 @@ export const DocumentsPage: React.FC = () => {
   ];
 
   return (
-    <MainLayout title="Documentos" subtitle="Gestão de conhecimento">
+    <MainLayout title={t('documents.title')} subtitle={t('documentsPage.knowledge_management')}>
       <div className="h-full overflow-y-auto custom-scrollbar">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6">
           
@@ -845,7 +848,7 @@ export const DocumentsPage: React.FC = () => {
               <Card className="p-4 bg-gradient-to-br from-card to-card/45 border border-border relative group cursor-pointer transition-all duration-300 hover:shadow-xl overflow-hidden">
                 <div className="flex items-center justify-between relative z-10">
                   <div>
-                    <p className="text-sm font-medium text-foreground">Total de documentos</p>
+                    <p className="text-sm font-medium text-foreground">{t('documentsPage.total_documents')}</p>
                     <p className="text-2xl font-bold text-muted-foreground">{stats.total_documents}</p>
                   </div>
                   <div className="relative -mt-5">
@@ -936,7 +939,7 @@ export const DocumentsPage: React.FC = () => {
               <Card className="p-4 bg-gradient-to-br from-card to-card/45 border border-border relative group cursor-pointer transition-all duration-300 hover:shadow-xl overflow-hidden">
                 <div className="flex items-center justify-between relative z-10">
                   <div>
-                    <p className="text-sm font-medium text-foreground">Processados</p>
+                    <p className="text-sm font-medium text-foreground">{t('documentsPage.processed')}</p>
                     <p className="text-2xl font-bold text-muted-foreground">{stats.processed_documents}</p>
                   </div>
                   <div className="relative -mt-5">
@@ -1027,7 +1030,7 @@ export const DocumentsPage: React.FC = () => {
               <Card className="p-4 bg-gradient-to-br from-card to-card/45 border border-border relative group cursor-pointer transition-all duration-300 hover:shadow-xl overflow-hidden">
                 <div className="flex items-center justify-between relative z-10">
                   <div>
-                    <p className="text-sm font-medium text-foreground">Em processamento</p>
+                    <p className="text-sm font-medium text-foreground">{t('documentsPage.processing')}</p>
                     <p className="text-2xl font-bold text-muted-foreground">
                       {stats.processing_documents + stats.pending_documents}
                     </p>
@@ -1120,7 +1123,7 @@ export const DocumentsPage: React.FC = () => {
               <Card className="p-4 bg-gradient-to-br from-card to-card/45 border border-border relative group cursor-pointer transition-all duration-300 hover:shadow-xl overflow-hidden">
                 <div className="flex items-center justify-between relative z-10">
                   <div>
-                    <p className="text-sm font-medium text-foreground">Total chunks</p>
+                    <p className="text-sm font-medium text-foreground">{t('documentsPage.total_chunks')}</p>
                     <p className="text-2xl font-bold text-muted-foreground">{stats.total_chunks}</p>
                   </div>
                   <div className="relative -mt-5">
@@ -1215,15 +1218,15 @@ export const DocumentsPage: React.FC = () => {
             <TabsList className="grid w-full grid-cols-3 mb-6 bg-gradient-to-br from-card to-card/45 border border-border h-auto min-h-[3rem]">
               <TabsTrigger value="knowledge-base" className="flex items-center justify-center gap-2 h-full">
                 <FileText className="h-4 w-4" />
-                Base de conhecimento
+                {t('documentsPage.knowledge_base')}
               </TabsTrigger>
               <TabsTrigger value="useful-links" className="flex items-center justify-center gap-2 h-full">
                 <LinkIcon className="h-4 w-4" />
-                Links úteis
+                {t('documentsPage.useful_links')}
               </TabsTrigger>
               <TabsTrigger value="downloadable-docs" className="flex items-center justify-center gap-2 h-full">
                 <Download className="h-4 w-4" />
-                Formulários e Docs
+                {t('documentsPage.forms_and_docs')}
               </TabsTrigger>
             </TabsList>
 
@@ -1232,9 +1235,9 @@ export const DocumentsPage: React.FC = () => {
               {error ? (
                 <Card className="p-8 text-center">
                   <XCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
-                  <p className="text-destructive mb-2">Erro ao carregar documentos</p>
+                  <p className="text-destructive mb-2">{t('documentsPage.error_loading_documents')}</p>
                   <p className="text-muted-foreground text-sm">
-                    Verifique se você está autenticado e tem permissões de administrador
+                    {t('documentsPage.check_auth_permissions')}
                   </p>
                 </Card>
               ) : isLoading ? (
@@ -1246,11 +1249,11 @@ export const DocumentsPage: React.FC = () => {
                   columns={documentColumns}
                   data={documents}
                   searchKey="title"
-                  searchPlaceholder="Buscar documentos..."
+                  searchPlaceholder={t('documentsPage.search_documents')}
                   actionButton={
                     <Button onClick={() => setUploadDialogOpen(true)} className="flex items-center gap-2">
                       <Upload className="h-4 w-4" />
-                      Upload Documento
+                      {t('documentsPage.upload_document')}
                     </Button>
                   }
                 />
@@ -1259,12 +1262,12 @@ export const DocumentsPage: React.FC = () => {
                   <div className="flex items-center justify-end mb-6">
                     <Button onClick={() => setUploadDialogOpen(true)} className="flex items-center gap-2">
                       <Upload className="h-4 w-4" />
-                      Upload Documento
+                      {t('documentsPage.upload_document')}
                     </Button>
                   </div>
                   <Card className="p-8 text-center">
                     <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                    <p className="text-muted-foreground">Nenhum documento encontrado</p>
+                    <p className="text-muted-foreground">{t('documentsPage.no_documents_found')}</p>
                   </Card>
                 </div>
               )}
@@ -1275,9 +1278,9 @@ export const DocumentsPage: React.FC = () => {
               {linksError ? (
                 <Card className="p-8 text-center">
                   <XCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
-                  <p className="text-destructive mb-2">Erro ao carregar links úteis</p>
+                  <p className="text-destructive mb-2">{t('documentsPage.error_loading_links')}</p>
                   <p className="text-muted-foreground text-sm">
-                    Verifique sua conexão e tente novamente
+                    {t('documentsPage.check_connection_try_again')}
                   </p>
                 </Card>
               ) : linksLoading ? (
@@ -1289,11 +1292,11 @@ export const DocumentsPage: React.FC = () => {
                   columns={usefulLinksColumns}
                   data={usefulLinks}
                   searchKey="title"
-                  searchPlaceholder="Buscar links..."
+                  searchPlaceholder={t('documentsPage.search_documents')}
                   actionButton={
                     <Button onClick={() => handleOpenLinkDialog()} className="flex items-center gap-2">
                       <Plus className="h-4 w-4" />
-                      Adicionar Link
+                      {t('documentsPage.add_link')}
                     </Button>
                   }
                 />
@@ -1302,12 +1305,12 @@ export const DocumentsPage: React.FC = () => {
                   <div className="flex items-center justify-end mb-6">
                     <Button onClick={() => handleOpenLinkDialog()} className="flex items-center gap-2">
                       <Plus className="h-4 w-4" />
-                      Adicionar Link
+                      {t('documentsPage.add_link')}
                     </Button>
                   </div>
                   <Card className="p-8 text-center">
                     <LinkIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                    <p className="text-muted-foreground">Nenhum link encontrado</p>
+                    <p className="text-muted-foreground">{t('documentsPage.no_links_found')}</p>
                   </Card>
                 </div>
               )}
@@ -1318,9 +1321,9 @@ export const DocumentsPage: React.FC = () => {
               {docsError ? (
                 <Card className="p-8 text-center">
                   <XCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
-                  <p className="text-destructive mb-2">Erro ao carregar documentos</p>
+                  <p className="text-destructive mb-2">{t('documentsPage.error_loading_documents')}</p>
                   <p className="text-muted-foreground text-sm">
-                    Verifique sua conexão e tente novamente
+                    {t('documentsPage.check_connection_try_again')}
                   </p>
                 </Card>
               ) : docsLoading ? (
@@ -1332,11 +1335,11 @@ export const DocumentsPage: React.FC = () => {
                   columns={downloadableDocumentsColumns}
                   data={downloadableDocuments}
                   searchKey="title"
-                  searchPlaceholder="Buscar documentos..."
+                  searchPlaceholder={t('documentsPage.search_documents')}
                   actionButton={
                     <Button onClick={() => handleOpenDownloadableDocDialog()} className="flex items-center gap-2">
                       <Upload className="h-4 w-4" />
-                      Upload Documento
+                      {t('documentsPage.upload_document')}
                     </Button>
                   }
                 />
@@ -1345,12 +1348,12 @@ export const DocumentsPage: React.FC = () => {
                   <div className="flex items-center justify-end mb-6">
                     <Button onClick={() => handleOpenDownloadableDocDialog()} className="flex items-center gap-2">
                       <Upload className="h-4 w-4" />
-                      Upload Documento
+                      {t('documentsPage.upload_document')}
                     </Button>
                   </div>
                   <Card className="p-8 text-center">
                     <FileIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                    <p className="text-muted-foreground">Nenhum documento encontrado</p>
+                    <p className="text-muted-foreground">{t('documentsPage.no_documents_found')}</p>
                   </Card>
                 </div>
               )}
@@ -1364,13 +1367,13 @@ export const DocumentsPage: React.FC = () => {
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-gradient-to-br from-background via-background/95 to-background/90 rounded-xl max-w-md w-full p-6 border border-border/30 shadow-xl">
             <h2 className="text-xl font-semibold text-foreground mb-4">
-              Upload de Documento
+              {t('documentsPage.upload_document_modal')}
             </h2>
 
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-foreground mb-2">
-                  Arquivo
+                  {t('documentsPage.file')}
                 </label>
                 <input
                   type="file"
@@ -1379,19 +1382,19 @@ export const DocumentsPage: React.FC = () => {
                   className="w-full px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent bg-background text-foreground"
                 />
                 <p className="mt-1 text-xs text-muted-foreground">
-                  PDF, Word, Excel, PowerPoint, TXT ou Markdown (máx. 50MB)
+                  {t('documentsPage.file_types_supported')}
                 </p>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-foreground mb-2">
-                  Título do Documento
+                  {t('documentsPage.document_title')}
                 </label>
                 <input
                   type="text"
                   value={documentTitle}
                   onChange={(e) => setDocumentTitle(e.target.value)}
-                  placeholder="Digite o título do documento"
+                  placeholder={t('documentsPage.type_document_title')}
                   className="w-full px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent bg-background text-foreground"
                 />
               </div>
@@ -1406,13 +1409,13 @@ export const DocumentsPage: React.FC = () => {
                   resetUploadForm();
                 }}
               >
-                Cancelar
+                {t('common.cancel')}
               </Button>
               <Button
                 onClick={handleUpload}
                 disabled={!selectedFile || uploadMutation.isPending}
               >
-                {uploadMutation.isPending ? 'Enviando...' : 'Enviar'}
+                {uploadMutation.isPending ? t('documentsPage.sending') : t('documentsPage.send')}
               </Button>
             </div>
           </div>
@@ -1428,7 +1431,7 @@ export const DocumentsPage: React.FC = () => {
                 {selectedDocument.title}
               </h2>
               <p className="text-sm text-muted-foreground mt-1">
-                Conteúdo em Markdown
+                {t('documentsPage.markdown_content')}
               </p>
             </div>
 
@@ -1447,7 +1450,7 @@ export const DocumentsPage: React.FC = () => {
                   setSelectedDocument(null);
                 }}
               >
-                Fechar
+                {t('common.close')}
               </Button>
             </div>
           </div>
@@ -1459,10 +1462,10 @@ export const DocumentsPage: React.FC = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-background rounded-lg max-w-md w-full p-6">
             <h2 className="text-xl font-semibold text-foreground mb-4">
-              Confirmar Exclusão
+              {t('documentsPage.confirm_deletion')}
             </h2>
             <p className="text-muted-foreground mb-6">
-              Tem certeza que deseja excluir o documento "{selectedDocument.title}"? Esta ação não pode ser desfeita.
+              {t('documentsPage.confirm_delete_document', { title: selectedDocument.title })}
             </p>
             <div className="flex justify-end gap-3">
               <Button
@@ -1472,7 +1475,7 @@ export const DocumentsPage: React.FC = () => {
                   setSelectedDocument(null);
                 }}
               >
-                Cancelar
+                {t('common.cancel')}
               </Button>
               <Button
                 variant="destructive"
@@ -1483,7 +1486,7 @@ export const DocumentsPage: React.FC = () => {
                 }}
                 disabled={deleteMutation.isPending}
               >
-                {deleteMutation.isPending ? 'Excluindo...' : 'Excluir'}
+                {deleteMutation.isPending ? t('documentsPage.deleting') : t('documentsPage.delete')}
               </Button>
             </div>
           </div>
@@ -1495,39 +1498,39 @@ export const DocumentsPage: React.FC = () => {
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-gradient-to-br from-background via-background/95 to-background/90 rounded-xl max-w-2xl w-full p-6 border border-border/30 shadow-xl max-h-[90vh] overflow-y-auto">
             <h2 className="text-xl font-semibold text-foreground mb-4">
-              {editingLink ? 'Editar Link Útil' : 'Adicionar Link Útil'}
+              {editingLink ? t('documentsPage.edit_useful_link') : t('documentsPage.add_useful_link')}
             </h2>
 
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-foreground mb-2">
-                  Título do Link
+                  {t('documentsPage.link_title')}
                 </label>
                 <Input
                   type="text"
                   value={linkTitle}
                   onChange={(e) => setLinkTitle(e.target.value)}
-                  placeholder="Ex: Portal RH - Sistema de Benefícios"
+                  placeholder={t('documentsPage.link_title_placeholder')}
                   className="w-full"
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-foreground mb-2">
-                  URL
+                  {t('documentsPage.url')}
                 </label>
                 <Input
                   type="url"
                   value={linkUrl}
                   onChange={(e) => setLinkUrl(e.target.value)}
-                  placeholder="https://exemplo.com"
+                  placeholder={t('documentsPage.url_placeholder')}
                   className="w-full"
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-foreground mb-2">
-                  Categoria
+                  {t('documentsPage.category')}
                 </label>
                 <Select
                   value={linkCategory}
@@ -1569,31 +1572,31 @@ export const DocumentsPage: React.FC = () => {
 
               <div>
                 <label className="block text-sm font-medium text-foreground mb-2">
-                  Descrição do Link
+                  {t('documentsPage.link_description')}
                 </label>
                 <textarea
                   value={linkDescription}
                   onChange={(e) => setLinkDescription(e.target.value)}
-                  placeholder="Descreva o que os colaboradores encontrarão neste link..."
+                  placeholder={t('documentsPage.link_description_placeholder')}
                   className="w-full px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent bg-background text-foreground min-h-[80px] resize-y"
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  Descreva o conteúdo e utilidade do link para os colaboradores
+                  {t('documentsPage.link_description_help')}
                 </p>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-foreground mb-2">
-                  Orientação para IA
+                  {t('documentsPage.ai_guidance')}
                 </label>
                 <textarea
                   value={linkAiGuidance}
                   onChange={(e) => setLinkAiGuidance(e.target.value)}
-                  placeholder="Quando o Knight Agent deve enviar este link? Descreva situações, palavras-chave ou contextos..."
+                  placeholder={t('documentsPage.ai_guidance_placeholder')}
                   className="w-full px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent bg-background text-foreground min-h-[100px] resize-y"
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  Instrua a IA sobre quando compartilhar este link (palavras-chave, contextos, situações específicas)
+                  {t('documentsPage.ai_guidance_help')}
                 </p>
               </div>
             </div>
@@ -1606,15 +1609,15 @@ export const DocumentsPage: React.FC = () => {
                   resetLinkForm();
                 }}
               >
-                Cancelar
+                {t('common.cancel')}
               </Button>
               <Button
                 onClick={handleSaveLink}
                 disabled={!linkTitle || !linkUrl || createLinkMutation.isPending || updateLinkMutation.isPending}
               >
-                {createLinkMutation.isPending || updateLinkMutation.isPending ? 
-                  'Salvando...' : 
-                  (editingLink ? 'Atualizar' : 'Salvar')
+                {createLinkMutation.isPending || updateLinkMutation.isPending ?
+                  t('documentsPage.saving') :
+                  (editingLink ? t('documentsPage.update') : t('common.save'))
                 }
               </Button>
             </div>
@@ -1627,14 +1630,14 @@ export const DocumentsPage: React.FC = () => {
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-gradient-to-br from-background via-background/95 to-background/90 rounded-xl max-w-2xl w-full p-6 border border-border/30 shadow-xl max-h-[90vh] overflow-y-auto">
             <h2 className="text-xl font-semibold text-foreground mb-4">
-              {editingDownloadableDoc ? 'Editar Documento' : 'Adicionar Documento para Download'}
+              {editingDownloadableDoc ? t('documentsPage.edit_document') : t('documentsPage.add_downloadable_document')}
             </h2>
 
             <div className="space-y-4">
               {!editingDownloadableDoc && (
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-2">
-                    Arquivo
+                    {t('documentsPage.file')}
                   </label>
                   <input
                     type="file"
@@ -1643,27 +1646,27 @@ export const DocumentsPage: React.FC = () => {
                     className="w-full px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent bg-background text-foreground"
                   />
                   <p className="mt-1 text-xs text-muted-foreground">
-                    PDF, Word, Excel, PowerPoint, TXT ou Markdown (máx. 50MB)
+                    {t('documentsPage.file_types_supported')}
                   </p>
                 </div>
               )}
 
               <div>
                 <label className="block text-sm font-medium text-foreground mb-2">
-                  Título do Documento
+                  {t('documentsPage.document_title')}
                 </label>
                 <Input
                   type="text"
                   value={downloadableDocTitle}
                   onChange={(e) => setDownloadableDocTitle(e.target.value)}
-                  placeholder="Ex: Formulário de Solicitação de Férias"
+                  placeholder={t('documentsPage.document_title_placeholder')}
                   className="w-full"
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-foreground mb-2">
-                  Categoria
+                  {t('documentsPage.category')}
                 </label>
                 <Select
                   value={downloadableDocCategory}
@@ -1705,31 +1708,31 @@ export const DocumentsPage: React.FC = () => {
 
               <div>
                 <label className="block text-sm font-medium text-foreground mb-2">
-                  Descrição do Documento
+                  {t('documentsPage.document_description')}
                 </label>
                 <textarea
                   value={downloadableDocDescription}
                   onChange={(e) => setDownloadableDocDescription(e.target.value)}
-                  placeholder="Descreva o que este documento contém e como deve ser usado..."
+                  placeholder={t('documentsPage.document_description_placeholder')}
                   className="w-full px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent bg-background text-foreground min-h-[80px] resize-y"
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  Explique o propósito e como usar este documento
+                  {t('documentsPage.document_description_help')}
                 </p>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-foreground mb-2">
-                  Orientação para IA
+                  {t('documentsPage.ai_guidance')}
                 </label>
                 <textarea
                   value={downloadableDocAiGuidance}
                   onChange={(e) => setDownloadableDocAiGuidance(e.target.value)}
-                  placeholder="Quando o Knight Agent deve disponibilizar este documento? Descreva situações, palavras-chave ou contextos..."
+                  placeholder={t('documentsPage.ai_guidance_docs_placeholder')}
                   className="w-full px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent bg-background text-foreground min-h-[100px] resize-y"
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  Instrua a IA sobre quando oferecer este documento (palavras-chave, contextos, situações específicas)
+                  {t('documentsPage.ai_guidance_docs_help')}
                 </p>
               </div>
             </div>
@@ -1742,15 +1745,15 @@ export const DocumentsPage: React.FC = () => {
                   resetDownloadableDocForm();
                 }}
               >
-                Cancelar
+                {t('common.cancel')}
               </Button>
               <Button
                 onClick={handleSaveDownloadableDoc}
                 disabled={!downloadableDocTitle || (!downloadableDocFile && !editingDownloadableDoc) || createDownloadableDocMutation.isPending || updateDownloadableDocMutation.isPending}
               >
-                {createDownloadableDocMutation.isPending || updateDownloadableDocMutation.isPending ? 
-                  'Salvando...' : 
-                  (editingDownloadableDoc ? 'Atualizar' : 'Salvar')
+                {createDownloadableDocMutation.isPending || updateDownloadableDocMutation.isPending ?
+                  t('documentsPage.saving') :
+                  (editingDownloadableDoc ? t('documentsPage.update') : t('common.save'))
                 }
               </Button>
             </div>

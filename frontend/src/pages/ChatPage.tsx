@@ -605,7 +605,7 @@ export const ChatPage: React.FC = () => {
       
     } catch (error) {
       console.error('Erro ao acessar microfone:', error);
-      toast.error('Não foi possível acessar o microfone');
+      toast.error(t('chatPage.microphone_access_error'));
     }
   };
 
@@ -668,7 +668,7 @@ export const ChatPage: React.FC = () => {
             {isLoadingHistory ? (
               <div className="text-center py-12">
                 <Loader2 className="h-8 w-8 text-muted-foreground mx-auto mb-4 animate-spin" />
-                <p className="text-muted-foreground">Carregando histórico da conversa...</p>
+                <p className="text-muted-foreground">{t('chatPage.loading_history')}</p>
               </div>
             ) : messages.length === 0 ? (
               <div className="text-center py-16 px-8">
@@ -676,10 +676,10 @@ export const ChatPage: React.FC = () => {
                   <>
                     <KnightIcon className="h-16 w-16 text-muted-foreground mx-auto mb-6" />
                     <h3 className="text-xl font-semibold text-foreground mb-3">
-                      Conversa não encontrada
+                      {t('chatPage.conversation_not_found')}
                     </h3>
                     <p className="text-muted-foreground text-base">
-                      Esta conversa pode ter sido removida ou você não tem acesso a ela.
+                      {t('chatPage.conversation_not_found_desc')}
                     </p>
                   </>
                 ) : (
@@ -748,7 +748,7 @@ export const ChatPage: React.FC = () => {
                             <div className="mt-4 space-y-2">
                               <div className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
                                 <Link className="h-3 w-3" />
-                                <span>Links Úteis</span>
+                                <span>{t('chatPage.useful_links')}</span>
                               </div>
                               <div className="space-y-1">
                                 {message.usefulLinks.map((link) => (
@@ -767,7 +767,7 @@ export const ChatPage: React.FC = () => {
                                       )}
                                     </div>
                                     <span className="text-[10px] px-1.5 py-0.5 bg-primary/10 text-primary rounded">
-                                      {link.category}
+                                      {link.category || 'Link'}
                                     </span>
                                   </a>
                                 ))}
@@ -780,7 +780,7 @@ export const ChatPage: React.FC = () => {
                             <div className="mt-4 space-y-2">
                               <div className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
                                 <FileText className="h-3 w-3" />
-                                <span>Documentos Disponíveis</span>
+                                <span>{t('chatPage.available_documents')}</span>
                               </div>
                               <div className="space-y-1">
                                 {message.downloadableDocuments.map((doc) => (
@@ -788,7 +788,7 @@ export const ChatPage: React.FC = () => {
                                     key={doc.id}
                                     onClick={async () => {
                                       try {
-                                        toast.loading('Preparando download...', { id: `download-${doc.id}` });
+                                        toast.loading(t('chatPage.preparing_download'), { id: `download-${doc.id}` });
                                         
                                         const response = await chatApi.downloadDocument(doc.id);
                                         
@@ -803,10 +803,10 @@ export const ChatPage: React.FC = () => {
                                         document.body.removeChild(a);
                                         window.URL.revokeObjectURL(url);
                                         
-                                        toast.success(`Download de ${doc.file_name} concluído!`, { id: `download-${doc.id}` });
+                                        toast.success(t('chatPage.download_completed', { filename: doc.file_name }), { id: `download-${doc.id}` });
                                       } catch (error) {
                                         console.error('Erro no download:', error);
-                                        toast.error('Erro ao baixar o arquivo', { id: `download-${doc.id}` });
+                                        toast.error(t('chatPage.download_error'), { id: `download-${doc.id}` });
                                       }
                                     }}
                                     className="flex items-center gap-2 p-2 w-full text-xs rounded-lg bg-secondary/50 hover:bg-secondary transition-colors group text-left"
@@ -822,7 +822,7 @@ export const ChatPage: React.FC = () => {
                                       </div>
                                     </div>
                                     <span className="text-[10px] px-1.5 py-0.5 bg-primary/10 text-primary rounded">
-                                      {doc.file_type.toUpperCase()}
+                                      {doc.file_type?.toUpperCase() || 'FILE'}
                                     </span>
                                   </button>
                                 ))}
@@ -856,7 +856,7 @@ export const ChatPage: React.FC = () => {
                           <div className="mt-4 space-y-2">
                             <div className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
                               <Link className="h-3 w-3" />
-                              <span>Links Úteis</span>
+                              <span>{t('chatPage.useful_links')}</span>
                             </div>
                             <div className="space-y-1">
                               {streamingMessage.usefulLinks.map((link: any) => (
@@ -875,7 +875,7 @@ export const ChatPage: React.FC = () => {
                                     )}
                                   </div>
                                   <span className="text-[10px] px-1.5 py-0.5 bg-primary/10 text-primary rounded">
-                                    {link.category}
+                                    {link.category || 'Link'}
                                   </span>
                                 </a>
                               ))}
@@ -923,13 +923,13 @@ export const ChatPage: React.FC = () => {
                 <div className="absolute -top-12 left-4 right-4 bg-gray-100 text-gray-800 px-3 py-2 rounded-lg flex items-center justify-between">
                   <div className="flex items-center space-x-2">
                     <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-                    <span className="text-sm font-medium">Gravando... {formatRecordingTime(recordingTime)}</span>
+                    <span className="text-sm font-medium">{t('chatPage.recording_time', { time: formatRecordingTime(recordingTime) })}</span>
                   </div>
                   <button
                     onClick={cancelRecording}
                     className="text-gray-800 hover:bg-gray-200 rounded px-2 py-1 text-sm"
                   >
-                    Cancelar
+                    {t('common.cancel')}
                   </button>
                 </div>
               )}
@@ -941,7 +941,7 @@ export const ChatPage: React.FC = () => {
                     <div className="flex items-center space-x-2">
                       <Volume2 className="h-4 w-4 text-muted-foreground" />
                       <span className="text-sm text-muted-foreground">
-                        Áudio gravado ({formatRecordingTime(recordingTime)})
+                        {t('chatPage.recorded_audio', { time: formatRecordingTime(recordingTime) })}
                       </span>
                     </div>
                     <button
@@ -951,7 +951,7 @@ export const ChatPage: React.FC = () => {
                       }}
                       className="text-muted-foreground hover:text-foreground text-sm"
                     >
-                      Remover
+                      {t('chatPage.remove')}
                     </button>
                   </div>
                 </div>
@@ -964,7 +964,7 @@ export const ChatPage: React.FC = () => {
                   value={inputMessage}
                   onChange={(e) => setInputMessage(e.target.value)}
                   onKeyDown={handleKeyPress}
-                  placeholder={audioBlob ? "Adicione texto opcional..." : "Digite sua mensagem ou grave um áudio..."}
+                  placeholder={audioBlob ? t('chatPage.add_optional_text') : t('chatPage.type_message_or_record')}
                   className="w-full resize-none bg-transparent text-foreground placeholder-muted-foreground focus:outline-none px-4 pt-3 pb-2 scrollbar-hide"
                   rows={1}
                   style={{ minHeight: '40px', overflowY: 'auto' }}
@@ -988,7 +988,7 @@ export const ChatPage: React.FC = () => {
                         ? 'bg-gray-100 text-gray-800 hover:bg-gray-200'
                         : 'bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground'
                     }`}
-                    title={isRecording ? 'Parar gravação' : 'Gravar áudio'}
+                    title={isRecording ? t('chatPage.stop_recording') : t('chatPage.record_audio')}
                   >
                     {isRecording ? (
                       <Square className="h-4 w-4 fill-current" />

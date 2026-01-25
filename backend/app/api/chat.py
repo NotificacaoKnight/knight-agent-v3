@@ -4,7 +4,7 @@ Chat interface API endpoints for FastAPI
 import logging
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect, Form, File, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_, case
 from sqlalchemy.orm import selectinload
@@ -232,7 +232,12 @@ async def get_chat_history(
                 useful_links=getattr(msg, 'useful_links', None),
                 downloadable_documents=getattr(msg, 'downloadable_documents', None),
                 agent_type=getattr(msg, 'agent_type', None),
-                agent_emoji=getattr(msg, 'agent_emoji', None)
+                agent_emoji=getattr(msg, 'agent_emoji', None),
+                # Audio fields
+                content_type=getattr(msg, 'content_type', 'text'),
+                audio_file=getattr(msg, 'audio_file', None),
+                audio_duration=getattr(msg, 'audio_duration', None),
+                transcription=getattr(msg, 'transcription', None)
             ))
 
         return ChatHistoryResponse(
@@ -263,21 +268,54 @@ async def get_chat_history(
 
 @router.post("/query", response_model=ChatQueryResponse)
 async def chat_query(
-    query: ChatQueryRequest,
     current_user: CurrentUser,
-    db: AsyncSession = Depends(get_async_db)
+    db: AsyncSession = Depends(get_async_db),
+    message: Optional[str] = Form(None),
+    audio_file: Optional[UploadFile] = File(None),
+    content_type: str = Form("text"),
+    session_id: Optional[int] = Form(None),
+    use_rag: bool = Form(True),
+    use_agentic: bool = Form(False),
+    mode: str = Form("auto"),
+    language: str = Form("pt"),
+    max_tokens: int = Form(1000),
+    temperature: float = Form(0.7)
 ):
     """
     Send a chat query and get response
 
+    Supports both text and audio messages
     Uses RAG/Agentic RAG to generate responses
     """
+    from app.services.audio_transcription_service import audio_transcription_service
+
     try:
+        # Process audio if provided
+        transcription = None
+        audio_duration = None
+        audio_file_path = None
+
+        if content_type == "audio" and audio_file:
+            # Process audio: transcribe, save, get duration
+            transcription, audio_file_path, audio_duration = await audio_transcription_service.process_audio(
+                audio_file=audio_file,
+                user_id=current_user.id
+            )
+
+            # Use transcription as the query text
+            query_text = transcription
+            logger.info(f"Audio processed: transcription={len(transcription)} chars, duration={audio_duration}s")
+        else:
+            # Text message
+            if not message:
+                raise HTTPException(status_code=400, detail="Message or audio_file required")
+            query_text = message
+
         # Get or create session
-        if query.session_id:
+        if session_id:
             session_result = await db.execute(
                 select(ChatSession).where(
-                    ChatSession.id == query.session_id,
+                    ChatSession.id == session_id,
                     ChatSession.user_id == current_user.id
                 )
             )
@@ -290,28 +328,33 @@ async def chat_query(
             session = ChatSession(
                 user_id=current_user.id,
                 title=f"Chat {utc_now().strftime('%Y-%m-%d %H:%M')}",
-                language=query.language,
+                language=language,
                 is_active=True
             )
             db.add(session)
             await db.commit()
             await db.refresh(session)
 
-        # Save user message
+        # Save user message with audio metadata if applicable
         user_message = ChatMessage(
             session_id=session.id,
-            content=query.query,
+            content=query_text,
             message_type='user',
-            message_metadata={'language': query.language}
+            content_type=content_type,
+            transcription=transcription if content_type == "audio" else None,
+            audio_file=audio_file_path if content_type == "audio" else None,
+            audio_duration=audio_duration if content_type == "audio" else None,
+            message_metadata={'language': language}
         )
         db.add(user_message)
         await db.commit()
+        await db.refresh(user_message)
 
         # If this is the first message in the session, update title from user message
         if session.title.startswith("Chat ") and " " in session.title:
             # Extract first 30 characters and add date
-            first_words = query.query[:30].strip()
-            if len(query.query) > 30:
+            first_words = query_text[:30].strip()
+            if len(query_text) > 30:
                 first_words += "..."
             current_date = utc_now().strftime('%d/%m/%Y')
             session.title = f"{first_words} [{current_date}]"
@@ -334,29 +377,26 @@ async def chat_query(
             })
 
         # Generate response
-        if query.use_rag:
+        if use_rag:
             # Use mode from request, or determine based on use_agentic flag
-            if hasattr(query, 'mode') and query.mode:
-                mode = query.mode
-            else:
-                mode = "deep" if query.use_agentic else "auto"
+            effective_mode = "deep" if use_agentic else mode
 
             # Use unified RAG service
             result = await rag_service.generate_answer(
-                query=query.query,
-                mode=mode,
+                query=query_text,
+                mode=effective_mode,
                 context_size=5,
-                max_tokens=query.max_tokens,
-                temperature=query.temperature,
-                language=query.language,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                language=language,
                 db=db
             )
         else:
             # Use multi-agent without RAG
             result = await multi_agent_service.process_query(
-                query=query.query,
+                query=query_text,
                 chat_history=chat_history,
-                user_language=query.language
+                user_language=language
             )
 
         # Save assistant response
@@ -402,6 +442,9 @@ async def chat_query(
                 "id": str(user_message.id),
                 "type": "user",
                 "content": user_message.content,
+                "content_type": content_type,
+                "transcription": transcription,
+                "audio_duration": audio_duration,
                 "timestamp": user_message.created_at.isoformat()
             },
             context_used=len(result.get('sources', [])) > 0,
@@ -411,7 +454,9 @@ async def chat_query(
             agent_type=agent_type,
             agent_emoji=agent_emojis.get(agent_type, '🤖'),
             is_multi_agent=result.get('is_multi_agent', False),
-            handoff_message=result.get('handoff_message')
+            handoff_message=result.get('handoff_message'),
+            audio_transcription=transcription,
+            audio_duration=audio_duration
         )
 
     except HTTPException:
@@ -742,10 +787,10 @@ async def get_chat_stats(
 @router.get("/activity")
 async def get_activity_chart_data(
     current_user: CurrentUser,
-    days: int = Query(7, ge=1, le=30),
+    days: int = Query(30, ge=1, le=365),
     db: AsyncSession = Depends(get_async_db)
 ):
-    """Get chat activity data for charts"""
+    """Get chat activity data for charts (supports up to 1 year of data)"""
     try:
         from datetime import timedelta, date as date_type
         from sqlalchemy import text

@@ -228,7 +228,24 @@ const dashboard = {
   error_loading_data: 'Erro ao carregar dados do dashboard',
   downloads_coming_soon: 'Funcionalidade de Downloads será implementada em breve',
   knight_activity: 'Atividade do Knight',
-  conversations_and_documents: 'Conversas iniciadas e documentos consultados'
+  conversations_and_documents: 'Conversas iniciadas e documentos consultados',
+
+  // Períodos do gráfico
+  last_7_days: 'Últimos 7 dias',
+  last_30_days: 'Últimos 30 dias',
+  last_3_months: 'Últimos 3 meses',
+  last_6_months: 'Últimos 6 meses',
+  last_1_year: 'Último ano',
+  seven_days: '7 dias',
+  thirty_days: '30 dias',
+  three_months: '3 meses',
+  six_months: '6 meses',
+  one_year: '1 ano',
+  total_of_last: 'Total dos últimos',
+  select_period: 'Selecionar período',
+  loading_activity_data: 'Carregando dados de atividade...',
+  conversations: 'Conversas',
+  documents_consulted: 'Documentos'
 };
 
 const chatPage = {

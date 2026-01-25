@@ -228,7 +228,24 @@ const dashboard = {
   error_loading_data: 'Error loading dashboard data',
   downloads_coming_soon: 'Downloads functionality will be implemented soon',
   knight_activity: 'Knight Activity',
-  conversations_and_documents: 'Conversations started and documents consulted'
+  conversations_and_documents: 'Conversations started and documents consulted',
+
+  // Chart time periods
+  last_7_days: 'Last 7 days',
+  last_30_days: 'Last 30 days',
+  last_3_months: 'Last 3 months',
+  last_6_months: 'Last 6 months',
+  last_1_year: 'Last 1 year',
+  seven_days: '7 days',
+  thirty_days: '30 days',
+  three_months: '3 months',
+  six_months: '6 months',
+  one_year: '1 year',
+  total_of_last: 'Total of last',
+  select_period: 'Select period',
+  loading_activity_data: 'Loading activity data...',
+  conversations: 'Conversations',
+  documents_consulted: 'Documents'
 };
 
 const chatPage = {
@@ -276,7 +293,7 @@ const chatPage = {
 const documentsPage = {
   title: 'Documents',
   subtitle: 'Knowledge management',
-  knowledge_base: 'Knowledge base',
+  knowledge_base: 'Knowledge Base',
   knowledge_base_desc: 'Documents that serve as information source for Knight Agent',
   useful_links: 'Useful Links',
   useful_links_desc: 'Links that Knight Agent can share with employees when requested',
@@ -296,9 +313,12 @@ const documentsPage = {
   status: 'Status',
   popularity: 'Popularity',
   upload_date: 'Upload Date',
+  uploaded_by: 'Uploaded by',
+  last_updated: 'Last Updated',
   actions: 'Actions',
   view_content: 'View content',
   download: 'Download',
+  download_error: 'Error downloading document',
   delete: 'Delete',
   search_documents: 'Search documents...',
   upload_document: 'Upload Document',
@@ -309,6 +329,7 @@ const documentsPage = {
   no_links_found: 'No links found',
   error_loading_links: 'Error loading useful links',
   check_connection_try_again: 'Please check your connection and try again',
+  select_file: 'Select a file',
   upload_document_modal: 'Upload Document',
   file: 'File',
   document_title: 'Document Title',

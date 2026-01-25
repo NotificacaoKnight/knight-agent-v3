@@ -216,17 +216,8 @@ class PgVectorSearchService:
                     }
                 })
 
-            # Update document access counts
-            if search_results:
-                doc_ids = list(set(r['document_id'] for r in search_results))
-                await db.execute(
-                    text(
-                        "UPDATE documents SET access_count = access_count + 1 "
-                        "WHERE id = ANY(:doc_ids)"
-                    ),
-                    {"doc_ids": doc_ids}
-                )
-                await db.commit()
+            # NOTE: Access count is now updated ONLY when documents are actually used in response
+            # See streaming_service.py for the actual increment logic
 
             return search_results
 

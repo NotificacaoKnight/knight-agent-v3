@@ -169,6 +169,9 @@ class Settings(BaseSettings):
     # Downloads Configuration
     DOWNLOADS_RETENTION_DAYS: int = Field(default=7)
 
+    # Audio Configuration
+    AUDIO_RETENTION_DAYS: int = Field(default=30)
+
     # i18n Configuration
     DEFAULT_LANGUAGE: str = Field(default="en")
     SUPPORTED_LANGUAGES: List[str] = Field(
